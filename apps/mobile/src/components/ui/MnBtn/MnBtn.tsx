@@ -8,7 +8,9 @@ import {
   TextStyle,
   TouchableOpacityProps,
 } from 'react-native';
-import { Colors, FontFamily, FontSize, Radius, Space } from '@design/tokens';
+import { useTheme } from '@design/useTheme';
+import type { Colors } from '@design/tokens';
+import { FontFamily, FontSize, Radius, Space } from '@design/tokens';
 
 type BtnVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
@@ -28,7 +30,7 @@ export function MnBtn({
   disabled,
   ...props
 }: MnBtnProps) {
-  const vs = variantStyle[variant];
+  const vs = variantStyle(useTheme(), variant);
   return (
     <TouchableOpacity
       style={[
@@ -54,31 +56,41 @@ export function MnBtn({
   );
 }
 
-const variantStyle: Record<
-  BtnVariant,
-  { container: ViewStyle; text: TextStyle; spinnerColor: string }
-> = {
-  primary: {
-    container: { backgroundColor: Colors.sage },
-    text: { color: '#fff' },
-    spinnerColor: '#fff',
-  },
-  secondary: {
-    container: { backgroundColor: Colors.sageSoft },
-    text: { color: Colors.sage },
-    spinnerColor: Colors.sage,
-  },
-  ghost: {
-    container: { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.line },
-    text: { color: Colors.ink },
-    spinnerColor: Colors.ink,
-  },
-  danger: {
-    container: { backgroundColor: Colors.red },
-    text: { color: '#fff' },
-    spinnerColor: '#fff',
-  },
-};
+type Theme = { [K in keyof typeof Colors]: string };
+
+function variantStyle(
+  t: Theme,
+  variant: BtnVariant
+): { container: ViewStyle; text: TextStyle; spinnerColor: string } {
+  // Label on a filled button is the theme's paper colour: it is the pair that
+  // clears AA on sage and red in both themes (white on dark sage is 3.1:1).
+  switch (variant) {
+    case 'primary':
+      return {
+        container: { backgroundColor: t.sage },
+        text: { color: t.paper },
+        spinnerColor: t.paper,
+      };
+    case 'secondary':
+      return {
+        container: { backgroundColor: t.sageSoft },
+        text: { color: t.sage },
+        spinnerColor: t.sage,
+      };
+    case 'ghost':
+      return {
+        container: { backgroundColor: 'transparent', borderWidth: 1, borderColor: t.line },
+        text: { color: t.ink },
+        spinnerColor: t.ink,
+      };
+    case 'danger':
+      return {
+        container: { backgroundColor: t.red },
+        text: { color: t.paper },
+        spinnerColor: t.paper,
+      };
+  }
+}
 
 const styles = StyleSheet.create({
   btn: {

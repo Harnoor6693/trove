@@ -34,7 +34,7 @@ export const DarkColors = {
   amberSoft: '#2c200a',
   ember: '#e07a3a',
   emberSoft: '#2e1d12',
-  red: '#e25241',
+  red: '#ec6858',
   redSoft: '#2c1210',
   blue: '#4da6e8',
   blueSoft: '#0d1e2c',
