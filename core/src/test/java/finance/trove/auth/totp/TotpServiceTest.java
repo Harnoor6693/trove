@@ -3,6 +3,10 @@ package finance.trove.auth.totp;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -15,8 +19,10 @@ import finance.trove.users.User;
 import finance.trove.users.UserRole;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -161,6 +167,27 @@ class TotpServiceTest {
             .hasMessageContaining("not set up");
     }
 
+    /**
+     * Stands in for the two conditional updates the way Postgres answers them: a hash is spent
+     * once, a step only if it is later than the last one spent.
+     */
+    private Set<String> backSpendsWithTheStoredRow(TotpCredential credential) {
+        Set<String> unspent = new HashSet<>(credential.getRecoveryCodesHashed());
+        long[] lastStep = {credential.getLastUsedStep()};
+        when(credentials.consumeRecoveryCode(eq(credential.getUserId()), anyString()))
+            .thenAnswer(invocation -> unspent.remove(invocation.<String>getArgument(1)) ? 1 : 0);
+        when(credentials.claimStep(eq(credential.getUserId()), anyLong()))
+            .thenAnswer(invocation -> {
+                long step = invocation.getArgument(1);
+                if (step <= lastStep[0]) {
+                    return 0;
+                }
+                lastStep[0] = step;
+                return 1;
+            });
+        return unspent;
+    }
+
     @Test
     @DisplayName("A recovery code works once and is then gone")
     void recoveryCodesAreSingleUse() {
@@ -169,13 +196,35 @@ class TotpServiceTest {
         String code = generator.codeAt("GEZDGNBVGY3TQOJQ", generator.timeStep(NOW, 30), 6);
         List<String> recovery = service.confirmEnrolment(credential.getUserId(), code, NOW);
         String first = recovery.get(0);
+        Set<String> unspent = backSpendsWithTheStoredRow(credential);
 
         assertThat(service.verify(credential.getUserId(), first, NOW)).isTrue();
-        assertThat(credential.remainingRecoveryCodes()).isEqualTo(9);
+        assertThat(unspent).hasSize(9).doesNotContain(TotpService.hash(first));
         assertThat(service.verify(credential.getUserId(), first, NOW))
             .as("a reusable recovery code is a permanent password that bypasses the factor")
             .isFalse();
-        assertThat(service.remainingRecoveryCodes(credential.getUserId())).isEqualTo(9);
+        assertThat(unspent).hasSize(9);
+        verify(securityEvents).record(eq(SecurityEventType.LOGIN_OK), eq(credential.getUserId()),
+            eq(java.util.Map.of("factor", "recovery-code", "remainingRecoveryCodes", 9)));
+    }
+
+    @Test
+    @DisplayName("A TOTP code is spent once: the second use of its step is refused")
+    void aTotpCodeIsSpentOnce() {
+        TotpCredential credential = enrolled();
+        when(credentials.findByUserId(any())).thenReturn(Optional.of(credential));
+        long step = generator.timeStep(NOW, 30);
+        service.confirmEnrolment(credential.getUserId(),
+            generator.codeAt("GEZDGNBVGY3TQOJQ", step, 6), NOW);
+        backSpendsWithTheStoredRow(credential);
+        String next = generator.codeAt("GEZDGNBVGY3TQOJQ", step + 1, 6);
+
+        assertThat(service.verify(credential.getUserId(), next, NOW)).isTrue();
+        assertThat(service.verify(credential.getUserId(), next, NOW))
+            .as("the entity read here is not locked, so a code another request already spent "
+                + "still matches it; the database's answer is the one that counts")
+            .isFalse();
+        verify(credentials, times(2)).claimStep(credential.getUserId(), step + 1);
     }
 
     @Test
@@ -185,6 +234,7 @@ class TotpServiceTest {
         when(credentials.findByUserId(any())).thenReturn(Optional.of(credential));
         String code = generator.codeAt("GEZDGNBVGY3TQOJQ", generator.timeStep(NOW, 30), 6);
         String recovery = service.confirmEnrolment(credential.getUserId(), code, NOW).get(0);
+        backSpendsWithTheStoredRow(credential);
 
         assertThat(service.verify(credential.getUserId(),
             "  " + recovery.toLowerCase(java.util.Locale.ROOT) + "  ", NOW))
