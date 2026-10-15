@@ -1,4 +1,17 @@
-import { QueryClient } from '@tanstack/react-query';
+import { AppState } from 'react-native';
+import { focusManager, QueryClient } from '@tanstack/react-query';
+
+// React Native has no window focus: without this `refetchOnWindowFocus` never
+// fires, and a screen left open through an hour in the background keeps its
+// stale numbers (B5-06). `@react-native-community/netinfo` is not a
+// dependency, so `onlineManager` is left at its default (always online); wiring
+// it is a separate decision because it adds a native module.
+focusManager.setEventListener((handleFocus) => {
+  const subscription = AppState.addEventListener('change', (state) => {
+    handleFocus(state === 'active');
+  });
+  return () => subscription.remove();
+});
 
 /**
  * The **only** `QueryClient` in the app. A second, module-scope client used to
