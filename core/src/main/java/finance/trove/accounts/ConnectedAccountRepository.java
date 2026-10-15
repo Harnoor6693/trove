@@ -103,4 +103,29 @@ public interface ConnectedAccountRepository extends UserScopedRepository<Connect
         + "transaction WHERE household_id = :h AND account_id = :id "
         + "AND transfer_group_id IS NOT NULL)", nativeQuery = true)
     int freeTransferPartners(@Param("id") UUID id, @Param("h") UUID householdId);
+
+    /**
+     * Inserts a provider account unless the household already has one for that source (B1-15).
+     * {@code ON CONFLICT DO NOTHING} rather than catching a unique violation: a violation aborts
+     * the surrounding Postgres transaction, so the caller could neither re-read the winner's row
+     * nor commit.
+     *
+     * @return 1 when this call created the row, 0 when it already existed
+     */
+    @Modifying
+    @Query(value = "INSERT INTO connected_account (household_id, user_id, source_kind, "
+        + "external_account_id, display_name, institution, account_type, currency, created_at) "
+        + "VALUES (:householdId, :userId, :sourceKind, :externalAccountId, :displayName, "
+        + ":institution, :accountType, :currency, :createdAt) "
+        + "ON CONFLICT ON CONSTRAINT connected_account_external_unique DO NOTHING",
+        nativeQuery = true)
+    int insertProviderAccountIfAbsent(@Param("householdId") UUID householdId,
+                                      @Param("userId") UUID userId,
+                                      @Param("sourceKind") String sourceKind,
+                                      @Param("externalAccountId") String externalAccountId,
+                                      @Param("displayName") String displayName,
+                                      @Param("institution") String institution,
+                                      @Param("accountType") String accountType,
+                                      @Param("currency") String currency,
+                                      @Param("createdAt") java.time.Instant createdAt);
 }
