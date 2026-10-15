@@ -57,6 +57,14 @@ public interface MerchantCategoryMapRepository extends UserScopedRepository<Merc
     /** Whether any mapping in this household still points at this category — the delete guard. */
     boolean existsByHouseholdIdAndCategoryId(UUID householdId, UUID categoryId);
 
+    /** Whether a mapping other than a machine guess (AI) still points at the category (B1-06). */
+    boolean existsByHouseholdIdAndCategoryIdAndSourceNot(UUID householdId, UUID categoryId,
+                                                         MappingSource source);
+
+    /** Drops the household's AI guesses that point at a category being deleted (B1-06). */
+    void deleteByHouseholdIdAndCategoryIdAndSource(UUID householdId, UUID categoryId,
+                                                   MappingSource source);
+
     /**
      * Idempotent upsert on {@code (household_id, normalised_merchant)} — the write
      * {@link MerchantMappingWriter} wraps in its own {@code REQUIRES_NEW} transaction.
