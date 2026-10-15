@@ -80,8 +80,8 @@ public class CsvExportBuilder {
     private static final byte[] UTF8_BOM = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
 
     /** The extra columns the full data export adds after {@link #HEADERS} (B2-03). */
-    public static final List<String> LEDGER_HEADERS = List.of("type", "accountId",
-        "transferGroupId", "pending");
+    public static final List<String> LEDGER_HEADERS = List.of("accountId", "transferGroupId",
+        "pending");
 
     /** Builds the tax document: the fixed columns plus the totals section. Never returns null. */
     public byte[] build(List<ExportRow> rows) {
