@@ -72,6 +72,9 @@
         <tomcat.version>11.0.27</tomcat.version>
         <httpcore5.version>5.4.4</httpcore5.version>
         <httpclient5.version>5.6.5</httpclient5.version>
+        <!-- Trivy CVE-2026-89407/-89425/-68497/-91776/-91777: Jackson 2.21.5 / 3.1.5 in the image. -->
+        <jackson2.version>2.21.7</jackson2.version>
+        <jackson3.version>3.1.7</jackson3.version>
         <argLine></argLine>
     </properties>
 
@@ -83,6 +86,21 @@
                 <groupId>org.testcontainers</groupId>
                 <artifactId>testcontainers-bom</artifactId>
                 <version>${testcontainers.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <!-- Jackson BOMs ahead of spring-boot-dependencies so the patched versions win. -->
+            <dependency>
+                <groupId>com.fasterxml.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
+                <version>${jackson2.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>tools.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
+                <version>${jackson3.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>

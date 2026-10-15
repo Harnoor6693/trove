@@ -11,6 +11,7 @@ name: CI
 # exactly the duplicated-minutes waste this rewrite exists to remove.
 
 on:
+  workflow_dispatch:
   push:
     branches: [master, develop, canary]
     paths:

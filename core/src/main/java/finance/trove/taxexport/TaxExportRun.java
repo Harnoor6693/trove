@@ -1,6 +1,7 @@
 package finance.trove.taxexport;
 
 import finance.trove.common.domain.Jurisdiction;
+import finance.trove.common.time.Instants;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -82,7 +83,7 @@ public class TaxExportRun {
     private Instant createdAt;
 
     @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt = Instant.now();
+    private Instant updatedAt = Instants.now();
 
     protected TaxExportRun() {
         // JPA
@@ -96,13 +97,13 @@ public class TaxExportRun {
         this.jurisdiction = jurisdiction;
         this.format = format;
         this.status = TaxExportStatus.PENDING;
-        this.createdAt = Instant.now();
+        this.createdAt = Instants.now();
         this.updatedAt = this.createdAt;
     }
 
     @PreUpdate
     void touch() {
-        this.updatedAt = Instant.now();
+        this.updatedAt = Instants.now();
     }
 
     public UUID getId() {

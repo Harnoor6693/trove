@@ -1,5 +1,6 @@
 package finance.trove.notifications.webhook;
 
+import finance.trove.common.time.Instants;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -61,10 +62,10 @@ public class WebhookSubscription {
      * entity.
      */
     @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt = Instant.now();
+    private Instant createdAt = Instants.now();
 
     @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt = Instant.now();
+    private Instant updatedAt = Instants.now();
 
     protected WebhookSubscription() {
         // JPA
@@ -80,7 +81,7 @@ public class WebhookSubscription {
 
     @PreUpdate
     void touch() {
-        this.updatedAt = Instant.now();
+        this.updatedAt = Instants.now();
     }
 
     /** Whether this subscription wants {@code eventType}. An empty list means all of them. */

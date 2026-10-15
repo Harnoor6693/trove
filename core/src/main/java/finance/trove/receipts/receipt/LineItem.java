@@ -1,5 +1,6 @@
 package finance.trove.receipts.receipt;
 
+import finance.trove.common.time.Instants;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -64,7 +65,7 @@ public class LineItem {
         this.unitPrice = unitPrice;
         this.totalPrice = totalPrice;
         this.taxable = taxable;
-        this.createdAt = Instant.now();
+        this.createdAt = Instants.now();
     }
 
     public UUID getId() {

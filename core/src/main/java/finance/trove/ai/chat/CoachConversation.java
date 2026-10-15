@@ -1,5 +1,6 @@
 package finance.trove.ai.chat;
 
+import finance.trove.common.time.Instants;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -69,7 +70,7 @@ public class CoachConversation {
     @PrePersist
     @PreUpdate
     void touch() {
-        this.updatedAt = Instant.now();
+        this.updatedAt = Instants.now();
     }
 
     public UUID getId() {
@@ -100,6 +101,6 @@ public class CoachConversation {
 
     /** Moves this conversation to the top of the member's history. */
     public void markUsed() {
-        this.updatedAt = Instant.now();
+        this.updatedAt = Instants.now();
     }
 }

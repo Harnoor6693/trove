@@ -4,12 +4,12 @@ import finance.trove.accounts.ConnectedAccountRepository;
 import finance.trove.common.domain.CurrencyCode;
 import finance.trove.common.exception.ResourceNotFoundException;
 import finance.trove.common.exception.ValidationException;
+import finance.trove.common.time.Instants;
 import finance.trove.networth.dto.LiabilityRequest;
 import finance.trove.networth.dto.LiabilityUpdateRequest;
 import finance.trove.users.User;
 import finance.trove.users.UserRepository;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -52,7 +52,7 @@ public class LiabilityService {
             request.interestRate() != null ? request.interestRate() : BigDecimal.ZERO;
         Liability liability = new Liability(householdId, userId, request.name(),
             request.liabilityType(), currency.normalise(request.balance()), interestRate, currency,
-            accountId, Instant.now());
+            accountId, Instants.now());
         return liabilities.save(liability);
     }
 

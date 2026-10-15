@@ -4,6 +4,7 @@ import finance.trove.accounts.ConnectedAccount;
 import finance.trove.accounts.ConnectedAccountRepository;
 import finance.trove.accounts.SyncStatus;
 import finance.trove.common.plugin.SourceKind;
+import finance.trove.common.time.Instants;
 import java.time.Instant;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
@@ -95,7 +96,7 @@ public class SyncStateWriter {
             .orElseThrow(() -> new IllegalStateException(
                 "The sync_log row this run opened is gone: " + logId));
         log.complete(status, fetched, created, updated, skipped, failed, errorMessage,
-            Instant.now());
+            Instants.now());
         return logs.save(log);
     }
 }

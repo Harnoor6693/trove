@@ -1,6 +1,7 @@
 package finance.trove.dataexport;
 
 import finance.trove.common.storage.LocalDiskStorage;
+import finance.trove.common.time.Instants;
 import java.time.Instant;
 import java.util.List;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
@@ -64,7 +65,7 @@ public class DataExportSweep {
     @Scheduled(cron = "0 12 * * * *", zone = "UTC")
     @SchedulerLock(name = LOCK_NAME, lockAtMostFor = "PT10M")
     public void sweepExpiredArchives() {
-        LOG.info("{} deleted {} expired export archives", LOCK_NAME, sweep(Instant.now()));
+        LOG.info("{} deleted {} expired export archives", LOCK_NAME, sweep(Instants.now()));
     }
 
     /**

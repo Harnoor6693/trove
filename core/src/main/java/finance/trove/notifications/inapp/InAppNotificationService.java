@@ -2,8 +2,10 @@ package finance.trove.notifications.inapp;
 
 import finance.trove.common.domain.PagedResult;
 import finance.trove.common.exception.ResourceNotFoundException;
+import finance.trove.common.time.Instants;
 import finance.trove.notifications.NotificationType;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -69,7 +71,7 @@ public class InAppNotificationService {
     @Transactional
     public InAppNotification markRead(UUID userId, UUID notificationId) {
         InAppNotification notification = ownedOrNotFound(userId, notificationId);
-        if (notification.markRead(clock.instant())) {
+        if (notification.markRead(now())) {
             notifications.save(notification);
         }
         return notification;
@@ -78,7 +80,7 @@ public class InAppNotificationService {
     /** Marks every unread, undismissed row read. @return how many changed */
     @Transactional
     public int markAllRead(UUID userId) {
-        return notifications.markAllRead(userId, clock.instant());
+        return notifications.markAllRead(userId, now());
     }
 
     /**
@@ -89,7 +91,7 @@ public class InAppNotificationService {
     @Transactional
     public void dismiss(UUID userId, UUID notificationId) {
         InAppNotification notification = ownedOrNotFound(userId, notificationId);
-        if (notification.dismiss(clock.instant())) {
+        if (notification.dismiss(now())) {
             notifications.save(notification);
         }
     }
@@ -109,9 +111,14 @@ public class InAppNotificationService {
         InAppNotification notification =
             new InAppNotification(userId, type, title, body, actionUrl);
         if (!announce) {
-            notification.markDeliveredSilently(clock.instant());
+            notification.markDeliveredSilently(now());
         }
         return notifications.save(notification);
+    }
+
+    /** Truncated to what the column stores; see {@link Instants}. */
+    private Instant now() {
+        return Instants.truncate(clock.instant());
     }
 
     private InAppNotification ownedOrNotFound(UUID userId, UUID notificationId) {

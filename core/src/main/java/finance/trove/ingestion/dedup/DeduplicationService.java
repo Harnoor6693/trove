@@ -4,11 +4,11 @@ import finance.trove.accounts.ConnectedAccount;
 import finance.trove.common.domain.CurrencyCode;
 import finance.trove.common.plugin.RawTransaction;
 import finance.trove.common.plugin.TransactionType;
+import finance.trove.common.time.Instants;
 import finance.trove.ingestion.RawTransactionRejectedException;
 import finance.trove.transactions.Transaction;
 import finance.trove.transactions.TransactionRepository;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -144,7 +144,7 @@ public class DeduplicationService {
             batch.markMatched(matched.getId());
             if (promotesToPosted(matched, incoming)) {
                 matched.markPosted(incoming.postedAt() != null ? incoming.postedAt()
-                    : Instant.now());
+                    : Instants.now());
                 return new Outcome(DeduplicationResult.UPDATED, matched);
             }
             return new Outcome(DeduplicationResult.SKIPPED, matched);
@@ -306,7 +306,7 @@ public class DeduplicationService {
             userId, incoming.hasProviderId() ? incoming.providerTransactionId() : null,
             incoming.amount().abs(), currency, incoming.type(), incoming.description(),
             incoming.merchantName(), incoming.date(), incoming.postedAt(), incoming.pending(),
-            false, importBatchId, Instant.now());
+            false, importBatchId, Instants.now());
         return transactions.save(transaction);
     }
 

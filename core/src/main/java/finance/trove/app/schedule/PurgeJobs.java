@@ -5,9 +5,9 @@ import finance.trove.app.ratelimit.RateLimitRules;
 import finance.trove.auth.local.LoginAttemptRepository;
 import finance.trove.auth.reset.PasswordResetService;
 import finance.trove.auth.session.RefreshTokenService;
+import finance.trove.common.time.Instants;
 import finance.trove.households.invites.InviteService;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.slf4j.Logger;
@@ -106,7 +106,7 @@ public class PurgeJobs {
     @SchedulerLock(name = "refresh-token-purge", lockAtMostFor = "PT10M")
     public void purgeRefreshTokens() {
         LOG.info("refresh-token-purge removed {} expired sessions",
-            refreshTokens.purgeExpired(Instant.now().minus(GRACE)));
+            refreshTokens.purgeExpired(Instants.now().minus(GRACE)));
     }
 
     /** §5.6 {@code invite-expiry-sweep}, daily at 03:20 UTC (gap P2-7). */
@@ -114,7 +114,7 @@ public class PurgeJobs {
     @SchedulerLock(name = "invite-expiry-sweep", lockAtMostFor = "PT10M")
     public void purgeExpiredInvites() {
         LOG.info("invite-expiry-sweep removed {} expired invitations",
-            invites.purgeExpired(Instant.now().minus(GRACE)));
+            invites.purgeExpired(Instants.now().minus(GRACE)));
     }
 
     /** The password-reset sibling of §5.6's {@code export-link-expiry-sweep}, 03:30 UTC. */
@@ -122,7 +122,7 @@ public class PurgeJobs {
     @SchedulerLock(name = "password-reset-purge", lockAtMostFor = "PT10M")
     public void purgeExpiredPasswordResets() {
         LOG.info("password-reset-purge removed {} expired reset links",
-            passwordResets.purgeExpired(Instant.now().minus(GRACE)));
+            passwordResets.purgeExpired(Instants.now().minus(GRACE)));
     }
 
     /** §5.6 {@code login-attempt-purge}, daily at 03:40 UTC (gap P2-5). */
@@ -130,7 +130,7 @@ public class PurgeJobs {
     @SchedulerLock(name = "login-attempt-purge", lockAtMostFor = "PT10M")
     public void purgeLoginAttempts() {
         LOG.info("login-attempt-purge removed {} attempts older than {}",
-            loginAttempts.purgeBefore(Instant.now().minus(LOGIN_ATTEMPT_RETENTION)),
+            loginAttempts.purgeBefore(Instants.now().minus(LOGIN_ATTEMPT_RETENTION)),
             LOGIN_ATTEMPT_RETENTION);
     }
 
@@ -145,7 +145,7 @@ public class PurgeJobs {
     @SchedulerLock(name = "audit-log-purge", lockAtMostFor = "PT10M")
     public void purgeAuditLog() {
         LOG.info("audit-log-purge removed {} audit rows older than {}",
-            auditLog.purgeBefore(Instant.now().minus(AUDIT_RETENTION)), AUDIT_RETENTION);
+            auditLog.purgeBefore(Instants.now().minus(AUDIT_RETENTION)), AUDIT_RETENTION);
     }
 
     /**

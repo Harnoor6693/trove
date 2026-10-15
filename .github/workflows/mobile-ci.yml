@@ -100,7 +100,32 @@ jobs:
         run: npm install -g detox-cli@20.51.1
 
       - name: Select Xcode 26
-        run: sudo xcode-select -s /Applications/Xcode_26.app
+        # The runner image ships versioned bundles (Xcode_26.0.app, Xcode_26.1.app, ...) and no
+        # bare Xcode_26.app, and the set drifts with each image. Take the newest 26.x present.
+        run: |
+          xcode=""
+          for app in /Applications/Xcode_26*.app; do
+            [ -d "$app" ] && xcode="$(printf '%s\n%s\n' "$xcode" "$app" | sort -V | tail -n 1)"
+          done
+          if [ -z "$xcode" ]; then
+            echo "::error::No /Applications/Xcode_26*.app on this runner image:"
+            printf '%s\n' /Applications/Xcode*.app
+            exit 1
+          fi
+          echo "Selecting $xcode"
+          sudo xcode-select -s "$xcode"
+
+      - name: Install applesimutils
+        # Detox drives the iOS simulator through it; the runner image does not ship it.
+        run: |
+          brew tap wix/brew
+          brew trust wix/brew
+          brew install applesimutils
+
+      - name: Build Detox framework cache
+        # The cache key includes the Xcode version, and npm ci's postinstall ran under the
+        # runner's default Xcode, so rebuild it for the one just selected.
+        run: detox clean-framework-cache && detox build-framework-cache
 
       - name: Expo prebuild (iOS)
         run: npx expo prebuild --platform ios --no-install --clean
@@ -111,6 +136,16 @@ jobs:
       - name: Build Detox iOS
         run: npx detox build --configuration ios.sim.debug
 
+      # The debug builds load JavaScript from Metro, so it must be running
+      # before Detox launches the app (locally it is the developer's `npm start`).
+      - name: Start Metro
+        run: |
+          nohup npx expo start --port 8081 > metro.log 2>&1 &
+          for _ in $(seq 1 90); do
+            curl -s http://localhost:8081/status | grep -q packager-status:running && exit 0
+            sleep 2
+          done
+          cat metro.log; exit 1
       - name: Run Detox iOS tests
         run: npx detox test --configuration ios.sim.debug --headless
 
@@ -162,14 +197,27 @@ jobs:
       - name: Build Detox Android
         run: npx detox build --configuration android.emu.debug
 
+      # The debug builds load JavaScript from Metro, so it must be running
+      # before Detox launches the app (locally it is the developer's `npm start`).
+      - name: Start Metro
+        run: |
+          nohup npx expo start --port 8081 > metro.log 2>&1 &
+          for _ in $(seq 1 90); do
+            curl -s http://localhost:8081/status | grep -q packager-status:running && exit 0
+            sleep 2
+          done
+          cat metro.log; exit 1
       - name: Run Detox Android tests
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
-          api-level: 34
+          # Expo SDK 57 needs API 36, and .detoxrc.js boots the AVD by name:
+          # keep api-level and avd-name in step with it.
+          api-level: 36
+          avd-name: Pixel_5_API_36
           target: google_apis
           arch: x86_64
           profile: pixel_5
-          script: cd apps/mobile && npx detox test --configuration android.emu.debug --headless
+          script: cd apps/mobile && (npx detox test --configuration android.emu.debug --headless || { adb logcat -d | grep -iE 'trove|fatal|AndroidRuntime|detox|ReactNative|SoLoader' | tail -200; exit 1; })
 
       - name: Upload Detox Android artifacts
         if: always()
