@@ -186,6 +186,22 @@ class CsvImportIT extends ImportSupport {
     }
 
     @Test
+    @DisplayName("B1-20: a preview whose stored file is gone is the 409 the contract declares")
+    void aPreviewWithNoStoredFileIsADeclaredConflict() {
+        String batchId = uploadCsv(admin, STATEMENT, accountId).path("id").asString();
+        jdbcTemplate.update("UPDATE import_batch SET mapping_json = mapping_json - 'storageKey' "
+            + "WHERE id = ?::uuid", batchId);
+
+        var response = get(appUrl("/v1/imports/" + batchId + "/preview"), admin.accessToken());
+
+        assertThat(response.statusCode())
+            .as("BaseIT checks every response against openapi/trove-core.yaml, which declared "
+                + "neither this 409 nor the 400 of a stored file that no longer parses")
+            .isEqualTo(409);
+        assertThat(Json.errorCode(response.body())).isEqualTo("conflict");
+    }
+
+    @Test
     @DisplayName("A CSV upload with no accountId is refused — the file does not say")
     void aCsvWithoutAnAccountIsRefused() {
         var response = upload(admin, STATEMENT.getBytes(java.nio.charset.StandardCharsets.UTF_8),

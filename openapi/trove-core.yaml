@@ -4032,6 +4032,9 @@ paths:
         stored counts are returned, `rows` is empty and `warnings` says why —
         the uploaded file is kept only while the batch can still be undone.
 
+        `409` when a `PREVIEW` batch no longer has its stored file, and `400` when
+        that file no longer parses, which is what the parser's reason says.
+
         Resolved inside the caller's own household, so an id belonging to another
         household is 404 and never 403.
       parameters:
@@ -4054,10 +4057,14 @@ paths:
                     properties:
                       data:
                         $ref: '#/components/schemas/ImportPreviewResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '429':
           $ref: '#/components/responses/RateLimited'
         '500':
