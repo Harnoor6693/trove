@@ -126,7 +126,7 @@ export default function ReceiptsScreen() {
               <Text style={[styles.footer, { color: theme.ink3 }]} testID="receipts-loading-more">
                 Loading more…
               </Text>
-            ) : null
+            ) : undefined
           }
         />
       </ScreenState>

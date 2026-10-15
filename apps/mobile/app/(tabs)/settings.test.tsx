@@ -187,7 +187,7 @@ beforeEach(async () => {
 
 describe('about section', () => {
   it('links to the source code — the AGPL-3.0 section 13 offer', async () => {
-    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue();
     const { getByTestId } = await renderSettings();
     expect(within(getByTestId('settings-source-code')).getByText(/AGPL-3\.0/)).toBeTruthy();
     await fireEvent.press(getByTestId('settings-source-code'));
