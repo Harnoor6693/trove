@@ -14,6 +14,7 @@ import { MnToggle } from '@components/ui/MnToggle/MnToggle';
 import { FontFamily, FontSize, Radius, Space } from '@design/tokens';
 import { useTheme } from '@design/useTheme';
 import { normaliseServerUrl } from '@api/serverUrl';
+import { logError } from '@lib/logError';
 import { probeServer } from '@api/meta';
 import { useAuthStore } from '@stores/authStore';
 import { devDefaultBaseUrl } from '@api/serverConfig';
@@ -66,6 +67,10 @@ export default function ConnectScreen() {
         meta: probe.meta,
       });
       router.replace('/(auth)/login');
+    } catch (err) {
+      // SecureStore can refuse the write (full keychain, locked device).
+      logError('CONNECT_SAVE_FAILED', err);
+      setError('Could not save the server address on this device. Try again.');
     } finally {
       setBusy(false);
     }
