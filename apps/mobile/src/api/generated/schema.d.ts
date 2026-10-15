@@ -1937,6 +1937,9 @@ export interface paths {
          *     stored counts are returned, `rows` is empty and `warnings` says why —
          *     the uploaded file is kept only while the batch can still be undone.
          *
+         *     `409` when a `PREVIEW` batch no longer has its stored file, and `400` when
+         *     that file no longer parses, which is what the parser's reason says.
+         *
          *     Resolved inside the caller's own household, so an id belonging to another
          *     household is 404 and never 403.
          */
@@ -13522,8 +13525,10 @@ export interface operations {
                     };
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["InternalServerError"];
         };
