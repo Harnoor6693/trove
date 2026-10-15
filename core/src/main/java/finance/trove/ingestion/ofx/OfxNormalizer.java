@@ -33,10 +33,11 @@ import org.springframework.stereotype.Component;
  * </ul>
  *
  * <h2>Direction</h2>
- * The sign of {@code TRNAMT} decides, as before, and {@code TRNTYPE} refines it where OFX is
- * unambiguous: a bank fee is a {@code FEE} and not merely a debit, interest is {@code INTEREST},
- * and a transfer is a {@code TRANSFER} so that the pairing job of gap P2-14 can find both legs and
- * neither is counted as spending. The raw {@code TRNTYPE} and {@code CHECKNUM} are kept in the
+ * The sign of {@code TRNAMT} decides, as before, and {@code TRNTYPE} refines it where it agrees
+ * with the sign: a bank fee is a {@code FEE} and not merely a debit, and interest earned is
+ * {@code INTEREST}. A transfer stays a {@code DEBIT} or a {@code CREDIT}, which is what the pairing
+ * job of gap P2-14 pairs into a transfer; typing it {@code TRANSFER} here hid it from that job and
+ * threw its direction away (B1-11). The raw {@code TRNTYPE} and {@code CHECKNUM} are kept in the
  * metadata map, as they were.
  */
 @Component
@@ -77,15 +78,23 @@ public class OfxNormalizer {
         return null;
     }
 
+    /**
+     * B1-11: {@code TRNTYPE} only refines a direction the sign agrees with. A fee reversal
+     * ({@code FEE}, positive) is money coming back and interest charged ({@code INT}, negative) is
+     * money going out. {@code XFER} keeps the sign's direction, because the pairing job pairs a
+     * DEBIT with a CREDIT and never a TRANSFER, and a TRANSFER says nothing about which way the
+     * money went.
+     */
     private static TransactionType type(OfxTransaction transaction, BigDecimal amount) {
         String kind = transaction.type() == null
             ? ""
             : transaction.type().trim().toUpperCase(Locale.ROOT);
-        return switch (kind) {
-            case "FEE", "SRVCHG" -> TransactionType.FEE;
-            case "INT" -> TransactionType.INTEREST;
-            case "XFER" -> TransactionType.TRANSFER;
-            default -> Amounts.direction(amount, transaction.name(), transaction.memo());
-        };
+        if (("FEE".equals(kind) || "SRVCHG".equals(kind)) && amount.signum() < 0) {
+            return TransactionType.FEE;
+        }
+        if ("INT".equals(kind) && amount.signum() >= 0) {
+            return TransactionType.INTEREST;
+        }
+        return Amounts.direction(amount, transaction.name(), transaction.memo());
     }
 }
