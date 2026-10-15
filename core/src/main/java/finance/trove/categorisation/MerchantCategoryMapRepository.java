@@ -46,7 +46,7 @@ public interface MerchantCategoryMapRepository extends UserScopedRepository<Merc
         + "and m.matchType = finance.trove.categorisation.MatchType.PREFIX "
         + "and length(m.normalisedMerchant) <= length(:merchant) "
         + "and substring(:merchant, 1, length(m.normalisedMerchant)) = m.normalisedMerchant "
-        + "order by length(m.normalisedMerchant) desc, m.priority desc")
+        + "order by length(m.normalisedMerchant) desc, m.priority asc")
     List<MerchantCategoryMap> findPrefixMatches(@Param("householdId") UUID householdId,
         @Param("merchant") String merchant);
 
