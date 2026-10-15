@@ -4,6 +4,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import pkg from './package.json';
 import detoxPkg from 'detox/package.json';
+import { withAndroidNetworkSecurityConfig } from './plugins/withAndroidNetworkSecurityConfig';
 
 // expo-build-properties' `ios.deploymentTarget` only rewrites the app's own
 // `platform :ios` line; some third-party pods vendor a resource-bundle
@@ -226,7 +227,9 @@ const withAndroidGradleHeapFix: ConfigPlugin = (config) =>
  *    and adds `NSAllowsLocalNetworking: true` — Apple's sanctioned exception
  *    for `.local`/RFC1918 hosts, which is exactly what the connect screen's
  *    "allow http on my network" opt-in permits and nothing more. Android sets
- *    `usesCleartextTraffic: false`.
+ *    `usesCleartextTraffic: false` and ships a network security config
+ *    (`plugins/withAndroidNetworkSecurityConfig.ts`) that re-allows http for
+ *    `localhost`, the emulator alias and `.local` names only (B5-03).
  *  - **No notification config.** The `expo-notifications` plugin, the
  *    `RECEIVE_BOOT_COMPLETED`/`VIBRATE` permissions and the
  *    `application-groups` entitlement all existed only for the cut native
@@ -237,7 +240,7 @@ const withAndroidGradleHeapFix: ConfigPlugin = (config) =>
  *    stalls on "Missing Compliance" (gap P4-21).
  */
 export default ({ config }: ConfigContext): ExpoConfig =>
-  withAndroidDetoxTestClass(withAndroidGradleHeapFix(withAndroidDetoxLocalMavenRepo(withAndroidDetoxGradleFix(withIosPodDeploymentTargetFix({
+  withAndroidNetworkSecurityConfig(withAndroidDetoxTestClass(withAndroidGradleHeapFix(withAndroidDetoxLocalMavenRepo(withAndroidDetoxGradleFix(withIosPodDeploymentTargetFix({
   ...config,
   name: 'Trove',
   slug: 'trove',
@@ -340,4 +343,4 @@ export default ({ config }: ConfigContext): ExpoConfig =>
       projectId: process.env.EAS_PROJECT_ID ?? '',
     },
   },
-})))));
+}))))));
