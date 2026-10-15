@@ -121,7 +121,7 @@ describe('ConnectScreen', () => {
   it('says so, and does not leave a rejected promise, when the device cannot save the server (B5-15)', async () => {
     const original = useAuthStore.getState().connectServer;
     useAuthStore.setState({
-      connectServer: jest.fn().mockRejectedValue(new Error('keychain is full')),
+      connectServer: jest.fn(() => Promise.reject(new Error('keychain is full'))),
     });
     try {
       const { getByTestId } = await render(<ConnectScreen />);
