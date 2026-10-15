@@ -25,6 +25,7 @@
 
 import { create } from 'zustand';
 import { logError } from '@lib/logError';
+import { queryClient } from '@api/queryClient';
 import * as authApi from '@api/auth';
 import {
   clearSession,
@@ -199,4 +200,18 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 onSessionEnded(() => {
   const { server } = useAuthStore.getState();
   useAuthStore.setState(signedOutState(server));
+});
+
+/**
+ * The one place the query cache is emptied (B5-02). Every ending — sign-out,
+ * a session the client ended, disconnecting, pairing with a different server —
+ * ends in `anonymous` or `disconnected`, or a changed server address. Without
+ * this the next member to sign in on the device would be served the previous
+ * member's balances from cache.
+ */
+useAuthStore.subscribe((state, prev) => {
+  const ended =
+    (state.status === 'anonymous' || state.status === 'disconnected') &&
+    prev.status !== state.status;
+  if (ended || state.server?.baseUrl !== prev.server?.baseUrl) queryClient.clear();
 });

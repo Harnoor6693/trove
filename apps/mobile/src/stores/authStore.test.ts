@@ -1,4 +1,3 @@
-import axios, { AxiosError } from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { StorageKeys } from '@api/secureStorage';
 import {
@@ -9,6 +8,7 @@ import {
 } from '@api/client';
 import { __resetServerConnectionForTests, getServerConnection } from '@api/serverConfig';
 import { useAuthStore } from './authStore';
+import { queryClient } from '@api/queryClient';
 import * as authApi from '@api/auth';
 
 jest.mock('@api/auth', () => ({
@@ -204,20 +204,22 @@ describe('disconnectServer', () => {
   });
 });
 
+let afterEachRestore: () => void = () => undefined;
+
 describe('forced logout from the client', () => {
+  afterEach(() => afterEachRestore());
+
   it('follows a rejected refresh down to anonymous, keeping the server', async () => {
     // `client.ts` clears the session when the server rejects a refresh (reuse
     // detection, §1.5). The store subscribes to that at import time, so it
     // must not be left rendering a signed-in shell over an empty token store.
     // This drives the real path: a live refresh call that 401s.
-    axios.defaults.adapter = async (config) => {
-      throw new AxiosError(
-        'Request failed',
-        AxiosError.ERR_BAD_RESPONSE,
-        config,
-        {},
-        { data: null, status: 401, statusText: '', headers: {}, config, request: {} }
-      );
+    // `client.ts` built its axios instances at import, before any adapter could
+    // be swapped in, so the stub sits one layer down, on the fetch they use.
+    const realFetch = global.fetch;
+    global.fetch = jest.fn().mockResolvedValue(new Response(null, { status: 401 }));
+    afterEachRestore = () => {
+      global.fetch = realFetch;
     };
 
     await useAuthStore.getState().connectServer(SERVER);
@@ -231,5 +233,48 @@ describe('forced logout from the client', () => {
     expect(useAuthStore.getState().user).toBeNull();
     // The server pairing survives — the user is signed out, not disconnected.
     expect(useAuthStore.getState().server?.baseUrl).toBe(SERVER.baseUrl);
+  });
+});
+
+describe('query cache (B5-02)', () => {
+  beforeEach(async () => {
+    await wipeStorage();
+    __resetClientForTests();
+    __resetServerConnectionForTests();
+    queryClient.setQueryData(['accounts'], [{ id: 'a1' }]);
+  });
+
+  afterEach(() => queryClient.clear());
+
+  it('is emptied on sign-out', async () => {
+    useAuthStore.setState({ status: 'authenticated', server: SERVER, user: USER });
+    await useAuthStore.getState().signOut();
+    expect(queryClient.getQueryData(['accounts'])).toBeUndefined();
+  });
+
+  it('is emptied when the client ends the session', async () => {
+    useAuthStore.setState({ status: 'authenticated', server: SERVER, user: USER });
+    useAuthStore.setState({ status: 'anonymous', user: null });
+    expect(queryClient.getQueryData(['accounts'])).toBeUndefined();
+  });
+
+  it('is emptied on disconnect and on pairing with another server', async () => {
+    useAuthStore.setState({ status: 'authenticated', server: SERVER, user: USER });
+    await useAuthStore.getState().disconnectServer();
+    expect(queryClient.getQueryData(['accounts'])).toBeUndefined();
+
+    queryClient.setQueryData(['accounts'], [{ id: 'a1' }]);
+    await useAuthStore
+      .getState()
+      .connectServer({ ...SERVER, baseUrl: 'https://other.example.com' });
+    expect(queryClient.getQueryData(['accounts'])).toBeUndefined();
+  });
+
+  it('survives a lock and unlock', () => {
+    useAuthStore.setState({ status: 'authenticated', server: SERVER, user: USER });
+    queryClient.setQueryData(['accounts'], [{ id: 'a1' }]);
+    useAuthStore.getState().lock();
+    useAuthStore.setState({ status: 'authenticated' });
+    expect(queryClient.getQueryData(['accounts'])).toBeDefined();
   });
 });
