@@ -137,6 +137,16 @@ describe('the account picker', () => {
   });
 });
 
+describe('the keyboard (B5-07)', () => {
+  it('scrolls above the keyboard and lets the first tap reach Save', async () => {
+    mockAccounts.mockResolvedValue([account('manual-1')]);
+    await renderScreen();
+    const form = screen.getByTestId('new-transaction-form');
+    expect(form.props.automaticallyAdjustKeyboardInsets).toBe(true);
+    expect(form.props.keyboardShouldPersistTaps).toBe('handled');
+  });
+});
+
 describe('recording a transaction', () => {
   async function fillForm() {
     mockAccounts.mockResolvedValue([account('manual-1', { displayName: 'Cash' })]);

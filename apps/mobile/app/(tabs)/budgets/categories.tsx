@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MnBtn } from '@components/ui/MnBtn/MnBtn';
@@ -17,6 +17,7 @@ import {
   useUpdateCategory,
 } from '@hooks/useCategories';
 import type { CategoryResponse } from '@api/types';
+import { FormScroll } from '@components/ui/FormScroll/FormScroll';
 
 interface CategoryNode {
   category: CategoryResponse;
@@ -67,7 +68,7 @@ export default function CategoriesScreen() {
       style={[styles.safe, { backgroundColor: theme.paper }]}
       testID="categories-screen"
     >
-      <ScrollView contentContainerStyle={styles.content}>
+      <FormScroll contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <MnBtn
             label="Back"
@@ -123,7 +124,7 @@ export default function CategoriesScreen() {
             ))}
           </View>
         </ScreenState>
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }

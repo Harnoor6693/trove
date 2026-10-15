@@ -22,6 +22,7 @@ import {
 } from '@hooks/useTaxExport';
 import type { TaxExportFile } from '@api/taxexport';
 import type { TaxExportFormat, TaxExportRunResponse } from '@api/types';
+import { keyboardScrollProps } from '@components/ui/FormScroll/FormScroll';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const FORMATS: TaxExportFormat[] = ['CSV', 'PDF'];
@@ -111,6 +112,7 @@ export default function TaxExportRunsScreen() {
         testID="tax-export-runs"
       >
         <FlatList
+          {...keyboardScrollProps}
           data={rows}
           keyExtractor={(run) => run.id}
           contentContainerStyle={styles.list}

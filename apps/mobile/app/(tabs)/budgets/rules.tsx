@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MnBtn } from '@components/ui/MnBtn/MnBtn';
@@ -22,6 +22,7 @@ import {
 } from '@hooks/useCategories';
 import type { CategoryRuleResponse, MatchType } from '@api/types';
 import { normaliseAmountInput } from '@lib/amountInput';
+import { FormScroll } from '@components/ui/FormScroll/FormScroll';
 
 /**
  * `/v1/categories/rules*` — the household's merchant rules, in the ORDER
@@ -54,7 +55,7 @@ export default function CategoryRulesScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.paper }]} testID="rules-screen">
-      <ScrollView contentContainerStyle={styles.content}>
+      <FormScroll contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <MnBtn label="Back" variant="ghost" onPress={() => router.back()} testID="rules-back" />
           <MnEyebrow>Merchant rules</MnEyebrow>
@@ -122,7 +123,7 @@ export default function CategoryRulesScreen() {
             )}
           </View>
         </ScreenState>
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }

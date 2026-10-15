@@ -24,6 +24,7 @@ import {
   type LiabilityType,
 } from '@api/types';
 import { normaliseAmountInput } from '@lib/amountInput';
+import { keyboardScrollProps } from '@components/ui/FormScroll/FormScroll';
 
 const LIABILITY_TYPES: LiabilityType[] = [
   'MORTGAGE',
@@ -96,6 +97,7 @@ export default function LiabilitiesScreen() {
         testID="liabilities"
       >
         <FlatList
+          {...keyboardScrollProps}
           data={liabilities.data ?? []}
           keyExtractor={(liability) => liability.id}
           contentContainerStyle={styles.list}
