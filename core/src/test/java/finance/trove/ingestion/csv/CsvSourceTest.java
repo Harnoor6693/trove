@@ -332,6 +332,14 @@ class CsvSourceTest {
     }
 
     @Test
+    @DisplayName("B1-10: a credit the bank calls a refund is a REFUND, so it is not income")
+    void aRefundIsNotIncome() {
+        assertThat(types(fixture("refund.csv"))).containsExactly(TransactionType.DEBIT,
+            TransactionType.REFUND, TransactionType.CREDIT, TransactionType.REFUND,
+            TransactionType.CREDIT);
+    }
+
+    @Test
     @DisplayName("the deterministic id is stable across two parses of the same bytes")
     void theIdIsStableAcrossParses() {
         String file = """

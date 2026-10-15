@@ -1,7 +1,7 @@
 package finance.trove.ingestion.simplefin;
 
 import finance.trove.common.plugin.RawTransaction;
-import finance.trove.common.plugin.TransactionType;
+import finance.trove.ingestion.Amounts;
 import finance.trove.ingestion.simplefin.dto.SimplefinAccount;
 import finance.trove.ingestion.simplefin.dto.SimplefinTransaction;
 import java.math.BigDecimal;
@@ -41,13 +41,11 @@ public class SimplefinNormalizer {
         BigDecimal amount = transaction.amount();
         LocalDate date = dateOf(transaction);
         boolean pending = transaction.posted() == null;
-        TransactionType type = amount == null || amount.signum() >= 0
-            ? TransactionType.CREDIT
-            : TransactionType.DEBIT;
         return new RawTransaction(transaction.id(), account.id(),
             amount == null ? null : amount.abs(), blankToNull(account.currency()),
             transaction.description(), null, date, transaction.posted(),
-            amount == null ? null : type, pending, Map.of());
+            amount == null ? null : Amounts.direction(amount, transaction.description()), pending,
+            Map.of());
     }
 
     private static LocalDate dateOf(SimplefinTransaction transaction) {

@@ -2,6 +2,7 @@ package finance.trove.ingestion.ofx;
 
 import finance.trove.common.plugin.RawTransaction;
 import finance.trove.common.plugin.TransactionType;
+import finance.trove.ingestion.Amounts;
 import finance.trove.ingestion.ofx.dto.OfxAccount;
 import finance.trove.ingestion.ofx.dto.OfxTransaction;
 import java.math.BigDecimal;
@@ -59,7 +60,7 @@ public class OfxNormalizer {
             transaction.datePosted() == null
                 ? null
                 : transaction.datePosted().atStartOfDay(ZoneOffset.UTC).toInstant(),
-            amount == null ? null : type(transaction.type(), amount), false, metadata);
+            amount == null ? null : type(transaction, amount), false, metadata);
     }
 
     /**
@@ -76,13 +77,15 @@ public class OfxNormalizer {
         return null;
     }
 
-    private static TransactionType type(String trnType, BigDecimal amount) {
-        String kind = trnType == null ? "" : trnType.trim().toUpperCase(Locale.ROOT);
+    private static TransactionType type(OfxTransaction transaction, BigDecimal amount) {
+        String kind = transaction.type() == null
+            ? ""
+            : transaction.type().trim().toUpperCase(Locale.ROOT);
         return switch (kind) {
             case "FEE", "SRVCHG" -> TransactionType.FEE;
             case "INT" -> TransactionType.INTEREST;
             case "XFER" -> TransactionType.TRANSFER;
-            default -> amount.signum() >= 0 ? TransactionType.CREDIT : TransactionType.DEBIT;
+            default -> Amounts.direction(amount, transaction.name(), transaction.memo());
         };
     }
 }

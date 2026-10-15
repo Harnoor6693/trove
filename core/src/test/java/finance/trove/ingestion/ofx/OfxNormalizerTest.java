@@ -39,6 +39,17 @@ class OfxNormalizerTest {
     }
 
     @Test
+    @DisplayName("B1-10: a credit whose NAME or MEMO says refund is a REFUND, not income")
+    void aRefundIsNotIncome() {
+        assertThat(normalizer.normalize(ACCOUNT, new OfxTransaction("F1", "CREDIT",
+            LocalDate.of(2026, 9, 2), null, new BigDecimal("40.00"), "AMAZON.CA", "Refund",
+            null, null)).type()).isEqualTo(TransactionType.REFUND);
+        assertThat(normalizer.normalize(ACCOUNT, new OfxTransaction("F2", "CREDIT",
+            LocalDate.of(2026, 9, 2), null, new BigDecimal("40.00"), "AMAZON.CA", null,
+            null, null)).type()).isEqualTo(TransactionType.CREDIT);
+    }
+
+    @Test
     @DisplayName("F4: CURSYM, then CURDEF, then nothing — never a literal")
     void currencyPrecedence() {
         assertThat(normalise(transaction("FEE", "-1.00", "USD")).currency()).isEqualTo("USD");
