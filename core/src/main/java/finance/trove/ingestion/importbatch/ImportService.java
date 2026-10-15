@@ -193,9 +193,12 @@ public class ImportService {
 
         SyncLog log = syncOrchestrator.sync(householdId, userId, batch.getAccountId(),
             configFor(mapping, account), batch.getId());
-        if (log.getStatus() == SyncRunStatus.FAILED) {
+        boolean everyRowRejected = log.getTransactionsFailed() > 0 && log.getTransactionsNew()
+            + log.getTransactionsUpdated() + log.getTransactionsSkipped() == 0;
+        if (log.getStatus() == SyncRunStatus.FAILED || everyRowRejected) {
             // Nothing was written, so the batch stays in PREVIEW and the member can fix the
-            // mapping and commit again. Marking it COMMITTED here would strand the upload.
+            // mapping and commit again. Marking it COMMITTED here would strand the upload: a run
+            // that rejects every row (the wrong date format) is PARTIAL_FAILURE, not FAILED (B1-17).
             return log;
         }
         undo.markCommitted(householdId, batchId, log.getTransactionsFetched(),

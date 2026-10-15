@@ -161,6 +161,31 @@ class CsvImportIT extends ImportSupport {
     }
 
     @Test
+    @DisplayName("B1-17: a commit that rejects every row leaves the batch to be committed again")
+    void aCommitThatRejectsEveryRowCanBeRetried() {
+        String batchId = uploadCsv(admin, """
+            Date,Description,Amount
+            03/09/2026,SHOP A,-1.00
+            11/09/2026,SHOP B,-2.00
+            """, accountId).path("id").asString();
+
+        JsonNode wrong = commit(admin, batchId,
+            Json.object("mapping", java.util.Map.of("dateFormat", "uuuu-MM-dd")));
+        assertThat(wrong.path("transactionsFailed").asInt()).isEqualTo(2);
+        assertThat(wrong.path("transactionsNew").asInt()).isZero();
+        assertThat(previewOf(admin, batchId).path("status").asString())
+            .as("nothing was written, so the member fixes the date format and commits again "
+                + "instead of uploading the file a second time")
+            .isEqualTo("PREVIEW");
+
+        JsonNode right = commit(admin, batchId,
+            Json.object("mapping", java.util.Map.of("dateFormat", "MM/dd/uuuu")));
+
+        assertThat(right.path("transactionsNew").asInt()).isEqualTo(2);
+        assertThat(previewOf(admin, batchId).path("status").asString()).isEqualTo("COMMITTED");
+    }
+
+    @Test
     @DisplayName("A CSV upload with no accountId is refused — the file does not say")
     void aCsvWithoutAnAccountIsRefused() {
         var response = upload(admin, STATEMENT.getBytes(java.nio.charset.StandardCharsets.UTF_8),
