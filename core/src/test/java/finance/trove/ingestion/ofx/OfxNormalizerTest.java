@@ -28,7 +28,17 @@ class OfxNormalizerTest {
         assertThat(type("FEE", "-3.00")).isEqualTo(TransactionType.FEE);
         assertThat(type("SRVCHG", "-3.00")).isEqualTo(TransactionType.FEE);
         assertThat(type("INT", "1.20")).isEqualTo(TransactionType.INTEREST);
-        assertThat(type("XFER", "-50.00")).isEqualTo(TransactionType.TRANSFER);
+        assertThat(type("XFER", "-50.00"))
+            .as("B1-11: a transfer keeps its direction, so pairing finds both legs; TRANSFER "
+                + "rows are never paired, and an outgoing one looked like an incoming one")
+            .isEqualTo(TransactionType.DEBIT);
+        assertThat(type("XFER", "50.00")).isEqualTo(TransactionType.CREDIT);
+        assertThat(type("FEE", "5.00"))
+            .as("B1-11: a fee reversal is money coming back, not a fee")
+            .isEqualTo(TransactionType.CREDIT);
+        assertThat(type("INT", "-5.00"))
+            .as("B1-11: interest charged is money going out, not interest earned")
+            .isEqualTo(TransactionType.DEBIT);
         assertThat(type("DEBIT", "-1.00")).isEqualTo(TransactionType.DEBIT);
         assertThat(type("CREDIT", "1.00")).isEqualTo(TransactionType.CREDIT);
         assertThat(type("POS", "-1.00")).isEqualTo(TransactionType.DEBIT);
