@@ -116,7 +116,9 @@ public class TransactionService {
                              TransactionPatch patch) {
         Transaction transaction = require(householdId, transactionId);
         UUID previousCategoryId = transaction.getCategoryId();
+        UUID previousGroupId = transaction.getTransferGroupId();
         boolean categoryChanged = false;
+        boolean ledgerChanged = false;
 
         if (patch.hasMerchantName()) {
             transaction.setMerchantName(patch.merchantName());
@@ -129,6 +131,9 @@ public class TransactionService {
         }
         if (patch.hasTransferGroupId()) {
             transaction.setTransferGroupId(patch.transferGroupId());
+            // Linking or unlinking moves the row in or out of every spend aggregate (B2-04).
+            ledgerChanged = !java.util.Objects.equals(transaction.getTransferGroupId(),
+                previousGroupId);
         }
         if (patch.hasCategoryId()) {
             UUID categoryId = patch.categoryId() == null
@@ -158,6 +163,9 @@ public class TransactionService {
         if (categoryChanged) {
             publishCategorised(householdId, userId, saved, previousCategoryId,
                 saved.getCategoryId());
+        } else if (ledgerChanged) {
+            publishCategorised(householdId, userId, saved, saved.getCategoryId(),
+                saved.getCategoryId());
         }
         return saved;
     }
@@ -179,6 +187,9 @@ public class TransactionService {
                 + "the account instead.");
         }
         transactions.deleteByIdAndHouseholdId(transactionId, householdId);
+        // The envelope still counts the row until it is recomputed (B2-04).
+        publishCategorised(householdId, transaction.getUserId(), transaction,
+            transaction.getCategoryId(), transaction.getCategoryId());
     }
 
     /** The scoped lookup every by-id route funnels through; empty is 404, never 403. */
