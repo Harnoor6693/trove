@@ -108,7 +108,8 @@ public class CategorisationService {
      *               because there is no member whose endpoint and whose money an AI call would be
      * @return never {@code null}
      */
-    @Transactional(readOnly = true)
+    // Deliberately NOT transactional (B1-12): the AI tier makes a network call that can take
+    // seconds, and a transaction here would pin a pooled connection for all of it.
     public CategorisationResult categorise(UUID householdId, UUID userId, String merchant,
                                            String description, BigDecimal amount,
                                            String currency) {

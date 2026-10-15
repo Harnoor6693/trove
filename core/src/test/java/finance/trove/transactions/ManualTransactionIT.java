@@ -21,6 +21,10 @@ import tools.jackson.databind.JsonNode;
  */
 class ManualTransactionIT extends LedgerSupport {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private finance.trove.categorisation.RecordingAiCategorisationTier aiTier;
+
+
     @Test
     @DisplayName("A transaction entered by hand is stored, marked manual, and categorised")
     void aManualTransactionIsStoredAndCategorised() {
@@ -173,6 +177,22 @@ class ManualTransactionIT extends LedgerSupport {
                     "Authorization", "Bearer " + admin.accessToken()));
             assertThat(response.statusCode()).as(amount).isEqualTo(400);
         }
+    }
+
+    @Test
+    @DisplayName("B1-12: the AI model call for a hand-entered row runs outside any DB transaction")
+    void theAiCallHoldsNoDatabaseTransaction() {
+        Session admin = loginBootstrapAdmin();
+        String accountId = createManualAccount(admin, "Cash " + UUID.randomUUID());
+        aiTier.reset();
+
+        createManualTransaction(admin, accountId, "5.00", "2026-09-04", "DEBIT",
+            "UNKNOWN SHOP " + UUID.randomUUID());
+
+        assertThat(aiTier.calls()).as("the AI tier was reached").isPositive();
+        assertThat(aiTier.callsInsideTransaction())
+            .as("a slow model call inside a transaction pins a pooled connection for its length")
+            .isZero();
     }
 
     @Test
