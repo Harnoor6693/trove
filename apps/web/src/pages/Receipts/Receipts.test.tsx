@@ -5,6 +5,8 @@
  * rather than an `<img src>`, and every object URL made from them is revoked.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { http } from 'msw'
+import { server } from '@/test/mswServer'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from '@/test/test-utils'
@@ -200,6 +202,28 @@ describe('Receipts — upload', () => {
     )
     // It really polled rather than reading one answer and stopping.
     expect(mswState.receiptStatusPolls).toBeGreaterThan(1)
+  })
+
+  it('refetches the list once the status poll reaches a terminal state (B4-04)', { timeout: 15000 }, async () => {
+    resetMswState({ receipts: [], receiptStatusWalk: ['PARSING', 'COMPLETE'] })
+    let listCalls = 0
+    server.use(
+      http.get('*/v1/receipts', () => {
+        listCalls += 1 // counted, then falls through to the default handler
+      })
+    )
+    const user = userEvent.setup()
+    renderWithProviders(<Receipts />)
+    await user.upload(
+      screen.getByLabelText('Choose a receipt image'),
+      new File(['x'], 'lunch.jpg', { type: 'image/jpeg' })
+    )
+    await waitFor(
+      () => expect(screen.getByTestId('receipt-upload-status')).toHaveTextContent('Needs your review'),
+      { timeout: 8000 }
+    )
+    // initial load + upload invalidation + terminal-status invalidation
+    await waitFor(() => expect(listCalls).toBeGreaterThanOrEqual(3))
   })
 
   it('shows the server’s own 413 message rather than an invented megabyte figure', async () => {
