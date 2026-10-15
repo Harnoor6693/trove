@@ -1,14 +1,17 @@
 package finance.trove.ingestion.importbatch;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import finance.trove.app.support.ImportSupport;
 import finance.trove.app.support.Json;
+import finance.trove.common.exception.ConflictException;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -33,6 +36,12 @@ class ImportBatchUndoIT extends ImportSupport {
         Date,Description,Amount
         2026-08-10,OTHER BATCH ROW,-99.00
         """;
+
+    @Autowired
+    private ImportUndoService undoService;
+
+    @Autowired
+    private ImportBatchRepository batches;
 
     private Session admin;
     private String accountId;
@@ -119,6 +128,31 @@ class ImportBatchUndoIT extends ImportSupport {
 
         assertThat(getTransaction(admin, manualId).path("id").asString()).isEqualTo(manualId);
         assertThat(transactionIds(admin, "accountId=" + accountId)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("B1-16: a commit that lost the race, or the sweep, never rewrites a committed batch")
+    void aCommittedBatchIsNeitherRecountedNorSwept() {
+        String batchId = commitFile(FIRST_FILE);
+        JsonNode before = previewOf(admin, batchId);
+        UUID id = UUID.fromString(batchId);
+        UUID household = UUID.fromString(before.path("householdId").asString());
+
+        assertThatThrownBy(() -> undoService.markCommitted(household, id, 3, 0, 3))
+            .as("a second commit that passed the PREVIEW check before the first one recorded "
+                + "itself re-ran the sync, found every row a duplicate and wrote new=0 over the "
+                + "first commit's counts")
+            .isInstanceOf(ConflictException.class);
+        assertThat(batches.deletePreview(id, household))
+            .as("the sweep read this batch as PREVIEW; by the time it deletes, it is not")
+            .isZero();
+
+        JsonNode after = previewOf(admin, batchId);
+        assertThat(after.path("status").asString()).isEqualTo("COMMITTED");
+        assertThat(after.path("newCount").asInt()).isEqualTo(before.path("newCount").asInt())
+            .isEqualTo(3);
+        assertThat(after.path("duplicateCount").asInt())
+            .isEqualTo(before.path("duplicateCount").asInt());
     }
 
     /** Uploads and commits one file, returning the batch id. */
