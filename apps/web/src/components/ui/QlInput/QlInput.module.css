@@ -5,7 +5,7 @@
   border: 1px solid var(--line-strong, rgba(27,26,23,0.20)); border-radius: var(--radius-sm);
   background: var(--paper); transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.inputRow:focus-within { border-color: var(--sage); box-shadow: 0 0 0 3px var(--sage-soft); }
+.inputRow:focus-within { border-color: var(--sage); box-shadow: 0 0 0 3px var(--sage-soft); outline: 2px solid var(--blue); outline-offset: 1px; }
 .inputRow.hasError { border-color: var(--red); }
 .inputRow.hasError:focus-within { box-shadow: 0 0 0 3px var(--red-soft); }
 .input {
