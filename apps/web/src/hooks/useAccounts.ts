@@ -16,7 +16,7 @@ import {
   syncAccount,
   updateAccount,
 } from '@api/accounts'
-import { dashboardTodayKey } from './useDashboardToday'
+import { invalidateLedger } from './useTransactions'
 import type { ApiError } from '@api/client'
 import type { AccountRequest, AccountResponse, AccountUpdateRequest, SyncLogResponse } from '@api/types'
 
@@ -35,8 +35,7 @@ export const accountSyncLogsKey = (accountId: string) =>
  */
 export function invalidateAccountsAndLedger(qc: QueryClient): void {
   void qc.invalidateQueries({ queryKey: accountsKey })
-  void qc.invalidateQueries({ queryKey: ['transactions'] })
-  void qc.invalidateQueries({ queryKey: dashboardTodayKey })
+  invalidateLedger(qc)
 }
 
 export function useAccounts() {
