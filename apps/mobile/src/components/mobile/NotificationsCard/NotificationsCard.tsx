@@ -75,7 +75,10 @@ export function NotificationsCard() {
   const save = () => {
     if (!loaded) return;
     setSaveError(null);
-    const percent = Number(budgetAlertThresholdPercent.trim());
+    // `Number('')` is 0, so a cleared field must be told apart from a typed 0
+    // here: blank means "leave the stored threshold alone", never "0 %".
+    const rawPercent = budgetAlertThresholdPercent.trim();
+    const percent = rawPercent === '' ? Number.NaN : Number(rawPercent);
     const body: NotificationPreferencesUpdateRequest = {
       inAppEnabled,
       emailEnabled,

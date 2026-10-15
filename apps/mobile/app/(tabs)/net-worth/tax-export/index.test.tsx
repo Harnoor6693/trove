@@ -93,6 +93,18 @@ it('starts an export with the chosen year and format', async () => {
   await waitFor(() => expect(mockCreate).toHaveBeenCalledWith({ taxYear: 2025, format: 'PDF' }));
 });
 
+it('does not start an export when the tax year is blank (B5-14)', async () => {
+  mockRuns.mockResolvedValue({ data: [], meta: { total: 0, page: 0, limit: 20 } });
+  await renderScreen();
+  await waitFor(() => expect(screen.getByTestId('tax-export-new-toggle')).toBeTruthy());
+
+  await fireEvent.press(screen.getByTestId('tax-export-new-toggle'));
+  await fireEvent.changeText(screen.getByTestId('tax-export-create-form-year'), '  ');
+  await fireEvent.press(screen.getByTestId('tax-export-create-form-submit'));
+
+  expect(mockCreate).not.toHaveBeenCalled();
+});
+
 it('offers "View" only once a run is COMPLETE, and previews CSV text in-app', async () => {
   mockRuns.mockResolvedValue({ data: [COMPLETE_RUN], meta: { total: 1, page: 0, limit: 20 } });
   mockRun.mockResolvedValue(COMPLETE_RUN);
