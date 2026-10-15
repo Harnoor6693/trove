@@ -13,10 +13,7 @@ import { BUDGET_TYPES, BUDGET_TYPE_HINT, BUDGET_TYPE_LABEL } from '@lib/labels';
 import { useCreateBudgetPeriod } from '@hooks/useBudgets';
 import { CURRENCY_CODES, type BudgetType, type CurrencyCode } from '@api/types';
 import { normaliseAmountInput } from '@lib/amountInput';
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+import { localDateIso } from '@lib/localDate';
 
 /**
  * `POST /v1/budgets` — open a budget period for a month.
@@ -32,7 +29,7 @@ export default function NewBudgetPeriodScreen() {
   const router = useRouter();
   const create = useCreateBudgetPeriod();
 
-  const [month, setMonth] = useState(todayIso());
+  const [month, setMonth] = useState(localDateIso());
   const [totalIncome, setTotalIncome] = useState('');
   const [currency, setCurrency] = useState<CurrencyCode | null>(null);
   const [budgetType, setBudgetType] = useState<BudgetType | null>(null);
