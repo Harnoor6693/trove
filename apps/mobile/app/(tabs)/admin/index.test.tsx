@@ -104,7 +104,7 @@ function textOf(testID: string): string {
 
 let client: ReturnType<typeof createTestQueryClient>;
 
-function renderScreen() {
+async function renderScreen() {
   client = createTestQueryClient();
   return render(
     <QueryClientProvider client={client}>
@@ -128,13 +128,13 @@ describe('the role gate', () => {
   it('shows a MEMBER the clean 403 state instead of the console', async () => {
     mockMembers.mockRejectedValue(refused(403, 'forbidden', 'Administrator role required.'));
     mockSettings.mockRejectedValue(refused(403, 'forbidden', 'Administrator role required.'));
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-forbidden')).toBeTruthy());
     expect(screen.queryByTestId('admin-member-u2')).toBeNull();
   });
 
   it('shows an ADMIN the console', async () => {
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-member-u2')).toBeTruthy());
     expect(screen.queryByTestId('admin-forbidden')).toBeNull();
   });
@@ -142,7 +142,7 @@ describe('the role gate', () => {
 
 describe('members', () => {
   it('lists the household with role, state and second-factor at a glance', async () => {
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-member-u2')).toBeTruthy());
     // `MnPill` renders its label as a child `<Text>`, not as a prop on the view.
     expect(within(screen.getByTestId('admin-member-u2-state')).getByText('Active')).toBeTruthy();
@@ -153,12 +153,12 @@ describe('members', () => {
 
   it('removes a member only after a confirmation press', async () => {
     mockDelete.mockResolvedValue(undefined);
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-member-u2')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('admin-member-u2-delete'));
+    await fireEvent.press(screen.getByTestId('admin-member-u2-delete'));
     expect(mockDelete).not.toHaveBeenCalled();
-    fireEvent.press(screen.getByTestId('admin-member-u2-delete-confirm'));
+    await fireEvent.press(screen.getByTestId('admin-member-u2-delete-confirm'));
     await waitFor(() => expect(mockDelete.mock.calls[0][0]).toBe('u2'));
   });
 
@@ -166,10 +166,10 @@ describe('members', () => {
     mockDelete.mockRejectedValue(
       refused(409, 'conflict', 'This is the household’s only administrator.')
     );
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-member-u2')).toBeTruthy());
-    fireEvent.press(screen.getByTestId('admin-member-u2-delete'));
-    fireEvent.press(screen.getByTestId('admin-member-u2-delete-confirm'));
+    await fireEvent.press(screen.getByTestId('admin-member-u2-delete'));
+    await fireEvent.press(screen.getByTestId('admin-member-u2-delete-confirm'));
     await waitFor(() =>
       expect(screen.getByTestId('admin-member-u2-error').props.children).toBe(
         'This is the household’s only administrator.'
@@ -180,10 +180,10 @@ describe('members', () => {
   it('offers restore, and the grace explanation, for an inactive member', async () => {
     mockMembers.mockResolvedValue([SELF, { ...OTHER, active: false }]);
     mockRestore.mockResolvedValue(undefined);
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-member-u2-restore')).toBeTruthy());
     expect(textOf('admin-member-u2-grace')).toMatch(/seven days/);
-    fireEvent.press(screen.getByTestId('admin-member-u2-restore'));
+    await fireEvent.press(screen.getByTestId('admin-member-u2-restore'));
     await waitFor(() => expect(mockRestore.mock.calls[0][0]).toBe('u2'));
   });
 
@@ -192,9 +192,9 @@ describe('members', () => {
     mockRestore.mockRejectedValue(
       refused(409, 'conflict', 'That account’s restore window has passed.')
     );
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-member-u2-restore')).toBeTruthy());
-    fireEvent.press(screen.getByTestId('admin-member-u2-restore'));
+    await fireEvent.press(screen.getByTestId('admin-member-u2-restore'));
     await waitFor(() =>
       expect(screen.getByTestId('admin-member-u2-error').props.children).toBe(
         'That account’s restore window has passed.'
@@ -205,17 +205,17 @@ describe('members', () => {
   it('unlocks another member and clears their second factor', async () => {
     mockUnlock.mockResolvedValue(undefined);
     mockClearTotp.mockResolvedValue(undefined);
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-member-u2-unlock')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('admin-member-u2-unlock'));
+    await fireEvent.press(screen.getByTestId('admin-member-u2-unlock'));
     await waitFor(() => expect(mockUnlock.mock.calls[0][0]).toBe('u2'));
-    fireEvent.press(screen.getByTestId('admin-member-u2-clear-totp'));
+    await fireEvent.press(screen.getByTestId('admin-member-u2-clear-totp'));
     await waitFor(() => expect(mockClearTotp.mock.calls[0][0]).toBe('u2'));
   });
 
   it('does not offer those two on the admin’s own row, and says why', async () => {
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-member-u1')).toBeTruthy());
     expect(screen.queryByTestId('admin-member-u1-unlock')).toBeNull();
     expect(screen.queryByTestId('admin-member-u1-clear-totp')).toBeNull();
@@ -226,9 +226,9 @@ describe('members', () => {
     mockUnlock.mockRejectedValue(
       refused(403, 'step-up-required', 'An admin route does not act on your own account.')
     );
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-member-u2-unlock')).toBeTruthy());
-    fireEvent.press(screen.getByTestId('admin-member-u2-unlock'));
+    await fireEvent.press(screen.getByTestId('admin-member-u2-unlock'));
     await waitFor(() =>
       expect(screen.getByTestId('admin-member-u2-error').props.children).toMatch(
         /can’t change their own security settings from here/
@@ -243,15 +243,15 @@ describe('the password reset link', () => {
       url: 'https://trove.example.test/reset-password/cmVzZXQ',
       expiresAt: '2026-09-18T19:30:00Z',
     });
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-member-u2-reset-link')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('admin-member-u2-reset-link'));
+    await fireEvent.press(screen.getByTestId('admin-member-u2-reset-link'));
     await waitFor(() => expect(screen.getByTestId('admin-reset-url')).toBeTruthy());
     expect(mockResetLink.mock.calls[0][0]).toEqual({ email: 'grace@example.com' });
     expect(screen.getByTestId('admin-reset-url').props.selectable).toBe(true);
 
-    fireEvent.press(screen.getByTestId('admin-reset-done'));
+    await fireEvent.press(screen.getByTestId('admin-reset-done'));
     await waitFor(() => expect(screen.queryByTestId('admin-reset-url')).toBeNull());
     // And it is not in any query cache — it is a mutation result, reset away.
     expect(
@@ -266,9 +266,9 @@ describe('the password reset link', () => {
 
   it('shows the 404 an address outside this household gets', async () => {
     mockResetLink.mockRejectedValue(refused(404, 'not-found', 'No such member.'));
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-member-u2-reset-link')).toBeTruthy());
-    fireEvent.press(screen.getByTestId('admin-member-u2-reset-link'));
+    await fireEvent.press(screen.getByTestId('admin-member-u2-reset-link'));
     await waitFor(() =>
       expect(screen.getByTestId('admin-reset-error').props.children).toBe('No such member.')
     );
@@ -278,22 +278,22 @@ describe('the password reset link', () => {
 describe('household settings and navigation', () => {
   it('writes the registration flag', async () => {
     mockSaveSettings.mockResolvedValue({ registrationOpen: true });
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-registration-toggle')).toBeTruthy());
     // `MnToggle` is a `<Switch>` inside the labelled row; pressing the row does
     // nothing, which is why this drives the switch's own event.
-    fireEvent(screen.getByLabelText('Anyone may sign up'), 'valueChange', true);
+    await fireEvent(screen.getByLabelText('Anyone may sign up'), 'valueChange', true);
     await waitFor(() =>
       expect(mockSaveSettings.mock.calls[0][0]).toEqual({ registrationOpen: true })
     );
   });
 
   it('opens invitations and the audit log as stack screens', async () => {
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-invites-link')).toBeTruthy());
-    fireEvent.press(screen.getByTestId('admin-invites-link'));
+    await fireEvent.press(screen.getByTestId('admin-invites-link'));
     expect(mockPush).toHaveBeenCalledWith('/(tabs)/admin/invites');
-    fireEvent.press(screen.getByTestId('admin-audit-link'));
+    await fireEvent.press(screen.getByTestId('admin-audit-link'));
     expect(mockPush).toHaveBeenCalledWith('/(tabs)/admin/audit');
   });
 });

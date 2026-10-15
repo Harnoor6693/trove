@@ -112,7 +112,7 @@ afterEach(() => {
 
 describe('ReceiptDetailScreen', () => {
   it('shows the receipt, its image and its line items', async () => {
-    const { getByTestId, getByText } = render(<ReceiptDetailScreen />, {
+    const { getByTestId, getByText } = await render(<ReceiptDetailScreen />, {
       wrapper: createWrapper(),
     });
     await waitFor(() => expect(getByText('Blue Bottle Coffee')).toBeTruthy());
@@ -123,7 +123,7 @@ describe('ReceiptDetailScreen', () => {
   });
 
   it('DISPLAYS the tax split and computes none of it', async () => {
-    const { getByTestId, getByText } = render(<ReceiptDetailScreen />, {
+    const { getByTestId, getByText } = await render(<ReceiptDetailScreen />, {
       wrapper: createWrapper(),
     });
     await waitFor(() => expect(getByTestId('receipt-tax-split')).toBeTruthy());
@@ -139,7 +139,7 @@ describe('ReceiptDetailScreen', () => {
       pstAmount: null,
       hstAmount: null,
     });
-    const { queryByTestId, getByText } = render(<ReceiptDetailScreen />, {
+    const { queryByTestId, getByText } = await render(<ReceiptDetailScreen />, {
       wrapper: createWrapper(),
     });
     await waitFor(() => expect(getByText('Blue Bottle Coffee')).toBeTruthy());
@@ -147,29 +147,29 @@ describe('ReceiptDetailScreen', () => {
   });
 
   it('offers the REVIEW action, which is a different route from a field edit', async () => {
-    const { getByTestId } = render(<ReceiptDetailScreen />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<ReceiptDetailScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('receipt-review-required')).toBeTruthy());
 
-    fireEvent.press(getByTestId('receipt-review-accept'));
+    await fireEvent.press(getByTestId('receipt-review-accept'));
     await waitFor(() => expect(mockReview).toHaveBeenCalledWith('r1', { accepted: true }));
     expect(mockPatch).not.toHaveBeenCalled();
   });
 
   it('records a rejection as a decision, not a correction', async () => {
-    const { getByTestId } = render(<ReceiptDetailScreen />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<ReceiptDetailScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('receipt-review-reject')).toBeTruthy());
-    fireEvent.press(getByTestId('receipt-review-reject'));
+    await fireEvent.press(getByTestId('receipt-review-reject'));
     await waitFor(() => expect(mockReview).toHaveBeenCalledWith('r1', { accepted: false }));
   });
 
   it('sends only the fields the member actually filled in', async () => {
-    const { getByTestId } = render(<ReceiptDetailScreen />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<ReceiptDetailScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('receipt-edit-start')).toBeTruthy());
 
-    fireEvent.press(getByTestId('receipt-edit-start'));
-    fireEvent.changeText(getByTestId('receipt-edit-merchant'), 'Metro');
-    fireEvent.changeText(getByTestId('receipt-edit-amount'), '');
-    fireEvent.press(getByTestId('receipt-edit-save'));
+    await fireEvent.press(getByTestId('receipt-edit-start'));
+    await fireEvent.changeText(getByTestId('receipt-edit-merchant'), 'Metro');
+    await fireEvent.changeText(getByTestId('receipt-edit-amount'), '');
+    await fireEvent.press(getByTestId('receipt-edit-save'));
 
     await waitFor(() => expect(mockPatch).toHaveBeenCalled());
     // An absent field is left alone by the server; an empty string would be a
@@ -179,12 +179,12 @@ describe('ReceiptDetailScreen', () => {
 
   it('explains a 409 as "still being read", not as a generic failure', async () => {
     mockPatch.mockRejectedValue(refusal(409, 'conflict', 'This receipt is still processing.'));
-    const { getByTestId } = render(<ReceiptDetailScreen />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<ReceiptDetailScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('receipt-edit-start')).toBeTruthy());
 
-    fireEvent.press(getByTestId('receipt-edit-start'));
-    fireEvent.changeText(getByTestId('receipt-edit-merchant'), 'Metro');
-    fireEvent.press(getByTestId('receipt-edit-save'));
+    await fireEvent.press(getByTestId('receipt-edit-start'));
+    await fireEvent.changeText(getByTestId('receipt-edit-merchant'), 'Metro');
+    await fireEvent.press(getByTestId('receipt-edit-save'));
 
     const shown = await waitFor(() => getByTestId('receipt-detail-action-error'));
     expect(String(shown.props.children)).toContain('still being read');
@@ -210,33 +210,33 @@ describe('ReceiptDetailScreen', () => {
         },
       } as never)
     );
-    const { getByTestId } = render(<ReceiptDetailScreen />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<ReceiptDetailScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('receipt-review-accept')).toBeTruthy());
-    fireEvent.press(getByTestId('receipt-review-accept'));
+    await fireEvent.press(getByTestId('receipt-review-accept'));
 
     const shown = await waitFor(() => getByTestId('receipt-detail-action-error'));
     expect(String(shown.props.children)).toContain('30 seconds');
   });
 
   it('confirms a delete, and says what goes with it', async () => {
-    const { getByTestId } = render(<ReceiptDetailScreen />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<ReceiptDetailScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('receipt-delete-start')).toBeTruthy());
 
-    fireEvent.press(getByTestId('receipt-delete-start'));
+    await fireEvent.press(getByTestId('receipt-delete-start'));
     // Nothing has been deleted by opening the confirmation.
     expect(mockDelete).not.toHaveBeenCalled();
 
-    fireEvent.press(getByTestId('receipt-delete-confirm'));
+    await fireEvent.press(getByTestId('receipt-delete-confirm'));
     await waitFor(() => expect(mockDelete).toHaveBeenCalledWith('r1'));
   });
 
   it('lets the member back out of a delete', async () => {
-    const { getByTestId, queryByTestId } = render(<ReceiptDetailScreen />, {
+    const { getByTestId, queryByTestId } = await render(<ReceiptDetailScreen />, {
       wrapper: createWrapper(),
     });
     await waitFor(() => expect(getByTestId('receipt-delete-start')).toBeTruthy());
-    fireEvent.press(getByTestId('receipt-delete-start'));
-    fireEvent.press(getByTestId('receipt-delete-cancel'));
+    await fireEvent.press(getByTestId('receipt-delete-start'));
+    await fireEvent.press(getByTestId('receipt-delete-cancel'));
     expect(queryByTestId('receipt-delete-confirm')).toBeNull();
     expect(mockDelete).not.toHaveBeenCalled();
   });
@@ -249,13 +249,13 @@ describe('ReceiptDetailScreen', () => {
       reviewRequired: false,
       confidence: null,
     });
-    const { getByTestId } = render(<ReceiptDetailScreen />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<ReceiptDetailScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('receipt-detail-processing')).toBeTruthy());
     expect(mockStatus).toHaveBeenCalledWith('r1');
   });
 
   it('does not poll a receipt that has already finished', async () => {
-    const { getByText } = render(<ReceiptDetailScreen />, { wrapper: createWrapper() });
+    const { getByText } = await render(<ReceiptDetailScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByText('Blue Bottle Coffee')).toBeTruthy());
     expect(mockStatus).not.toHaveBeenCalled();
   });
@@ -267,7 +267,7 @@ describe('ReceiptDetailScreen', () => {
       reviewRequired: false,
       errorMessage: 'Unsupported file type',
     });
-    const { getByTestId } = render(<ReceiptDetailScreen />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<ReceiptDetailScreen />, { wrapper: createWrapper() });
     await waitFor(() =>
       expect(getByTestId('receipt-detail-failure-reason').props.children).toBe(
         'Unsupported file type'
@@ -277,9 +277,9 @@ describe('ReceiptDetailScreen', () => {
 
   it('shows a load failure with a retry', async () => {
     mockOne.mockRejectedValue(new Error('nope'));
-    const { getByTestId } = render(<ReceiptDetailScreen />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<ReceiptDetailScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('receipt-detail-error')).toBeTruthy());
-    fireEvent.press(getByTestId('receipt-detail-retry'));
+    await fireEvent.press(getByTestId('receipt-detail-retry'));
     await waitFor(() => expect(mockOne.mock.calls.length).toBeGreaterThan(1));
   });
 });

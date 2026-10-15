@@ -132,7 +132,7 @@ describe('aiFailureCopy', () => {
 
 describe('AiSettingsCard — the API key', () => {
   it('says a key is STORED without showing one, and invents no mask', async () => {
-    const { getByTestId } = render(<AiSettingsCard />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<AiSettingsCard />, { wrapper: createWrapper() });
     // The card renders before the row arrives, so wait for the row itself —
     // waiting for the field would assert against the defaults.
     await waitFor(() =>
@@ -148,7 +148,9 @@ describe('AiSettingsCard — the API key', () => {
 
   it('says plainly when no key is stored', async () => {
     mockFetch.mockResolvedValue(DEFAULTS);
-    const { getByTestId, queryByTestId } = render(<AiSettingsCard />, { wrapper: createWrapper() });
+    const { getByTestId, queryByTestId } = await render(<AiSettingsCard />, {
+      wrapper: createWrapper(),
+    });
     await waitFor(() =>
       expect(String(getByTestId('settings-ai-key-state').props.children)).toContain(
         'No key is stored'
@@ -159,13 +161,13 @@ describe('AiSettingsCard — the API key', () => {
   });
 
   it('sends a typed key, then CLEARS it from the form and shows it nowhere', async () => {
-    const { getByTestId, queryByText, toJSON } = render(<AiSettingsCard />, {
+    const { getByTestId, queryByText, toJSON } = await render(<AiSettingsCard />, {
       wrapper: createWrapper(),
     });
     await waitFor(() => expect(getByTestId('settings-ai-save')).toBeTruthy());
 
-    fireEvent.changeText(getByTestId('settings-ai-key'), SECRET);
-    fireEvent.press(getByTestId('settings-ai-save'));
+    await fireEvent.changeText(getByTestId('settings-ai-key'), SECRET);
+    await fireEvent.press(getByTestId('settings-ai-save'));
 
     await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
     expect(mockUpdate.mock.calls[0][0].apiKey).toBe(SECRET);
@@ -178,10 +180,10 @@ describe('AiSettingsCard — the API key', () => {
   });
 
   it('never writes the key to the secure store', async () => {
-    const { getByTestId } = render(<AiSettingsCard />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<AiSettingsCard />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('settings-ai-save')).toBeTruthy());
-    fireEvent.changeText(getByTestId('settings-ai-key'), SECRET);
-    fireEvent.press(getByTestId('settings-ai-save'));
+    await fireEvent.changeText(getByTestId('settings-ai-key'), SECRET);
+    await fireEvent.press(getByTestId('settings-ai-save'));
     await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
 
     for (const call of (SecureStore.setItemAsync as jest.Mock).mock.calls) {
@@ -191,11 +193,11 @@ describe('AiSettingsCard — the API key', () => {
 
   it('leaves NOTHING of the key in the app-level MutationCache after a save', async () => {
     const { qc, Wrapper } = createWrapperWithClient();
-    const { getByTestId } = render(<AiSettingsCard />, { wrapper: Wrapper });
+    const { getByTestId } = await render(<AiSettingsCard />, { wrapper: Wrapper });
     await waitFor(() => expect(getByTestId('settings-ai-save')).toBeTruthy());
 
-    fireEvent.changeText(getByTestId('settings-ai-key'), SECRET);
-    fireEvent.press(getByTestId('settings-ai-save'));
+    await fireEvent.changeText(getByTestId('settings-ai-key'), SECRET);
+    await fireEvent.press(getByTestId('settings-ai-save'));
     await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
     await waitFor(() => expect(getByTestId('settings-ai-key').props.value).toBe(''));
 
@@ -219,11 +221,11 @@ describe('AiSettingsCard — the API key', () => {
     // variables, so the failure path is the one that matters most.
     mockUpdate.mockRejectedValue(refusal(502, 'ai-unreachable', 'Could not reach it.'));
     const { qc, Wrapper } = createWrapperWithClient();
-    const { getByTestId } = render(<AiSettingsCard />, { wrapper: Wrapper });
+    const { getByTestId } = await render(<AiSettingsCard />, { wrapper: Wrapper });
     await waitFor(() => expect(getByTestId('settings-ai-save')).toBeTruthy());
 
-    fireEvent.changeText(getByTestId('settings-ai-key'), SECRET);
-    fireEvent.press(getByTestId('settings-ai-save'));
+    await fireEvent.changeText(getByTestId('settings-ai-key'), SECRET);
+    await fireEvent.press(getByTestId('settings-ai-save'));
     await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
 
     // Cleared on every path, not only on success.
@@ -243,17 +245,17 @@ describe('AiSettingsCard — the API key', () => {
   });
 
   it('omits apiKey entirely when the member did not type one — absent leaves it alone', async () => {
-    const { getByTestId } = render(<AiSettingsCard />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<AiSettingsCard />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('settings-ai-save')).toBeTruthy());
-    fireEvent.press(getByTestId('settings-ai-save'));
+    await fireEvent.press(getByTestId('settings-ai-save'));
     await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
     expect(mockUpdate.mock.calls[0][0]).not.toHaveProperty('apiKey');
   });
 
   it('removes a key through the dedicated route, never by saving a blank one', async () => {
-    const { getByTestId } = render(<AiSettingsCard />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<AiSettingsCard />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('settings-ai-key-delete')).toBeTruthy());
-    fireEvent.press(getByTestId('settings-ai-key-delete'));
+    await fireEvent.press(getByTestId('settings-ai-key-delete'));
     await waitFor(() => expect(mockDeleteKey).toHaveBeenCalled());
     expect(mockUpdate).not.toHaveBeenCalled();
   });
@@ -261,11 +263,11 @@ describe('AiSettingsCard — the API key', () => {
 
 describe('AiSettingsCard — saving', () => {
   it('sends the WHOLE row, because PUT is a replace', async () => {
-    const { getByTestId } = render(<AiSettingsCard />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<AiSettingsCard />, { wrapper: createWrapper() });
     await waitFor(() =>
       expect(getByTestId('settings-ai-endpoint').props.value).toBe('https://ai.example.test/v1')
     );
-    fireEvent.press(getByTestId('settings-ai-save'));
+    await fireEvent.press(getByTestId('settings-ai-save'));
     await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
 
     const body = mockUpdate.mock.calls[0][0];
@@ -280,12 +282,12 @@ describe('AiSettingsCard — saving', () => {
   });
 
   it('sends a cleared endpoint as null rather than an empty string', async () => {
-    const { getByTestId } = render(<AiSettingsCard />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<AiSettingsCard />, { wrapper: createWrapper() });
     await waitFor(() =>
       expect(getByTestId('settings-ai-endpoint').props.value).toBe('https://ai.example.test/v1')
     );
-    fireEvent.changeText(getByTestId('settings-ai-endpoint'), '   ');
-    fireEvent.press(getByTestId('settings-ai-save'));
+    await fireEvent.changeText(getByTestId('settings-ai-endpoint'), '   ');
+    await fireEvent.press(getByTestId('settings-ai-save'));
     await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
     expect(mockUpdate.mock.calls[0][0].endpointUrl).toBeNull();
   });
@@ -294,13 +296,13 @@ describe('AiSettingsCard — saving', () => {
     mockUpdate.mockRejectedValue(
       refusal(400, 'outbound-url-rejected', 'https is required unless private targets are allowed.')
     );
-    const { getByTestId } = render(<AiSettingsCard />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<AiSettingsCard />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('settings-ai-endpoint')).toBeTruthy());
 
     // A private, non-https URL is typed and SENT — only the server knows
     // whether this install allows a LAN Ollama.
-    fireEvent.changeText(getByTestId('settings-ai-endpoint'), 'http://192.168.0.4:11434/v1');
-    fireEvent.press(getByTestId('settings-ai-save'));
+    await fireEvent.changeText(getByTestId('settings-ai-endpoint'), 'http://192.168.0.4:11434/v1');
+    await fireEvent.press(getByTestId('settings-ai-save'));
 
     await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
     const shown = await waitFor(() => getByTestId('settings-ai-error'));
@@ -311,10 +313,10 @@ describe('AiSettingsCard — saving', () => {
 
   it('lets the member choose the privacy tier the coach needs', async () => {
     mockFetch.mockResolvedValue(DEFAULTS);
-    const { getByTestId } = render(<AiSettingsCard />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<AiSettingsCard />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('settings-ai-tier-LOCAL_ONLY')).toBeTruthy());
-    fireEvent.press(getByTestId('settings-ai-tier-LOCAL_ONLY'));
-    fireEvent.press(getByTestId('settings-ai-save'));
+    await fireEvent.press(getByTestId('settings-ai-tier-LOCAL_ONLY'));
+    await fireEvent.press(getByTestId('settings-ai-save'));
     await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
     expect(mockUpdate.mock.calls[0][0].privacyTier).toBe('LOCAL_ONLY');
   });
@@ -328,7 +330,9 @@ describe('AiSettingsCard — before the row arrives', () => {
         release = resolve;
       })
     );
-    const { getByTestId, queryByTestId } = render(<AiSettingsCard />, { wrapper: createWrapper() });
+    const { getByTestId, queryByTestId } = await render(<AiSettingsCard />, {
+      wrapper: createWrapper(),
+    });
 
     expect(getByTestId('settings-ai-loading')).toBeTruthy();
     // Nothing to press: a Save against the useState defaults would send
@@ -339,7 +343,7 @@ describe('AiSettingsCard — before the row arrives', () => {
     // …and it does not claim there is no key, which it has not been told.
     expect(queryByTestId('settings-ai-key-state')).toBeNull();
 
-    act(() => release(SAVED));
+    await act(() => release(SAVED));
     await waitFor(() => expect(getByTestId('settings-ai-save')).toBeTruthy());
     expect(getByTestId('settings-ai-endpoint').props.value).toBe('https://ai.example.test/v1');
     expect(mockUpdate).not.toHaveBeenCalled();
@@ -347,7 +351,9 @@ describe('AiSettingsCard — before the row arrives', () => {
 
   it('shows the refusal when the settings cannot be loaded, and still offers no Save', async () => {
     mockFetch.mockRejectedValue(refusal(503, 'service-unavailable', 'The limiter is down.'));
-    const { getByTestId, queryByTestId } = render(<AiSettingsCard />, { wrapper: createWrapper() });
+    const { getByTestId, queryByTestId } = await render(<AiSettingsCard />, {
+      wrapper: createWrapper(),
+    });
 
     const shown = await waitFor(() => getByTestId('settings-ai-load-error'));
     expect(String(shown.props.children)).toContain('could not be loaded');
@@ -361,14 +367,14 @@ describe('AiSettingsCard — before the row arrives', () => {
     mockFetch.mockRejectedValue(
       refusal(429, 'rate-limited', 'Too many requests.', { 'retry-after': '30' })
     );
-    const { getByTestId } = render(<AiSettingsCard />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<AiSettingsCard />, { wrapper: createWrapper() });
     const shown = await waitFor(() => getByTestId('settings-ai-load-error'));
     expect(String(shown.props.children)).toContain('in 30 seconds');
   });
 
   it('falls back to "in a moment" when a proxy stripped Retry-After', async () => {
     mockFetch.mockRejectedValue(refusal(429, 'rate-limited', 'Too many requests.'));
-    const { getByTestId } = render(<AiSettingsCard />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<AiSettingsCard />, { wrapper: createWrapper() });
     const shown = await waitFor(() => getByTestId('settings-ai-load-error'));
     expect(String(shown.props.children)).toContain('in a moment');
   });
@@ -381,18 +387,18 @@ describe('AiSettingsCard — models and testing', () => {
       { id: 'qwen2.5:14b', ownedBy: 'library', created: null },
       { id: 'llama3.2:3b', ownedBy: null, created: null },
     ]);
-    const { getByTestId } = render(<AiSettingsCard />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<AiSettingsCard />, { wrapper: createWrapper() });
 
     await waitFor(() => expect(getByTestId('settings-ai-model-choices')).toBeTruthy());
-    fireEvent.press(getByTestId('settings-ai-model-llama3.2:3b'));
-    fireEvent.press(getByTestId('settings-ai-save'));
+    await fireEvent.press(getByTestId('settings-ai-model-llama3.2:3b'));
+    await fireEvent.press(getByTestId('settings-ai-save'));
     await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
     expect(mockUpdate.mock.calls[0][0].model).toBe('llama3.2:3b');
   });
 
   it('asks for no models when no endpoint is saved', async () => {
     mockFetch.mockResolvedValue(DEFAULTS);
-    const { getByTestId } = render(<AiSettingsCard />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<AiSettingsCard />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('settings-ai-save')).toBeTruthy());
     expect(mockModels).not.toHaveBeenCalled();
   });
@@ -405,9 +411,9 @@ describe('AiSettingsCard — models and testing', () => {
       modelCount: 12,
       visionModelPresent: null,
     });
-    const { getByTestId } = render(<AiSettingsCard />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<AiSettingsCard />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('settings-ai-test')).toBeTruthy());
-    fireEvent.press(getByTestId('settings-ai-test'));
+    await fireEvent.press(getByTestId('settings-ai-test'));
 
     const shown = await waitFor(() => getByTestId('settings-ai-test-ok'));
     const text = (shown.props.children as unknown[]).join('');
@@ -423,24 +429,24 @@ describe('AiSettingsCard — models and testing', () => {
       modelCount: 12,
       visionModelPresent: false,
     });
-    const { getByTestId } = render(<AiSettingsCard />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<AiSettingsCard />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('settings-ai-test')).toBeTruthy());
-    fireEvent.press(getByTestId('settings-ai-test'));
+    await fireEvent.press(getByTestId('settings-ai-test'));
     const shown = await waitFor(() => getByTestId('settings-ai-test-ok'));
     expect((shown.props.children as unknown[]).join('')).toContain('manual path');
   });
 
   it('shows a failed test with the slug it answered', async () => {
     mockTest.mockRejectedValue(refusal(502, 'ai-endpoint-unauthorized', 'Key rejected.'));
-    const { getByTestId } = render(<AiSettingsCard />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<AiSettingsCard />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('settings-ai-test')).toBeTruthy());
-    fireEvent.press(getByTestId('settings-ai-test'));
+    await fireEvent.press(getByTestId('settings-ai-test'));
     const shown = await waitFor(() => getByTestId('settings-ai-error'));
     expect(String(shown.props.children)).toContain('rejected the stored API key');
   });
 
   it('shows when the endpoint was last tested and whether it worked', async () => {
-    const { getByTestId } = render(<AiSettingsCard />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<AiSettingsCard />, { wrapper: createWrapper() });
     const line = await waitFor(() => getByTestId('settings-ai-last-test'));
     expect((line.props.children as unknown[]).join('')).toContain('it worked');
   });

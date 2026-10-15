@@ -127,7 +127,7 @@ describe('netWorthKeys', () => {
 describe('useNetWorthSeries', () => {
   it('returns one entry per currency and never sums them', async () => {
     mockSeries.mockResolvedValue(SERIES);
-    const { result } = renderHook(() => useNetWorthSeries(), { wrapper });
+    const { result } = await renderHook(() => useNetWorthSeries(), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual(SERIES));
     expect(result.current.data?.series).toHaveLength(2);
     expect(result.current.data).not.toHaveProperty('totalNetWorth');
@@ -138,7 +138,7 @@ describe('useTakeNetWorthSnapshot', () => {
   it('invalidates every net-worth query on success, not just one range', async () => {
     mockSnapshot.mockResolvedValue([]);
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useTakeNetWorthSnapshot(), { wrapper: provider });
+    const { result } = await renderHook(() => useTakeNetWorthSnapshot(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync();
     });
@@ -149,14 +149,14 @@ describe('useTakeNetWorthSnapshot', () => {
 describe('useAssets / mutations', () => {
   it('useAssets returns the bare array — not paged', async () => {
     mockAssets.mockResolvedValue([ASSET]);
-    const { result } = renderHook(() => useAssets(), { wrapper });
+    const { result } = await renderHook(() => useAssets(), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual([ASSET]));
   });
 
   it('useCreateAsset invalidates the assets list', async () => {
     mockCreateAsset.mockResolvedValue(ASSET);
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useCreateAsset(), { wrapper: provider });
+    const { result } = await renderHook(() => useCreateAsset(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync({ name: 'x', assetType: 'CASH', value: '1.00' });
     });
@@ -169,7 +169,7 @@ describe('useAssets / mutations', () => {
   it('useUpdateAsset sends the id it was built for', async () => {
     mockUpdateAsset.mockResolvedValue(ASSET);
     const { provider } = withClient();
-    const { result } = renderHook(() => useUpdateAsset('a1'), { wrapper: provider });
+    const { result } = await renderHook(() => useUpdateAsset('a1'), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync({ name: 'x', assetType: 'CASH', value: '1.00' });
     });
@@ -183,7 +183,7 @@ describe('useAssets / mutations', () => {
   it('useDeleteAsset invalidates the assets list', async () => {
     mockDeleteAsset.mockResolvedValue(undefined);
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useDeleteAsset(), { wrapper: provider });
+    const { result } = await renderHook(() => useDeleteAsset(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync('a1');
     });
@@ -197,14 +197,14 @@ describe('useAssets / mutations', () => {
 describe('useLiabilities / useDeleteLiability', () => {
   it('useLiabilities returns the bare array — not paged', async () => {
     mockLiabilities.mockResolvedValue([]);
-    const { result } = renderHook(() => useLiabilities(), { wrapper });
+    const { result } = await renderHook(() => useLiabilities(), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual([]));
   });
 
   it('useDeleteLiability invalidates the liabilities list', async () => {
     mockDeleteLiability.mockResolvedValue(undefined);
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useDeleteLiability(), { wrapper: provider });
+    const { result } = await renderHook(() => useDeleteLiability(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync('l1');
     });

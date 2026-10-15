@@ -27,20 +27,20 @@ const USD_TOTALS: DashboardCurrencyTotals = {
   netThisMonth: '-90.00',
 };
 
-beforeEach(() => {
-  act(() => {
+beforeEach(async () => {
+  await act(() => {
     useAuthStore.getState().setMe(ME);
   });
 });
 
 describe('CurrencyTotalsCard', () => {
-  it('labels the card with its own currency code', () => {
-    render(<CurrencyTotalsCard totals={USD_TOTALS} />);
+  it('labels the card with its own currency code', async () => {
+    await render(<CurrencyTotalsCard totals={USD_TOTALS} />);
     expect(screen.getByTestId('today-currency-USD-code').props.children).toBe('USD');
   });
 
-  it('renders every figure the schema carries', () => {
-    render(<CurrencyTotalsCard totals={USD_TOTALS} />);
+  it('renders every figure the schema carries', async () => {
+    await render(<CurrencyTotalsCard totals={USD_TOTALS} />);
     expect(screen.getByTestId('today-currency-USD-spent-today')).toBeTruthy();
     expect(screen.getByTestId('today-currency-USD-spent-month')).toBeTruthy();
     expect(screen.getByTestId('today-currency-USD-income-month')).toBeTruthy();
@@ -51,8 +51,8 @@ describe('CurrencyTotalsCard', () => {
     ]);
   });
 
-  it('formats a USD subtotal in USD even though the member reports in CAD', () => {
-    render(<CurrencyTotalsCard totals={USD_TOTALS} />);
+  it('formats a USD subtotal in USD even though the member reports in CAD', async () => {
+    await render(<CurrencyTotalsCard totals={USD_TOTALS} />);
     const rendered = screen.getByTestId('today-currency-USD-spent-today').props.children as string;
     // The formatter was given the entry's own currency; an en-CA reader sees
     // the USD marker rather than a bare dollar sign that would read as CAD.
@@ -60,8 +60,8 @@ describe('CurrencyTotalsCard', () => {
     expect(rendered).toContain('US');
   });
 
-  it('announces the card for a screen reader by its currency', () => {
-    render(<CurrencyTotalsCard totals={USD_TOTALS} />);
+  it('announces the card for a screen reader by its currency', async () => {
+    await render(<CurrencyTotalsCard totals={USD_TOTALS} />);
     expect(screen.getByLabelText('Totals in USD')).toBeTruthy();
   });
 });

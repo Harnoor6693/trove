@@ -55,7 +55,7 @@ let clients: ReturnType<typeof createTestQueryClient>[] = [];
 async function renderScreen() {
   const qc = createTestQueryClient();
   clients.push(qc);
-  const utils = render(
+  const utils = await render(
     <QueryClientProvider client={qc}>
       <AccountsScreen />
     </QueryClientProvider>
@@ -64,12 +64,12 @@ async function renderScreen() {
   return utils;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   jest.clearAllMocks();
   mockAccounts.mockReset();
   mockCreate.mockReset();
   mockExchange.mockReset();
-  act(() => {
+  await act(() => {
     useAuthStore.getState().setMe(ME);
   });
 });
@@ -124,14 +124,14 @@ describe('adding a manual account', () => {
     await renderScreen();
 
     await act(async () => {
-      fireEvent.press(screen.getByTestId('accounts-add-toggle'));
+      await fireEvent.press(screen.getByTestId('accounts-add-toggle'));
     });
     await act(async () => {
-      fireEvent.changeText(screen.getByTestId('accounts-add-name'), 'Cash');
-      fireEvent.press(screen.getByTestId('accounts-add-type-OTHER'));
+      await fireEvent.changeText(screen.getByTestId('accounts-add-name'), 'Cash');
+      await fireEvent.press(screen.getByTestId('accounts-add-type-OTHER'));
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('accounts-add-submit'));
+      await fireEvent.press(screen.getByTestId('accounts-add-submit'));
     });
 
     expect(mockCreate).toHaveBeenCalledWith({
@@ -150,14 +150,14 @@ describe('adding a manual account', () => {
     await renderScreen();
 
     await act(async () => {
-      fireEvent.press(screen.getByTestId('accounts-add-toggle'));
+      await fireEvent.press(screen.getByTestId('accounts-add-toggle'));
     });
     await act(async () => {
-      fireEvent.changeText(screen.getByTestId('accounts-add-name'), 'Statements');
-      fireEvent.press(screen.getByTestId('accounts-add-source-CSV'));
+      await fireEvent.changeText(screen.getByTestId('accounts-add-name'), 'Statements');
+      await fireEvent.press(screen.getByTestId('accounts-add-source-CSV'));
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('accounts-add-submit'));
+      await fireEvent.press(screen.getByTestId('accounts-add-submit'));
     });
 
     expect(mockCreate).toHaveBeenCalledWith({
@@ -172,7 +172,7 @@ describe('adding a manual account', () => {
     mockAccounts.mockResolvedValue([]);
     await renderScreen();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('accounts-add-toggle'));
+      await fireEvent.press(screen.getByTestId('accounts-add-toggle'));
     });
     expect(screen.getByTestId('accounts-add-source-MANUAL')).toBeTruthy();
     expect(screen.getByTestId('accounts-add-source-CSV')).toBeTruthy();
@@ -205,13 +205,13 @@ describe('adding a manual account', () => {
     );
     await renderScreen();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('accounts-add-toggle'));
+      await fireEvent.press(screen.getByTestId('accounts-add-toggle'));
     });
     await act(async () => {
-      fireEvent.changeText(screen.getByTestId('accounts-add-name'), 'Cash');
+      await fireEvent.changeText(screen.getByTestId('accounts-add-name'), 'Cash');
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('accounts-add-submit'));
+      await fireEvent.press(screen.getByTestId('accounts-add-submit'));
     });
     await waitFor(() => expect(screen.getByTestId('accounts-add-error')).toBeTruthy());
     expect(screen.getByTestId('accounts-add-error').props.children).toContain('already exists');
@@ -221,13 +221,13 @@ describe('adding a manual account', () => {
 describe('connecting a bank — the setup token is a credential', () => {
   async function openConnectAndSubmit(token = 'c2VjcmV0LXRva2Vu') {
     await act(async () => {
-      fireEvent.press(screen.getByTestId('accounts-connect-toggle'));
+      await fireEvent.press(screen.getByTestId('accounts-connect-toggle'));
     });
     await act(async () => {
-      fireEvent.changeText(screen.getByTestId('accounts-connect-token'), token);
+      await fireEvent.changeText(screen.getByTestId('accounts-connect-token'), token);
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('accounts-connect-submit'));
+      await fireEvent.press(screen.getByTestId('accounts-connect-submit'));
     });
   }
 
@@ -247,7 +247,7 @@ describe('connecting a bank — the setup token is a credential', () => {
     mockAccounts.mockResolvedValue([]);
     await renderScreen();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('accounts-connect-toggle'));
+      await fireEvent.press(screen.getByTestId('accounts-connect-toggle'));
     });
     expect(screen.getByTestId('accounts-connect-token').props.secureTextEntry).toBe(true);
   });
@@ -309,7 +309,7 @@ describe('the setup token does not outlive the call', () => {
     mockExchange.mockResolvedValue({ accountIds: ['a1'], syncLogs: [] });
     const qc = createTestQueryClient();
     clients.push(qc);
-    render(
+    await render(
       <QueryClientProvider client={qc}>
         <AccountsScreen />
       </QueryClientProvider>
@@ -317,13 +317,13 @@ describe('the setup token does not outlive the call', () => {
     await waitFor(() => expect(screen.queryByTestId('accounts-loading')).toBeNull());
 
     await act(async () => {
-      fireEvent.press(screen.getByTestId('accounts-connect-toggle'));
+      await fireEvent.press(screen.getByTestId('accounts-connect-toggle'));
     });
     await act(async () => {
-      fireEvent.changeText(screen.getByTestId('accounts-connect-token'), TOKEN);
+      await fireEvent.changeText(screen.getByTestId('accounts-connect-token'), TOKEN);
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('accounts-connect-submit'));
+      await fireEvent.press(screen.getByTestId('accounts-connect-submit'));
     });
     await waitFor(() => expect(screen.getByTestId('accounts-connect-result')).toBeTruthy());
 
@@ -369,20 +369,20 @@ describe('the setup token does not outlive the call', () => {
     );
     const qc = createTestQueryClient();
     clients.push(qc);
-    render(
+    await render(
       <QueryClientProvider client={qc}>
         <AccountsScreen />
       </QueryClientProvider>
     );
     await waitFor(() => expect(screen.queryByTestId('accounts-loading')).toBeNull());
     await act(async () => {
-      fireEvent.press(screen.getByTestId('accounts-connect-toggle'));
+      await fireEvent.press(screen.getByTestId('accounts-connect-toggle'));
     });
     await act(async () => {
-      fireEvent.changeText(screen.getByTestId('accounts-connect-token'), TOKEN);
+      await fireEvent.changeText(screen.getByTestId('accounts-connect-token'), TOKEN);
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('accounts-connect-submit'));
+      await fireEvent.press(screen.getByTestId('accounts-connect-submit'));
     });
     await waitFor(() => expect(screen.getByTestId('accounts-connect-error')).toBeTruthy());
     expect(screen.getByTestId('accounts-connect-error').props.children).toContain(

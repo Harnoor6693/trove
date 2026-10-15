@@ -30,9 +30,9 @@ const BLANK_LINE: TaxLineMappingResponse = {
   overridden: false,
 };
 
-function renderScreen() {
+async function renderScreen() {
   const client = createTestQueryClient();
-  render(
+  await render(
     <QueryClientProvider client={client}>
       <TaxLinesScreen />
     </QueryClientProvider>
@@ -45,7 +45,7 @@ beforeEach(() => {
 
 it('shows a category with no mapping yet rather than dropping it', async () => {
   mockLines.mockResolvedValue([BLANK_LINE]);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('tax-line-row-c1')).toBeTruthy());
   expect(screen.getByText('No line mapped yet.')).toBeTruthy();
 });
@@ -58,13 +58,13 @@ it('sets an override for one category', async () => {
     lineLabel: 'Office',
     overridden: true,
   });
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('tax-line-edit-c1')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('tax-line-edit-c1'));
-  fireEvent.changeText(screen.getByTestId('tax-line-form-c1-code'), '8810');
-  fireEvent.changeText(screen.getByTestId('tax-line-form-c1-label'), 'Office');
-  fireEvent.press(screen.getByTestId('tax-line-form-c1-submit'));
+  await fireEvent.press(screen.getByTestId('tax-line-edit-c1'));
+  await fireEvent.changeText(screen.getByTestId('tax-line-form-c1-code'), '8810');
+  await fireEvent.changeText(screen.getByTestId('tax-line-form-c1-label'), 'Office');
+  await fireEvent.press(screen.getByTestId('tax-line-form-c1-submit'));
 
   await waitFor(() =>
     expect(mockSetLine).toHaveBeenCalledWith('c1', {
@@ -94,13 +94,13 @@ it('shows the saved override on screen once the invalidated list refetches', asy
     lineLabel: 'Office',
     overridden: true,
   });
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('tax-line-edit-c1')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('tax-line-edit-c1'));
-  fireEvent.changeText(screen.getByTestId('tax-line-form-c1-code'), '8810');
-  fireEvent.changeText(screen.getByTestId('tax-line-form-c1-label'), 'Office');
-  fireEvent.press(screen.getByTestId('tax-line-form-c1-submit'));
+  await fireEvent.press(screen.getByTestId('tax-line-edit-c1'));
+  await fireEvent.changeText(screen.getByTestId('tax-line-form-c1-code'), '8810');
+  await fireEvent.changeText(screen.getByTestId('tax-line-form-c1-label'), 'Office');
+  await fireEvent.press(screen.getByTestId('tax-line-form-c1-submit'));
 
   await waitFor(() => expect(mockLines).toHaveBeenCalledTimes(2));
   await waitFor(() => expect(screen.getByText('8810 — Office')).toBeTruthy());

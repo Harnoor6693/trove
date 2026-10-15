@@ -38,7 +38,7 @@ afterEach(() => {
 
 describe('ReceiptImage', () => {
   it('renders the bytes it fetched, NOT the route — the route needs a header Image cannot send', async () => {
-    const { getByTestId } = render(<ReceiptImage receiptId="r1" testID="thumb" />, {
+    const { getByTestId } = await render(<ReceiptImage receiptId="r1" testID="thumb" />, {
       wrapper: createWrapper(),
     });
     await waitFor(() => expect(getByTestId('thumb')).toBeTruthy());
@@ -51,19 +51,19 @@ describe('ReceiptImage', () => {
   });
 
   it('fetches through the thumbnail route by default', async () => {
-    render(<ReceiptImage receiptId="r1" />, { wrapper: createWrapper() });
+    await render(<ReceiptImage receiptId="r1" />, { wrapper: createWrapper() });
     await waitFor(() => expect(mockThumb).toHaveBeenCalledWith('r1'));
     expect(mockFull).not.toHaveBeenCalled();
   });
 
   it('fetches the full stored image when asked for the full variant', async () => {
-    render(<ReceiptImage receiptId="r1" variant="full" />, { wrapper: createWrapper() });
+    await render(<ReceiptImage receiptId="r1" variant="full" />, { wrapper: createWrapper() });
     await waitFor(() => expect(mockFull).toHaveBeenCalledWith('r1'));
     expect(mockThumb).not.toHaveBeenCalled();
   });
 
   it('names the receipt in its alternative text, so a list of them is navigable', async () => {
-    const { getByTestId } = render(
+    const { getByTestId } = await render(
       <ReceiptImage receiptId="r1" merchant="Blue Bottle Coffee" date="2026-06-05" testID="t" />,
       { wrapper: createWrapper() }
     );
@@ -76,33 +76,45 @@ describe('ReceiptImage', () => {
   });
 
   it('falls back to a generic label when nothing identifies the receipt yet', async () => {
-    const { getByTestId } = render(<ReceiptImage receiptId="r1" merchant={null} testID="t" />, {
-      wrapper: createWrapper(),
-    });
+    const { getByTestId } = await render(
+      <ReceiptImage receiptId="r1" merchant={null} testID="t" />,
+      {
+        wrapper: createWrapper(),
+      }
+    );
     await waitFor(() => expect(getByTestId('t')).toBeTruthy());
     expect(getByTestId('t').props.accessibilityLabel).toBe('Receipt image');
   });
 
-  it('announces the load rather than showing an empty box', () => {
-    const { getByTestId, getByLabelText } = render(<ReceiptImage receiptId="r1" testID="t" />, {
-      wrapper: createWrapper(),
-    });
+  it('announces the load rather than showing an empty box', async () => {
+    // RNTL 14's async `render` lets a resolved mock land before it returns, so
+    // hold the fetch open to keep the loading state observable.
+    mockThumb.mockReturnValue(new Promise(() => {}));
+    const { getByTestId, getByLabelText } = await render(
+      <ReceiptImage receiptId="r1" testID="t" />,
+      {
+        wrapper: createWrapper(),
+      }
+    );
     expect(getByTestId('t-loading')).toBeTruthy();
     expect(getByLabelText('Loading the receipt image')).toBeTruthy();
   });
 
   it('says "No image" rather than retrying for ever when the route 404s', async () => {
     mockThumb.mockRejectedValue(new Error('not found'));
-    const { getByTestId } = render(<ReceiptImage receiptId="r1" testID="t" />, {
+    const { getByTestId } = await render(<ReceiptImage receiptId="r1" testID="t" />, {
       wrapper: createWrapper(),
     });
     await waitFor(() => expect(getByTestId('t-missing')).toBeTruthy());
   });
 
-  it('fetches nothing at all when the caller says there is no image', () => {
-    const { getByTestId } = render(<ReceiptImage receiptId="r1" enabled={false} testID="t" />, {
-      wrapper: createWrapper(),
-    });
+  it('fetches nothing at all when the caller says there is no image', async () => {
+    const { getByTestId } = await render(
+      <ReceiptImage receiptId="r1" enabled={false} testID="t" />,
+      {
+        wrapper: createWrapper(),
+      }
+    );
     expect(getByTestId('t-missing')).toBeTruthy();
     expect(mockThumb).not.toHaveBeenCalled();
     expect(mockFull).not.toHaveBeenCalled();

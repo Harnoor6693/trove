@@ -69,7 +69,7 @@ describe('goalKeys', () => {
 describe('useGoals', () => {
   it('returns the bare array — not paged', async () => {
     mockList.mockResolvedValue([GOAL]);
-    const { result } = renderHook(() => useGoals(), { wrapper });
+    const { result } = await renderHook(() => useGoals(), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual([GOAL]));
   });
 });
@@ -78,7 +78,7 @@ describe('useCreateGoal', () => {
   it('creates and invalidates the goals list', async () => {
     mockCreate.mockResolvedValue(GOAL);
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useCreateGoal(), { wrapper: provider });
+    const { result } = await renderHook(() => useCreateGoal(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync({ name: 'Emergency Fund', targetAmount: '10000.00' });
     });
@@ -90,7 +90,7 @@ describe('useUpdateGoal', () => {
   it('PUTs the full replace body against the id it was built for', async () => {
     mockUpdate.mockResolvedValue({ ...GOAL, currentAmount: '5000.0000' });
     const { provider } = withClient();
-    const { result } = renderHook(() => useUpdateGoal('g1'), { wrapper: provider });
+    const { result } = await renderHook(() => useUpdateGoal('g1'), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync({
         name: 'Emergency Fund',
@@ -110,7 +110,7 @@ describe('useDeleteGoal', () => {
   it('invalidates the goals list', async () => {
     mockDelete.mockResolvedValue(undefined);
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useDeleteGoal(), { wrapper: provider });
+    const { result } = await renderHook(() => useDeleteGoal(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync('g1');
     });

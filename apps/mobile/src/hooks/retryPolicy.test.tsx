@@ -77,7 +77,7 @@ describe('the shipped client, whose queries default to retry: 2', () => {
     // `retry: 2` is what `app/_layout.tsx` sets; the hook's own predicate has
     // to win over it, which is the whole point of this test.
     const client = createTestQueryClient({ retry: 2 });
-    const { result } = renderHook(() => useDashboardToday(), {
+    const { result } = await renderHook(() => useDashboardToday(), {
       wrapper: ({ children }) => (
         <QueryClientProvider client={client}>{children}</QueryClientProvider>
       ),

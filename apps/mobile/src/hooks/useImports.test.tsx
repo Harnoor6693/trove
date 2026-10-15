@@ -95,20 +95,20 @@ describe('importKeys', () => {
 describe('useImportPreview', () => {
   it('reads the batch and its verdict counts', async () => {
     mockPreview.mockResolvedValue(PREVIEW);
-    const { result } = renderHook(() => useImportPreview('b1'), { wrapper });
+    const { result } = await renderHook(() => useImportPreview('b1'), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual(PREVIEW));
     expect(mockPreview).toHaveBeenCalledWith('b1');
   });
 
-  it('stays idle without a batch id', () => {
-    const { result } = renderHook(() => useImportPreview(''), { wrapper });
+  it('stays idle without a batch id', async () => {
+    const { result } = await renderHook(() => useImportPreview(''), { wrapper });
     expect(result.current.fetchStatus).toBe('idle');
     expect(mockPreview).not.toHaveBeenCalled();
   });
 
   it('surfaces a 404 rather than an empty preview', async () => {
     mockPreview.mockRejectedValue(new Error('not found'));
-    const { result } = renderHook(() => useImportPreview('b1'), { wrapper });
+    const { result } = await renderHook(() => useImportPreview('b1'), { wrapper });
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.data).toBeUndefined();
   });
@@ -119,7 +119,7 @@ describe('useCreateImport', () => {
     mockCreate.mockResolvedValue(PREVIEW);
     const { qc, provider } = withClient();
     const seed = jest.spyOn(qc, 'setQueryData');
-    const { result } = renderHook(() => useCreateImport(), { wrapper: provider });
+    const { result } = await renderHook(() => useCreateImport(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync({
         file: { uri: 'file://s.csv', name: 's.csv', type: 'text/csv' },
@@ -134,7 +134,7 @@ describe('useCommitImport', () => {
   it('sends the corrected mapping and invalidates the ledger it just wrote', async () => {
     mockCommit.mockResolvedValue(LOG);
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useCommitImport('b1'), { wrapper: provider });
+    const { result } = await renderHook(() => useCommitImport('b1'), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync({ mapping: { dateFormat: 'dd/MM/yyyy' } });
     });
@@ -148,7 +148,7 @@ describe('useCommitImport', () => {
   it('sends no body when nothing was corrected', async () => {
     mockCommit.mockResolvedValue(LOG);
     const { provider } = withClient();
-    const { result } = renderHook(() => useCommitImport('b1'), { wrapper: provider });
+    const { result } = await renderHook(() => useCommitImport('b1'), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync(undefined);
     });
@@ -160,7 +160,7 @@ describe('useUndoImport', () => {
   it('undoes the batch and invalidates the ledger, accounts and dashboard', async () => {
     mockUndo.mockResolvedValue(undefined);
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useUndoImport(), { wrapper: provider });
+    const { result } = await renderHook(() => useUndoImport(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync('b1');
     });

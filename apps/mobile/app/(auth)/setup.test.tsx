@@ -96,22 +96,22 @@ beforeEach(() => {
 
 type Query = (id: string) => never;
 
-function fill(getByTestId: Query, password = 'correct horse battery') {
-  fireEvent.changeText(getByTestId('setup-name-input'), '  Ada  ');
-  fireEvent.changeText(getByTestId('setup-email-input'), '  ada@example.com  ');
-  fireEvent.changeText(getByTestId('setup-password-input'), password);
+async function fill(getByTestId: Query, password = 'correct horse battery') {
+  await fireEvent.changeText(getByTestId('setup-name-input'), '  Ada  ');
+  await fireEvent.changeText(getByTestId('setup-email-input'), '  ada@example.com  ');
+  await fireEvent.changeText(getByTestId('setup-password-input'), password);
 }
 
 async function submit(getByTestId: Query) {
   await act(async () => {
-    fireEvent.press(getByTestId('setup-submit-btn'));
+    await fireEvent.press(getByTestId('setup-submit-btn'));
   });
 }
 
 describe('registration body', () => {
   it('sends currency, country and timezone to the server, not just to the device', async () => {
-    const { getByTestId } = render(<SetupScreen />);
-    fill(getByTestId as never);
+    const { getByTestId } = await render(<SetupScreen />);
+    await fill(getByTestId as never);
     await submit(getByTestId as never);
 
     await waitFor(() => expect(mockRegister).toHaveBeenCalledTimes(1));
@@ -126,9 +126,9 @@ describe('registration body', () => {
   });
 
   it('sets currency and country together from the region choice', async () => {
-    const { getByTestId } = render(<SetupScreen />);
-    fill(getByTestId as never);
-    fireEvent.press(getByTestId('region-option-US'));
+    const { getByTestId } = await render(<SetupScreen />);
+    await fill(getByTestId as never);
+    await fireEvent.press(getByTestId('region-option-US'));
     await submit(getByTestId as never);
 
     await waitFor(() => expect(mockRegister).toHaveBeenCalledTimes(1));
@@ -137,8 +137,8 @@ describe('registration body', () => {
 
   // CAD and USD are the only first-class currencies (owner decision); GBP and
   // EUR were dropped with the old wizard.
-  it('offers exactly two regions', () => {
-    const { getByTestId, queryByTestId } = render(<SetupScreen />);
+  it('offers exactly two regions', async () => {
+    const { getByTestId, queryByTestId } = await render(<SetupScreen />);
     expect(getByTestId('region-option-CA')).toBeTruthy();
     expect(getByTestId('region-option-US')).toBeTruthy();
     expect(queryByTestId('region-option-GB')).toBeNull();
@@ -146,8 +146,8 @@ describe('registration body', () => {
   });
 
   it('omits inviteToken entirely when the field is blank', async () => {
-    const { getByTestId } = render(<SetupScreen />);
-    fill(getByTestId as never);
+    const { getByTestId } = await render(<SetupScreen />);
+    await fill(getByTestId as never);
     await submit(getByTestId as never);
 
     await waitFor(() => expect(mockRegister).toHaveBeenCalledTimes(1));
@@ -155,9 +155,9 @@ describe('registration body', () => {
   });
 
   it('sends a trimmed inviteToken when one is pasted in', async () => {
-    const { getByTestId } = render(<SetupScreen />);
-    fill(getByTestId as never);
-    fireEvent.changeText(getByTestId('setup-invite-input'), '  inv-abc123  ');
+    const { getByTestId } = await render(<SetupScreen />);
+    await fill(getByTestId as never);
+    await fireEvent.changeText(getByTestId('setup-invite-input'), '  inv-abc123  ');
     await submit(getByTestId as never);
 
     await waitFor(() => expect(mockRegister).toHaveBeenCalledTimes(1));
@@ -165,8 +165,8 @@ describe('registration body', () => {
   });
 
   it('rejects a short password locally rather than spending a round trip', async () => {
-    const { getByTestId } = render(<SetupScreen />);
-    fill(getByTestId as never, 'short');
+    const { getByTestId } = await render(<SetupScreen />);
+    await fill(getByTestId as never, 'short');
     await submit(getByTestId as never);
 
     expect(mockRegister).not.toHaveBeenCalled();
@@ -176,8 +176,8 @@ describe('registration body', () => {
 
 describe('after a successful registration', () => {
   it('authenticates, loads the profile, and lands on the tabs', async () => {
-    const { getByTestId } = render(<SetupScreen />);
-    fill(getByTestId as never);
+    const { getByTestId } = await render(<SetupScreen />);
+    await fill(getByTestId as never);
     await submit(getByTestId as never);
 
     await waitFor(() => expect(useAuthStore.getState().status).toBe('authenticated'));
@@ -198,8 +198,8 @@ describe('server rejections', () => {
   ])('rewrites the %s slug into copy a person can act on', async (slug, expected) => {
     mockRegister.mockRejectedValue(apiError(403, slug, 'Operator-facing text.'));
 
-    const { getByTestId } = render(<SetupScreen />);
-    fill(getByTestId as never);
+    const { getByTestId } = await render(<SetupScreen />);
+    await fill(getByTestId as never);
     await submit(getByTestId as never);
 
     await waitFor(() => expect(getByTestId('setup-error-text').props.children).toMatch(expected));
@@ -208,8 +208,8 @@ describe('server rejections', () => {
   it('falls back to the server’s own detail for an unrecognised slug', async () => {
     mockRegister.mockRejectedValue(apiError(503, 'service-unavailable', 'Trove is restarting.'));
 
-    const { getByTestId } = render(<SetupScreen />);
-    fill(getByTestId as never);
+    const { getByTestId } = await render(<SetupScreen />);
+    await fill(getByTestId as never);
     await submit(getByTestId as never);
 
     await waitFor(() =>
@@ -227,8 +227,8 @@ describe('server rejections', () => {
       ])
     );
 
-    const { getByTestId, queryByTestId } = render(<SetupScreen />);
-    fill(getByTestId as never);
+    const { getByTestId, queryByTestId } = await render(<SetupScreen />);
+    await fill(getByTestId as never);
     await submit(getByTestId as never);
 
     await waitFor(() =>
@@ -245,8 +245,8 @@ describe('server rejections', () => {
   it('leaves the session anonymous when registration fails', async () => {
     mockRegister.mockRejectedValue(apiError(403, 'registration-closed', 'Closed.'));
 
-    const { getByTestId } = render(<SetupScreen />);
-    fill(getByTestId as never);
+    const { getByTestId } = await render(<SetupScreen />);
+    await fill(getByTestId as never);
     await submit(getByTestId as never);
 
     await waitFor(() => expect(getByTestId('setup-error-text')).toBeTruthy());
@@ -259,9 +259,9 @@ describe('server rejections', () => {
 // preview, and the invite deep link it pairs with.
 describe('invite preview', () => {
   async function pasteInvite(getByTestId: Query, value: string) {
-    fireEvent.changeText(getByTestId('setup-invite-input'), value);
+    await fireEvent.changeText(getByTestId('setup-invite-input'), value);
     await act(async () => {
-      fireEvent(getByTestId('setup-invite-input'), 'blur');
+      await fireEvent(getByTestId('setup-invite-input'), 'blur');
     });
   }
 
@@ -269,7 +269,7 @@ describe('invite preview', () => {
   // because the server has one public origin and no idea a phone app exists.
   // The member pastes what they were sent, not a token they had to extract.
   it('previews the token out of a pasted invite link', async () => {
-    const { getByTestId } = render(<SetupScreen />);
+    const { getByTestId } = await render(<SetupScreen />);
     await pasteInvite(getByTestId as Query, 'https://trove.example.test/invite/INVITE-TOKEN');
 
     expect(mockPreviewInvite).toHaveBeenCalledWith('INVITE-TOKEN');
@@ -277,9 +277,9 @@ describe('invite preview', () => {
   });
 
   it('registers with the token it extracted, not with the whole link', async () => {
-    const { getByTestId } = render(<SetupScreen />);
+    const { getByTestId } = await render(<SetupScreen />);
     await pasteInvite(getByTestId as Query, 'https://trove.example.test/invite/INVITE-TOKEN');
-    fill(getByTestId as Query);
+    await fill(getByTestId as Query);
     await submit(getByTestId as Query);
 
     expect(mockRegister).toHaveBeenCalledWith(
@@ -289,9 +289,9 @@ describe('invite preview', () => {
 
   // `trove://setup?token=…` — expo-router maps the app scheme onto this
   // route's search params, so the deep link needs no linking code here.
-  it('seeds the field from the invite deep link', () => {
+  it('seeds the field from the invite deep link', async () => {
     mockParams.mockReturnValue({ token: 'DEEP-LINK-INVITE' });
-    const { getByTestId } = render(<SetupScreen />);
+    const { getByTestId } = await render(<SetupScreen />);
     expect(getByTestId('setup-invite-input').props.value).toBe('DEEP-LINK-INVITE');
   });
 
@@ -303,7 +303,7 @@ describe('invite preview', () => {
       email: 'invitee@example.test',
       expiresAt: '2026-09-22T14:00:00Z',
     });
-    const { getByTestId } = render(<SetupScreen />);
+    const { getByTestId } = await render(<SetupScreen />);
     await pasteInvite(getByTestId as Query, 'INVITE-TOKEN');
 
     expect(getByTestId('setup-invite-valid').props.children).toContain('invitee@example.test');
@@ -315,7 +315,7 @@ describe('invite preview', () => {
   // must not pretend to tell them apart either.
   it('renders one undifferentiated refusal for a spent token, from a 200 body', async () => {
     mockPreviewInvite.mockResolvedValue({ valid: false, email: null, expiresAt: null });
-    const { getByTestId, queryByTestId } = render(<SetupScreen />);
+    const { getByTestId, queryByTestId } = await render(<SetupScreen />);
     await pasteInvite(getByTestId as Query, 'SPENT-TOKEN');
 
     const message = getByTestId('setup-invite-invalid').props.children as string;
@@ -329,7 +329,7 @@ describe('invite preview', () => {
   // truth, so silence is the honest state.
   it('says nothing when the preview request itself fails', async () => {
     mockPreviewInvite.mockRejectedValue(new Error('offline'));
-    const { getByTestId, queryByTestId } = render(<SetupScreen />);
+    const { getByTestId, queryByTestId } = await render(<SetupScreen />);
     await pasteInvite(getByTestId as Query, 'INVITE-TOKEN');
 
     expect(queryByTestId('setup-invite-invalid')).toBeNull();
@@ -350,7 +350,7 @@ describe('invite preview', () => {
       mockPreviewInvite.mockRejectedValue(
         new AxiosError('Network Error', AxiosError.ERR_NETWORK, config)
       );
-      const { getByTestId } = render(<SetupScreen />);
+      const { getByTestId } = await render(<SetupScreen />);
       await pasteInvite(getByTestId as Query, 'INVITE-TOKEN');
 
       expect(logged).not.toHaveBeenCalled();
@@ -364,18 +364,18 @@ describe('invite preview', () => {
   // only feedback that a pasted invitation works, so it is announced rather
   // than merely drawn.
   it('announces the verdict to assistive technology', async () => {
-    const { getByTestId, rerender } = render(<SetupScreen />);
+    const { getByTestId, rerender } = await render(<SetupScreen />);
     await pasteInvite(getByTestId as Query, 'INVITE-TOKEN');
     expect(getByTestId('setup-invite-valid').props.accessibilityRole).toBe('alert');
 
     mockPreviewInvite.mockResolvedValue({ valid: false, email: null, expiresAt: null });
-    rerender(<SetupScreen />);
+    await rerender(<SetupScreen />);
     await pasteInvite(getByTestId as Query, 'SPENT-TOKEN');
     expect(getByTestId('setup-invite-invalid').props.accessibilityRole).toBe('alert');
   });
 
   it('asks the server nothing when the field is empty', async () => {
-    const { getByTestId, queryByTestId } = render(<SetupScreen />);
+    const { getByTestId, queryByTestId } = await render(<SetupScreen />);
     await pasteInvite(getByTestId as Query, '   ');
 
     expect(mockPreviewInvite).not.toHaveBeenCalled();
@@ -386,11 +386,11 @@ describe('invite preview', () => {
   // "this invitation is good" above a token the member has since edited is
   // how somebody registers against a link they no longer hold.
   it('drops a stale verdict as soon as the field is edited again', async () => {
-    const { getByTestId, queryByTestId } = render(<SetupScreen />);
+    const { getByTestId, queryByTestId } = await render(<SetupScreen />);
     await pasteInvite(getByTestId as Query, 'INVITE-TOKEN');
     expect(getByTestId('setup-invite-valid')).toBeTruthy();
 
-    fireEvent.changeText(getByTestId('setup-invite-input'), 'INVITE-TOKEN-2');
+    await fireEvent.changeText(getByTestId('setup-invite-input'), 'INVITE-TOKEN-2');
     expect(queryByTestId('setup-invite-valid')).toBeNull();
   });
 });

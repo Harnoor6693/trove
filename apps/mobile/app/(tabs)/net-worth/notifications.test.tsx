@@ -41,9 +41,9 @@ const NOTIFICATION: NotificationResponse = {
   dismissedAt: null,
 };
 
-function renderScreen() {
+async function renderScreen() {
   const client = createTestQueryClient();
-  render(
+  await render(
     <QueryClientProvider client={client}>
       <NotificationsInboxScreen />
     </QueryClientProvider>
@@ -56,7 +56,7 @@ beforeEach(() => {
 
 it('pages the inbox — the fetch carries page and the totals show', async () => {
   mockList.mockResolvedValue({ data: [NOTIFICATION], meta: { total: 1, page: 0, limit: 20 } });
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('notification-row-n1')).toBeTruthy());
   expect(mockList).toHaveBeenCalledWith({ page: 0 });
   expect(screen.getByTestId('notifications-count')).toBeTruthy();
@@ -65,10 +65,10 @@ it('pages the inbox — the fetch carries page and the totals show', async () =>
 it('marks a notification read on press', async () => {
   mockList.mockResolvedValue({ data: [NOTIFICATION], meta: { total: 1, page: 0, limit: 20 } });
   mockMarkRead.mockResolvedValue({ ...NOTIFICATION, read: true });
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('notification-row-n1-open')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('notification-row-n1-open'));
+  await fireEvent.press(screen.getByTestId('notification-row-n1-open'));
 
   await waitFor(() => expect(mockMarkRead).toHaveBeenCalledWith('n1'));
 });
@@ -76,10 +76,10 @@ it('marks a notification read on press', async () => {
 it('dismisses a notification', async () => {
   mockList.mockResolvedValue({ data: [NOTIFICATION], meta: { total: 1, page: 0, limit: 20 } });
   mockDismiss.mockResolvedValue(undefined);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('notification-row-n1-dismiss')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('notification-row-n1-dismiss'));
+  await fireEvent.press(screen.getByTestId('notification-row-n1-dismiss'));
 
   await waitFor(() => expect(mockDismiss).toHaveBeenCalledWith('n1'));
 });
@@ -87,10 +87,10 @@ it('dismisses a notification', async () => {
 it('marks every notification read from the header button', async () => {
   mockList.mockResolvedValue({ data: [NOTIFICATION], meta: { total: 1, page: 0, limit: 20 } });
   mockMarkAll.mockResolvedValue({ marked: 1 });
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('notifications-mark-all-read')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('notifications-mark-all-read'));
+  await fireEvent.press(screen.getByTestId('notifications-mark-all-read'));
 
   await waitFor(() => expect(mockMarkAll).toHaveBeenCalled());
 });

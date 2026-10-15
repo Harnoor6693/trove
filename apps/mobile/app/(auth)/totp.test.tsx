@@ -106,15 +106,15 @@ beforeEach(() => {
 });
 
 async function submit(getByTestId: (id: string) => never, code = '123456') {
-  fireEvent.changeText(getByTestId('totp-code-input'), code);
+  await fireEvent.changeText(getByTestId('totp-code-input'), code);
   await act(async () => {
-    fireEvent.press(getByTestId('totp-submit-btn'));
+    await fireEvent.press(getByTestId('totp-submit-btn'));
   });
 }
 
 describe('TotpScreen', () => {
   it('submits the challenge token from the navigation params with the code', async () => {
-    const { getByTestId } = render(<TotpScreen />);
+    const { getByTestId } = await render(<TotpScreen />);
     await submit(getByTestId as never);
 
     const body: TotpLoginRequest = { challengeToken: 'CHALLENGE-JWT', code: '123456' };
@@ -126,7 +126,7 @@ describe('TotpScreen', () => {
   // bad code. The refusal is local and names the real cause.
   it('refuses locally when the challenge token is absent, rather than sending a 401 round trip', async () => {
     mockParams.mockReturnValue({});
-    const { getByTestId } = render(<TotpScreen />);
+    const { getByTestId } = await render(<TotpScreen />);
     await submit(getByTestId as never);
 
     expect(mockLoginWithTotp).not.toHaveBeenCalled();
@@ -135,14 +135,14 @@ describe('TotpScreen', () => {
 
   it('treats a non-string param the same as an absent one', async () => {
     mockParams.mockReturnValue({ challengeToken: ['a', 'b'] });
-    const { getByTestId } = render(<TotpScreen />);
+    const { getByTestId } = await render(<TotpScreen />);
     await submit(getByTestId as never);
 
     expect(mockLoginWithTotp).not.toHaveBeenCalled();
   });
 
   it('signs in, loads the profile, and lands on the tabs', async () => {
-    const { getByTestId } = render(<TotpScreen />);
+    const { getByTestId } = await render(<TotpScreen />);
     await submit(getByTestId as never);
 
     expect(useAuthStore.getState().status).toBe('authenticated');
@@ -154,14 +154,14 @@ describe('TotpScreen', () => {
   // The field takes a 6-digit code *or* one of the ten single-use recovery
   // codes, so it must not be digit-constrained.
   it('accepts a recovery code, not only six digits', async () => {
-    const { getByTestId } = render(<TotpScreen />);
+    const { getByTestId } = await render(<TotpScreen />);
     await submit(getByTestId as never, 'ABCD-EFGH');
 
     expect(mockLoginWithTotp).toHaveBeenCalledWith(expect.objectContaining({ code: 'ABCD-EFGH' }));
   });
 
   it('trims what the member typed before sending it', async () => {
-    const { getByTestId } = render(<TotpScreen />);
+    const { getByTestId } = await render(<TotpScreen />);
     await submit(getByTestId as never, '  123456  ');
 
     expect(mockLoginWithTotp).toHaveBeenCalledWith(expect.objectContaining({ code: '123456' }));
@@ -169,7 +169,7 @@ describe('TotpScreen', () => {
 
   it('names the 30-second window when the server refuses the code', async () => {
     mockLoginWithTotp.mockRejectedValue(unauthorized());
-    const { getByTestId } = render(<TotpScreen />);
+    const { getByTestId } = await render(<TotpScreen />);
     await submit(getByTestId as never);
 
     expect(getByTestId('totp-error-text').props.children).toMatch(/30 seconds/);
@@ -180,7 +180,7 @@ describe('TotpScreen', () => {
     mockLoginWithTotp.mockRejectedValue(
       apiError(400, 'validation-error', 'Code must not be blank.')
     );
-    const { getByTestId } = render(<TotpScreen />);
+    const { getByTestId } = await render(<TotpScreen />);
     await submit(getByTestId as never);
 
     expect(getByTestId('totp-error-text').props.children).toBe('Code must not be blank.');
@@ -190,7 +190,7 @@ describe('TotpScreen', () => {
   // `me` must not strand a signed-in member on the second-factor screen.
   it('still lands on the tabs when the profile load fails', async () => {
     mockMe.mockRejectedValue(new Error('offline'));
-    const { getByTestId } = render(<TotpScreen />);
+    const { getByTestId } = await render(<TotpScreen />);
     await submit(getByTestId as never);
 
     expect(mockReplace).toHaveBeenCalledWith('/(tabs)/');
@@ -200,23 +200,23 @@ describe('TotpScreen', () => {
   // and it is a navigation param — it must not be written anywhere that
   // outlives the attempt.
   it('never puts the challenge token into the session store', async () => {
-    const { getByTestId } = render(<TotpScreen />);
+    const { getByTestId } = await render(<TotpScreen />);
     await submit(getByTestId as never);
 
     expect(JSON.stringify(useAuthStore.getState())).not.toContain('CHALLENGE-JWT');
   });
 
-  it('offers a way back to sign in', () => {
-    const { getByTestId } = render(<TotpScreen />);
-    fireEvent.press(getByTestId('totp-cancel-link'));
+  it('offers a way back to sign in', async () => {
+    const { getByTestId } = await render(<TotpScreen />);
+    await fireEvent.press(getByTestId('totp-cancel-link'));
     expect(mockReplace).toHaveBeenCalledWith('/(auth)/login');
   });
 
   // Autofill: iOS and Android both hand a one-time code straight to a field
   // that declares it, which is the difference between typing six digits and
   // tapping once.
-  it('declares the one-time-code autofill hint on the input', () => {
-    const { getByTestId } = render(<TotpScreen />);
+  it('declares the one-time-code autofill hint on the input', async () => {
+    const { getByTestId } = await render(<TotpScreen />);
     expect(getByTestId('totp-code-input').props.autoComplete).toBe('one-time-code');
     expect(getByTestId('totp-code-input').props.accessibilityLabel).toBe('Two-factor code');
   });

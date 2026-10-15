@@ -117,7 +117,7 @@ describe('categoryKeys', () => {
 describe('useCategories', () => {
   it('returns the bare array the operation sends', async () => {
     mockList.mockResolvedValue([CATEGORY]);
-    const { result } = renderHook(() => useCategories(), { wrapper });
+    const { result } = await renderHook(() => useCategories(), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual([CATEGORY]));
   });
 });
@@ -126,7 +126,7 @@ describe('useCreateCategory / useUpdateCategory / useDeleteCategory', () => {
   it('create invalidates the category list', async () => {
     mockCreate.mockResolvedValue(CATEGORY);
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useCreateCategory(), { wrapper: provider });
+    const { result } = await renderHook(() => useCreateCategory(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync({ name: 'Coffee Shops', parentId: null, icon: 'coffee' });
     });
@@ -139,7 +139,7 @@ describe('useCreateCategory / useUpdateCategory / useDeleteCategory', () => {
   it('update PUTs against the id it was built for', async () => {
     mockUpdate.mockResolvedValue({ ...CATEGORY, name: 'Renamed' });
     const { provider } = withClient();
-    const { result } = renderHook(() => useUpdateCategory('c1'), { wrapper: provider });
+    const { result } = await renderHook(() => useUpdateCategory('c1'), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync({ name: 'Renamed', parentId: null, icon: null });
     });
@@ -149,8 +149,8 @@ describe('useCreateCategory / useUpdateCategory / useDeleteCategory', () => {
   it('delete invalidates the list and surfaces a 409 rather than silently failing', async () => {
     mockDelete.mockRejectedValue(new Error('conflict'));
     const { provider } = withClient();
-    const { result } = renderHook(() => useDeleteCategory(), { wrapper: provider });
-    act(() => {
+    const { result } = await renderHook(() => useDeleteCategory(), { wrapper: provider });
+    await act(() => {
       result.current.mutate('c1');
     });
     await waitFor(() => expect(result.current.isError).toBe(true));
@@ -160,7 +160,7 @@ describe('useCreateCategory / useUpdateCategory / useDeleteCategory', () => {
 describe('useCategoryRules', () => {
   it('returns the bare array in priority order', async () => {
     mockRuleList.mockResolvedValue([RULE]);
-    const { result } = renderHook(() => useCategoryRules(), { wrapper });
+    const { result } = await renderHook(() => useCategoryRules(), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual([RULE]));
   });
 });
@@ -169,7 +169,7 @@ describe('useCreateCategoryRule / useUpdateCategoryRule / useDeleteCategoryRule'
   it('create invalidates only the rules key, not the whole categories root', async () => {
     mockRuleCreate.mockResolvedValue(RULE);
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useCreateCategoryRule(), { wrapper: provider });
+    const { result } = await renderHook(() => useCreateCategoryRule(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync({
         merchant: 'Starbucks',
@@ -184,7 +184,7 @@ describe('useCreateCategoryRule / useUpdateCategoryRule / useDeleteCategoryRule'
   it('update PUTs against the id it was built for', async () => {
     mockRuleUpdate.mockResolvedValue({ ...RULE, confidence: '0.900' });
     const { provider } = withClient();
-    const { result } = renderHook(() => useUpdateCategoryRule('r1'), { wrapper: provider });
+    const { result } = await renderHook(() => useUpdateCategoryRule('r1'), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync({
         merchant: 'Starbucks',
@@ -202,7 +202,7 @@ describe('useCreateCategoryRule / useUpdateCategoryRule / useDeleteCategoryRule'
   it('delete resolves without a body', async () => {
     mockRuleDelete.mockResolvedValue(undefined);
     const { provider } = withClient();
-    const { result } = renderHook(() => useDeleteCategoryRule(), { wrapper: provider });
+    const { result } = await renderHook(() => useDeleteCategoryRule(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync('r1');
     });
@@ -214,7 +214,7 @@ describe('useReorderCategoryRules', () => {
   it('sends the declared body and refetches the list from the server’s own priority', async () => {
     mockReorder.mockResolvedValue(undefined);
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useReorderCategoryRules(), { wrapper: provider });
+    const { result } = await renderHook(() => useReorderCategoryRules(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync({ orderedIds: ['r2', 'r1'] });
     });
@@ -235,8 +235,8 @@ describe('useDryRunCategoryRule', () => {
       source: null,
     });
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useDryRunCategoryRule(), { wrapper: provider });
-    act(() => {
+    const { result } = await renderHook(() => useDryRunCategoryRule(), { wrapper: provider });
+    await act(() => {
       result.current.mutate({ merchant: 'STARBUCKS' });
     });
     await waitFor(() => expect(result.current.data?.categoryName).toBe('Coffee Shops'));

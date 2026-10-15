@@ -62,7 +62,7 @@ describe('webhookKeys', () => {
 describe('useWebhooks', () => {
   it('returns the bare array, disabled ones included', async () => {
     mockList.mockResolvedValue([WEBHOOK]);
-    const { result } = renderHook(() => useWebhooks(), { wrapper });
+    const { result } = await renderHook(() => useWebhooks(), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual([WEBHOOK]));
   });
 });
@@ -71,7 +71,7 @@ describe('useCreateWebhook', () => {
   it('creates and invalidates the list; the returned row never carries a secret', async () => {
     mockCreate.mockResolvedValue(WEBHOOK);
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useCreateWebhook(), { wrapper: provider });
+    const { result } = await renderHook(() => useCreateWebhook(), { wrapper: provider });
     let returned: WebhookResponse | undefined;
     await act(async () => {
       returned = await result.current.mutateAsync({
@@ -91,7 +91,7 @@ describe('useDeleteWebhook', () => {
   it('invalidates the list', async () => {
     mockDelete.mockResolvedValue(undefined);
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useDeleteWebhook(), { wrapper: provider });
+    const { result } = await renderHook(() => useDeleteWebhook(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync('w1');
     });
