@@ -1,6 +1,7 @@
 import React from 'react';
 import { Text, StyleSheet, type TextProps } from 'react-native';
-import { Colors, FontSize, FontFamily } from '@design/tokens';
+import { useTheme } from '@design/useTheme';
+import { FontSize, FontFamily } from '@design/tokens';
 import { parseDecimal, useUserFormat, type MoneyOptions } from '@lib/useUserFormat';
 import type { Decimal, Money } from '@api/types';
 
@@ -48,14 +49,9 @@ export function MoneyDisplay({
   ...props
 }: MoneyDisplayProps) {
   const format = useUserFormat();
+  const t = useTheme();
   const sign = signOf(amount);
-  const color = !colorBySign
-    ? Colors.ink
-    : sign > 0
-      ? Colors.sage
-      : sign < 0
-        ? Colors.red
-        : Colors.ink;
+  const color = !colorBySign ? t.ink : sign > 0 ? t.sage : sign < 0 ? t.red : t.ink;
 
   return (
     <Text style={[styles.base, { fontSize: sizeMap[size], color }, style]} {...props}>

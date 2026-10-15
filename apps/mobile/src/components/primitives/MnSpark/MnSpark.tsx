@@ -1,7 +1,7 @@
 import React from 'react';
 import { View } from 'react-native';
 import Svg, { Polyline } from 'react-native-svg';
-import { Colors } from '@design/tokens';
+import { useTheme } from '@design/useTheme';
 
 export interface MnSparkProps {
   data: number[];
@@ -11,13 +11,8 @@ export interface MnSparkProps {
   testID?: string;
 }
 
-export function MnSpark({
-  data,
-  width = 80,
-  height = 32,
-  color = Colors.sage,
-  testID,
-}: MnSparkProps) {
+export function MnSpark({ data, width = 80, height = 32, color, testID }: MnSparkProps) {
+  const t = useTheme();
   if (data.length < 2) return <View testID={testID} style={{ width, height }} />;
 
   const min = Math.min(...data);
@@ -31,7 +26,7 @@ export function MnSpark({
 
   return (
     <Svg width={width} height={height} testID={testID}>
-      <Polyline points={points} fill="none" stroke={color} strokeWidth={1.5} />
+      <Polyline points={points} fill="none" stroke={color ?? t.sage} strokeWidth={1.5} />
     </Svg>
   );
 }
