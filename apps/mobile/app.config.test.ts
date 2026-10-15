@@ -1,7 +1,4 @@
-import {
-  ANDROID_CLEARTEXT_HOSTS,
-  networkSecurityConfigXml,
-} from './withAndroidNetworkSecurityConfig';
+import { ANDROID_CLEARTEXT_HOSTS, networkSecurityConfigXml } from './app.config';
 
 describe('Android network security config (B5-03)', () => {
   const xml = networkSecurityConfigXml();
@@ -24,7 +21,7 @@ describe('Android network security config (B5-03)', () => {
 
 describe('app.config.ts wiring (B5-03)', () => {
   it('keeps the global cleartext flag off and applies the plugin', () => {
-    const build = require('../app.config').default as (c: { config: object }) => {
+    const build = require('./app.config').default as (c: { config: object }) => {
       android: Record<string, unknown>;
       mods?: { android?: { manifest?: unknown } };
     };

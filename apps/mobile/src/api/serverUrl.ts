@@ -123,7 +123,7 @@ export function isPrivateHost(rawHost: string): boolean {
  *  - iOS `NSAllowsLocalNetworking`: IP addresses, `.local`.
  *  - Android network security config: names, not ranges, so only `localhost`,
  *    the emulator alias `10.0.2.2` and `.local`. Keep in step with
- *    `plugins/withAndroidNetworkSecurityConfig.ts`.
+ *    `app.config.ts`.
  * Anything else would pass the check on the connect screen and then fail at
  * the OS with "Couldn't reach that address" (B5-03, B5-13).
  */
