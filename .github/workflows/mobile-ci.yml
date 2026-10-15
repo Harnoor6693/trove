@@ -119,6 +119,7 @@ jobs:
         # Detox drives the iOS simulator through it; the runner image does not ship it.
         run: |
           brew tap wix/brew
+          brew trust wix/brew
           brew install applesimutils
 
       - name: Build Detox framework cache
@@ -196,7 +197,7 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_5
-          script: cd apps/mobile && (npx detox test --configuration android.emu.debug --headless || { adb logcat -d -t 3000 AndroidRuntime:E ReactNativeJS:V DEBUG:V '*:F' | tail -200; exit 1; })
+          script: cd apps/mobile && (npx detox test --configuration android.emu.debug --headless || { adb logcat -d | grep -iE 'trove|fatal|AndroidRuntime|detox|ReactNative|SoLoader' | tail -200; exit 1; })
 
       - name: Upload Detox Android artifacts
         if: always()
