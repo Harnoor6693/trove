@@ -187,6 +187,28 @@ class WebhookDeliveryIT extends NotificationSupport {
     }
 
     @Test
+    @DisplayName("B3-01: a row a crash left IN_FLIGHT is claimed again once it is stale")
+    void aStaleInFlightRowIsReclaimed() {
+        UUID subscriptionId = subscriptionFor("https://192.0.2.1/hook");
+        UUID deliveryId = realDeliveries.scheduleDelivery(subscriptionId, "sync.completed", "{}")
+            .orElseThrow();
+        store.claimDue(Instant.now(), 50);
+        // The process died between the claim and the outcome: nothing will ever write this row
+        // again, and the stale window is far past the twenty seconds one call can take.
+        jdbcTemplate.update("UPDATE webhook_delivery_log SET updated_at = ? WHERE id = ?",
+            java.sql.Timestamp.from(Instant.now()
+                .minus(WebhookDeliveryStore.STALE_IN_FLIGHT).minusSeconds(60)),
+            deliveryId);
+
+        List<WebhookDeliveryLog> again = store.claimDue(Instant.now(), 50);
+
+        assertThat(again).extracting(WebhookDeliveryLog::getId)
+            .as("a crash or a deploy between claim and outcome must not drop the event for ever")
+            .contains(deliveryId);
+        assertThat(deliveryRow(deliveryId).get("status")).isEqualTo("IN_FLIGHT");
+    }
+
+    @Test
     @DisplayName("A deleted subscription abandons its queued delivery rather than retrying it")
     void aDeletedSubscriptionAbandonsTheDelivery() {
         UUID subscriptionId = subscriptionFor("https://192.0.2.1/hook");
