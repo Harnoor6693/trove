@@ -36,7 +36,7 @@ class CsvExportBuilderTest {
     }
 
     private List<CSVRecord> parse(byte[] content) {
-        String text = new String(content, StandardCharsets.UTF_8);
+        String text = new String(content, StandardCharsets.UTF_8).replaceFirst("^\uFEFF", "");
         try (CSVParser parser = CSVParser.parse(new StringReader(text), CSVFormat.DEFAULT)) {
             return parser.getRecords();
         } catch (Exception e) {
@@ -45,7 +45,7 @@ class CsvExportBuilderTest {
     }
 
     @Test
-    @DisplayName("The header set is exactly the columns §2.9 fixes (ten, plus type from B2-01), in order")
+    @DisplayName("The header set is exactly the columns §2.9 fixes (+ type), in order")
     void theHeaderSetIsExact() {
         List<CSVRecord> records = parse(builder.build(List.of()));
 
