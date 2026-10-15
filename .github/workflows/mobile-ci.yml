@@ -115,6 +115,11 @@ jobs:
           echo "Selecting $xcode"
           sudo xcode-select -s "$xcode"
 
+      - name: Build Detox framework cache
+        # The cache key includes the Xcode version, and npm ci's postinstall ran under the
+        # runner's default Xcode, so rebuild it for the one just selected.
+        run: detox clean-framework-cache && detox build-framework-cache
+
       - name: Expo prebuild (iOS)
         run: npx expo prebuild --platform ios --no-install --clean
 
