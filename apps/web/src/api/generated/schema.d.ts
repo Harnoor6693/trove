@@ -6265,8 +6265,10 @@ export interface components {
              */
             accountId: string;
             /**
-             * @description The absolute value, as a decimal string with at most four decimal
-             *     places. Zero and negative values are rejected — direction is `type`.
+             * @description The absolute value, as a decimal string with at most two decimal
+             *     places (accounts are CAD or USD, whose smallest unit is the cent), so
+             *     nothing is silently rounded. Zero and negative values are rejected —
+             *     direction is `type`.
              * @example 4.75
              */
             amount: string;

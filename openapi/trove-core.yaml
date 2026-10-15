@@ -11797,9 +11797,11 @@ components:
         amount:
           type: string
           description: |
-            The absolute value, as a decimal string with at most four decimal
-            places. Zero and negative values are rejected — direction is `type`.
-          pattern: '^[0-9]{1,15}(\.[0-9]{1,4})?$'
+            The absolute value, as a decimal string with at most two decimal
+            places (accounts are CAD or USD, whose smallest unit is the cent), so
+            nothing is silently rounded. Zero and negative values are rejected —
+            direction is `type`.
+          pattern: '^[0-9]{1,15}(\.[0-9]{1,2})?$'
           example: '4.75'
         date:
           type: string

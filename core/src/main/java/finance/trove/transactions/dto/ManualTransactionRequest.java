@@ -25,8 +25,8 @@ import java.util.UUID;
  *               reaching for a quick-add sheet is nearly always recording
  */
 public record ManualTransactionRequest(@NotNull UUID accountId,
-                                       @NotNull @DecimalMin(value = "0.0001")
-                                       @Digits(integer = 15, fraction = 4) BigDecimal amount,
+                                       @NotNull @DecimalMin(value = "0.01")
+                                       @Digits(integer = 15, fraction = 2) BigDecimal amount,
                                        @NotNull LocalDate date,
                                        TransactionType type,
                                        @Size(max = 255) String merchant,
