@@ -2211,9 +2211,10 @@ paths:
       description: |
         **Requires the `ADMIN` role.**
 
-        One flag in this version. It is read from the household row rather than
-        from configuration, so an admin's runtime decision — not the boot-time
-        environment variable — is what the sign-in page reflects.
+        Two flags. Both are read from the household row rather than from
+        configuration, so an admin's runtime decision — not the boot-time
+        environment variable — is what the sign-in page and the scheduled
+        bank sync obey.
       x-trove-required-role: ADMIN
       parameters:
         - $ref: '#/components/parameters/AccessCookie'
@@ -2251,8 +2252,8 @@ paths:
       description: |
         **Requires the `ADMIN` role.**
 
-        A partial update: an absent or null `registrationOpen` leaves the flag
-        alone and the current settings come back unchanged. The value is written
+        A partial update: an absent or null field leaves that flag alone, and
+        an empty body returns the current settings unchanged. A value is written
         to the household row so it survives a restart; the environment variable
         is only ever a seed for the first boot.
       x-trove-required-role: ADMIN
@@ -9708,8 +9709,8 @@ components:
 
     AdminSettingsResponse:
       type: object
-      description: The household's settings. One flag in this version.
-      required: [registrationOpen]
+      description: The household's settings.
+      required: [registrationOpen, scheduledSyncEnabled]
       additionalProperties: false
       properties:
         registrationOpen:
@@ -9718,8 +9719,17 @@ components:
             Whether anyone may sign up without an invitation. Stored on the
             household row so it survives a restart.
           example: false
+        scheduledSyncEnabled:
+          type: boolean
+          description: |
+            Whether the server syncs every SimpleFIN-connected account on its
+            own, once a day (`trove.simplefin.scheduled-sync-cron`). Off by
+            default. A scheduled run that fails tells the account's owner once,
+            when the account goes from working to failing, not every day.
+          example: false
       example:
         registrationOpen: false
+        scheduledSyncEnabled: false
 
     AuditLogEntry:
       type: object
@@ -10170,6 +10180,10 @@ components:
       description: A partial update; an absent or null field leaves the setting alone.
       properties:
         registrationOpen:
+          type: boolean
+          nullable: true
+          example: true
+        scheduledSyncEnabled:
           type: boolean
           nullable: true
           example: true

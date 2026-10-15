@@ -147,6 +147,12 @@ public class NotificationEventListener {
      * Vancouver member's day rolls over sixteen hours after UTC's, and using the container's would
      * put two alerts in their inbox on one of their evenings and none on another.
      *
+     * <p>That day key is for a MANUAL run ({@code FailureAlert.DAILY}). A scheduled run
+     * (C-01r, {@code ScheduledSyncJob}) would turn it into a daily nag for a connection nobody has
+     * fixed, so the job says before each run whether the account was healthy: {@code ONCE} keys
+     * the alert by the run itself — the move from healthy to failing is always news, even on a day
+     * that already had one — and {@code NONE} stays silent, because the member has been told.
+     *
      * <h2>Why this one handler carries {@code fallbackExecution = true} and the other two do not</h2>
      * The default, {@code fallbackExecution = false}, means "if no transaction is active when the
      * event is published, drop it" — and Spring drops it silently, with no log and no error.
@@ -174,7 +180,7 @@ public class NotificationEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onSyncCompleted(SyncCompletedEvent event) {
-        if (event.isSuccess()) {
+        if (event.isSuccess() || event.failureAlert() == SyncCompletedEvent.FailureAlert.NONE) {
             return;
         }
         NotificationPreference preference = preferences.getOrCreate(event.userId());
@@ -191,7 +197,8 @@ public class NotificationEventListener {
             ? "Some transactions were imported and some were rejected. "
             : "Nothing was imported. ") + reason;
         String dedupKey = event.accountId() + ":"
-            + clock.today(event.userId());
+            + (event.failureAlert() == SyncCompletedEvent.FailureAlert.ONCE
+                ? event.syncLogId() : clock.today(event.userId()));
         notifications.notify(event.userId(), NotificationType.SYNC_FAILED,
             NotificationContent.of(subject, body, "/accounts/" + event.accountId(), dedupKey));
         LOG.debug("sync failure notification queued for account {}", event.accountId());
