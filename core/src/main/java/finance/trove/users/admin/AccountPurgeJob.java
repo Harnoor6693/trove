@@ -1,6 +1,7 @@
 package finance.trove.users.admin;
 
 import finance.trove.common.storage.LocalDiskStorage;
+import finance.trove.common.time.Instants;
 import finance.trove.dataexport.DataExportRun;
 import finance.trove.dataexport.DataExportRunRepository;
 import finance.trove.taxexport.TaxExportRun;
@@ -98,7 +99,7 @@ public class AccountPurgeJob {
     @SchedulerLock(name = LOCK_NAME, lockAtMostFor = "PT30M")
     public void purgeDeletedAccounts() {
         LOG.info("{} erased {} accounts past their restore window", LOCK_NAME,
-            purge(Instant.now()));
+            purge(Instants.now()));
     }
 
     /**

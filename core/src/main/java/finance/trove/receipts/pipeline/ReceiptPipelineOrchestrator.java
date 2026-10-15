@@ -3,6 +3,7 @@ package finance.trove.receipts.pipeline;
 import finance.trove.ai.AiGateway;
 import finance.trove.app.AsyncConfig;
 import finance.trove.common.events.ReceiptProcessedEvent;
+import finance.trove.common.time.Instants;
 import finance.trove.receipts.ReceiptEventPublisher;
 import finance.trove.receipts.pipeline.stages.MatchingStage;
 import finance.trove.receipts.pipeline.stages.ParsingStage;
@@ -17,7 +18,6 @@ import finance.trove.users.User;
 import finance.trove.users.UserRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
-import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -133,7 +133,7 @@ public class ReceiptPipelineOrchestrator {
         ReceiptProcessingContext context = contextFor(uploaderId);
 
         Receipt started = found.get();
-        started.setProcessingStartedAt(Instant.now());
+        started.setProcessingStartedAt(Instants.now());
         receipts.save(started);
 
         for (PipelineStage stage : stages) {
@@ -153,7 +153,7 @@ public class ReceiptPipelineOrchestrator {
 
         load(householdId, receiptId).ifPresent(finished -> {
             finished.setStatus(ReceiptStatus.COMPLETE);
-            finished.setProcessingCompletedAt(Instant.now());
+            finished.setProcessingCompletedAt(Instants.now());
             receipts.save(finished);
         });
         publishTerminal(householdId, uploaderId, receiptId);
@@ -229,14 +229,14 @@ public class ReceiptPipelineOrchestrator {
         receipt.setStatus(ReceiptStatus.FAILED);
         receipt.setErrorMessage(message);
         receipt.setReviewRequired(true);
-        receipt.setProcessingCompletedAt(Instant.now());
+        receipt.setProcessingCompletedAt(Instants.now());
         try {
             receipts.save(receipt);
         } catch (RuntimeException e) {
             LOG.error("receipt-pipeline: receipt {} could not be saved while being failed; "
                 + "writing the terminal status directly", receipt.getId(), e);
             receipts.markFailed(receipt.getId(), receipt.getHouseholdId(), message,
-                Instant.now());
+                Instants.now());
         }
     }
 

@@ -2,6 +2,7 @@ package finance.trove.accounts;
 
 import finance.trove.common.domain.CurrencyCode;
 import finance.trove.common.plugin.SourceKind;
+import finance.trove.common.time.Instants;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -109,7 +110,7 @@ public class ConnectedAccount {
     private Instant createdAt;
 
     @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt = Instant.now();
+    private Instant updatedAt = Instants.now();
 
     protected ConnectedAccount() {
         // JPA
@@ -131,7 +132,7 @@ public class ConnectedAccount {
 
     @PreUpdate
     void touch() {
-        this.updatedAt = Instant.now();
+        this.updatedAt = Instants.now();
     }
 
     public UUID getId() {

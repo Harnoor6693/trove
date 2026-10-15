@@ -1,5 +1,6 @@
 package finance.trove.ai.chat;
 
+import finance.trove.common.time.Instants;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -84,7 +85,7 @@ public class CoachMessage {
     @PrePersist
     void stampCreatedAt() {
         if (this.createdAt == null) {
-            this.createdAt = Instant.now();
+            this.createdAt = Instants.now();
         }
     }
 

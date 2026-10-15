@@ -1,5 +1,6 @@
 package finance.trove.notifications.preference;
 
+import finance.trove.common.time.Instants;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -104,7 +105,7 @@ public class NotificationPreference {
     @PrePersist
     @PreUpdate
     void touch() {
-        this.updatedAt = Instant.now();
+        this.updatedAt = Instants.now();
     }
 
     /**

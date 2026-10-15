@@ -3,6 +3,7 @@ package finance.trove.subscriptions.subscription;
 import finance.trove.common.domain.CurrencyCode;
 import finance.trove.common.domain.Money;
 import finance.trove.common.exception.ResourceNotFoundException;
+import finance.trove.common.time.Instants;
 import finance.trove.common.time.UserClock;
 import finance.trove.subscriptions.detection.SubscriptionDetectionProperties;
 import finance.trove.subscriptions.dto.SubscriptionCurrencyAmount;
@@ -12,7 +13,6 @@ import finance.trove.subscriptions.dto.SubscriptionSummaryResponse;
 import finance.trove.subscriptions.dto.UpcomingCharge;
 import finance.trove.users.User;
 import finance.trove.users.UserRepository;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -77,7 +77,7 @@ public class SubscriptionService {
      */
     @Transactional
     public void cancel(UUID householdId, UUID id) {
-        if (subscriptions.cancelByIdAndHouseholdId(id, householdId, Instant.now()) == 0) {
+        if (subscriptions.cancelByIdAndHouseholdId(id, householdId, Instants.now()) == 0) {
             throw ResourceNotFoundException.of("Subscription", id);
         }
     }

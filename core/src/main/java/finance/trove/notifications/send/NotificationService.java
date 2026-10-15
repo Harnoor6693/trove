@@ -1,5 +1,6 @@
 package finance.trove.notifications.send;
 
+import finance.trove.common.time.Instants;
 import finance.trove.notifications.NotificationChannel;
 import finance.trove.notifications.NotificationType;
 import finance.trove.notifications.preference.NotificationPreference;
@@ -77,7 +78,7 @@ public class NotificationService {
     public NotificationService(NotificationLogRepository logs,
                                NotificationPreferenceService preferences,
                                List<DeliveryChannel> channels, MeterRegistry meters) {
-        this(logs, preferences, channels, meters, Clock.systemUTC());
+        this(logs, preferences, channels, meters, Instants.CLOCK);
     }
 
     /** Test seam: a fixed clock makes the {@code sentAt} stamp assertable. */

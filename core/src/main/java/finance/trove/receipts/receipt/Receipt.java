@@ -1,6 +1,7 @@
 package finance.trove.receipts.receipt;
 
 import finance.trove.common.domain.CurrencyCode;
+import finance.trove.common.time.Instants;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -179,7 +180,7 @@ public class Receipt {
     private Instant createdAt;
 
     @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt = Instant.now();
+    private Instant updatedAt = Instants.now();
 
     /**
      * The stored files, {@code EAGER} deliberately.
@@ -212,13 +213,13 @@ public class Receipt {
         this.userId = userId;
         this.source = source == null ? ReceiptSource.UPLOAD : source;
         this.uploadSizeBytes = uploadSizeBytes;
-        this.createdAt = Instant.now();
+        this.createdAt = Instants.now();
         this.updatedAt = this.createdAt;
     }
 
     @PreUpdate
     void onUpdate() {
-        this.updatedAt = Instant.now();
+        this.updatedAt = Instants.now();
     }
 
     /** The stored full-size image, or empty when the files were removed underneath the row. */

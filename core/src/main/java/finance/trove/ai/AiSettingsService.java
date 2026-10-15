@@ -10,6 +10,7 @@ import finance.trove.app.audit.SecurityEventRecorder;
 import finance.trove.app.audit.SecurityEventType;
 import finance.trove.common.crypto.FieldEncryptionService;
 import finance.trove.common.net.OutboundUrlPolicy;
+import finance.trove.common.time.Instants;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -188,7 +189,7 @@ public class AiSettingsService {
     public AiConnectionTestResponse testConnection(UUID userId) {
         AiSettings settings = requireConfigured(userId);
         AiEndpoint endpoint = gateway.resolve(settings);
-        Instant checkedAt = Instant.now();
+        Instant checkedAt = Instants.now();
         long started = System.nanoTime();
         try {
             List<AiModel> models = client.models(endpoint);

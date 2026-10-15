@@ -1,6 +1,7 @@
 package finance.trove.taxexport;
 
 import finance.trove.common.domain.Jurisdiction;
+import finance.trove.common.time.Instants;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -78,7 +79,7 @@ public class TaxLineMapping {
      * ever dirties a managed row, so there is no {@code @PreUpdate} to keep honest.
      */
     @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt = Instant.now();
+    private Instant updatedAt = Instants.now();
 
     protected TaxLineMapping() {
         // JPA
@@ -101,7 +102,7 @@ public class TaxLineMapping {
         this.lineCode = lineCode;
         this.lineLabel = lineLabel;
         this.deductible = deductible;
-        this.createdAt = Instant.now();
+        this.createdAt = Instants.now();
         this.updatedAt = this.createdAt;
     }
 

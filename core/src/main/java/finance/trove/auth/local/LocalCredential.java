@@ -1,5 +1,6 @@
 package finance.trove.auth.local;
 
+import finance.trove.common.time.Instants;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -31,7 +32,7 @@ public class LocalCredential {
     private String passwordHash;
 
     @Column(name = "password_updated_at", nullable = false)
-    private Instant passwordUpdatedAt = Instant.now();
+    private Instant passwordUpdatedAt = Instants.now();
 
     @Column(name = "failed_attempts", nullable = false)
     private int failedAttempts;

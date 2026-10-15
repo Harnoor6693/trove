@@ -5,6 +5,7 @@ import finance.trove.auth.local.LocalAccountService;
 import finance.trove.auth.local.PasswordPolicyException;
 import finance.trove.common.domain.CurrencyCode;
 import finance.trove.common.domain.Jurisdiction;
+import finance.trove.common.time.Instants;
 import finance.trove.common.time.TimeProperties;
 import finance.trove.households.Household;
 import finance.trove.households.HouseholdRepository;
@@ -75,7 +76,7 @@ public class FirstRunBootstrap implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         try {
-            bootstrapIfEmpty(Instant.now());
+            bootstrapIfEmpty(Instants.now());
         } catch (PasswordPolicyException e) {
             // swallow-ok: the operator's chosen admin password is too weak. Refusing to start
             // would make an un-onboarded install unreachable, including the status endpoint they

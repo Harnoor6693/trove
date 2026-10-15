@@ -3,6 +3,7 @@ package finance.trove.subscriptions.detection;
 import finance.trove.categorisation.MerchantNormaliser;
 import finance.trove.common.domain.Money;
 import finance.trove.common.events.SubscriptionPriceChangedEvent;
+import finance.trove.common.time.Instants;
 import finance.trove.common.time.UserClock;
 import finance.trove.subscriptions.alert.AlertType;
 import finance.trove.subscriptions.alert.SubscriptionAlert;
@@ -13,7 +14,6 @@ import finance.trove.users.User;
 import finance.trove.users.UserRepository;
 import finance.trove.users.UserRole;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -174,7 +174,7 @@ public class SubscriptionDetectionService {
             // describing a fall would be a lie.
             alerts.save(new SubscriptionAlert(householdId, attributedTo,
                 outcome.subscriptionId(), AlertType.PRICE_INCREASE,
-                priceIncreaseMessage(candidate.merchantName(), before, now), Instant.now()));
+                priceIncreaseMessage(candidate.merchantName(), before, now), Instants.now()));
         }
     }
 
