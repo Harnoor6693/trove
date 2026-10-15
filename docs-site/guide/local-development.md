@@ -19,7 +19,7 @@ For a self-hosted install instead, see [Docker Compose](../self-hosting/docker-c
 - Docker, for Postgres (see step 1)
 - A Postgres 16 with the `pgvector` extension available (the deploy stack uses
   `pgvector/pgvector:pg16`; any Postgres 16 with `CREATE EXTENSION vector` works)
-- For iOS: Xcode. The app is on **Expo SDK 57**, which builds and runs on **Xcode 27**
+- For iOS: Xcode. The app is on **Expo SDK 58**, which builds and runs on **Xcode 27**
   (step 27.7 ran `expo run:ios` and iOS Detox on Xcode 27.0; see [iOS](#ios) below). CI's
   iOS job still selects Xcode 26 (`.github/workflows/mobile-ci.yml`
   `xcode-select -s /Applications/Xcode_26.app`). Pick a simulator
@@ -30,7 +30,7 @@ For a self-hosted install instead, see [Docker Compose](../self-hosting/docker-c
   for driving the iOS simulator (install/launch/terminate/biometrics), not listed here
   before step 27 found it missing: `brew tap wix/brew && brew install applesimutils`.
 - For Android: the Android SDK with `sdkmanager`/`avdmanager`/`adb` on `PATH`, and an AVD
-  named **`Pixel_5_API_36`** (API level 36 — Expo SDK 57 / React Native 0.86.3 compile and
+  named **`Pixel_5_API_36`** (API level 36 — Expo SDK 58 / React Native 0.88 compile against SDK 37 and
   target SDK 36, `react-native/gradle/libs.versions.toml`) — the exact name Detox's `android.emu` device
   expects (`apps/mobile/.detoxrc.js`); CI's own `reactivecircus/android-emulator-runner`
   step is still pinned to `api-level: 34` (`.github/workflows/mobile-ci.yml`), a
@@ -133,12 +133,11 @@ paragraph under Tests below (prefix the command with `CI=1`, at the cost of fast
 building and launching the simulator. On the iOS Simulator, `localhost` reaches the host
 Mac directly, so the dev default above works unchanged.
 
-**Xcode 27.** Two things make this work there (step 27.7): Expo SDK 57's CLI finds the
-simulator through Xcode 27's DeviceHub.app (Simulator.app is gone), and the
-`['expo-build-properties', { ios: { enableSceneSupport: true } }]` entry in `app.config.ts`
-gives the app the UIScene life cycle the iOS 27 SDK requires — without it the app crashes at
-launch with `UIScene life cycle is required for apps built with this SDK`. Scenes become the
-default in SDK 58; remove that entry then. To open a reset link by hand, use
+**Xcode 27.** Two things make this work there (step 27.7): the Expo CLI finds the
+simulator through Xcode 27's DeviceHub.app (Simulator.app is gone), and Expo SDK 58 gives
+the app the UIScene life cycle the iOS 27 SDK requires by default — without it the app crashes
+at launch with `UIScene life cycle is required for apps built with this SDK`. (On SDK 57 this
+took an `enableSceneSupport` entry in `app.config.ts`; SDK 58 made it unnecessary.) To open a reset link by hand, use
 `xcrun simctl openurl booted 'trove://reset-password?token=…'`; iOS 27 first asks
 "Open in "Trove"?".
 
