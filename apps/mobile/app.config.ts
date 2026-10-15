@@ -296,7 +296,7 @@ export default ({ config }: ConfigContext): ExpoConfig =>
     },
     package: 'com.trove.app',
     permissions: ['CAMERA', 'READ_MEDIA_IMAGES'],
-    // Not in Expo 57's `ExpoConfig['android']` type yet, but read by prebuild
+    // Not in Expo 58's `ExpoConfig['android']` type yet, but read by prebuild
     // and written into AndroidManifest.xml.
     ...({ usesCleartextTraffic: false } as Record<string, unknown>),
   },
@@ -330,9 +330,6 @@ export default ({ config }: ConfigContext): ExpoConfig =>
         microphonePermission: false,
       },
     ],
-    // The iOS 27 SDK requires the UIScene life cycle. Opt-in on SDK 57; it is the
-    // default from SDK 58, where this entry only warns: remove it then.
-    ['expo-build-properties', { ios: { enableSceneSupport: true } }],
   ],
   scheme: 'trove',
   extra: {

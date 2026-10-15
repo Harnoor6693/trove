@@ -1,5 +1,5 @@
 diff --git a/node_modules/expo-router/ios/LinkPreview/LinkPreviewNativeActionView.swift b/node_modules/expo-router/ios/LinkPreview/LinkPreviewNativeActionView.swift
-index 3884b78..b3901f0 100644
+index 28b0c28..92406f9 100644
 --- a/node_modules/expo-router/ios/LinkPreview/LinkPreviewNativeActionView.swift
 +++ b/node_modules/expo-router/ios/LinkPreview/LinkPreviewNativeActionView.swift
 @@ -137,7 +137,7 @@ class LinkPreviewNativeActionView: RouterViewWithLogger, LinkPreviewMenuUpdatabl
