@@ -3,7 +3,7 @@ import { AppState, type AppStateStatus, StyleSheet, Text, View } from 'react-nat
 import { MnBtn } from '@components/ui/MnBtn/MnBtn';
 import { FontFamily, FontSize, Space } from '@design/tokens';
 import { useTheme } from '@design/useTheme';
-import { authenticateWithBiometrics, checkBiometricAvailability } from '@hooks/useBiometric';
+import { authenticateWithBiometrics } from '@hooks/useBiometric';
 import { logError } from '@lib/logError';
 import { fetchMe } from '@api/me';
 import { fetchPreferences } from '@api/preferences';
@@ -67,16 +67,18 @@ export function AppLock({ children }: { children: React.ReactNode }) {
     setUnlocking(true);
     try {
       if (appLockEnabled) {
-        const available = await checkBiometricAvailability();
-        if (available) {
-          // `disableDeviceFallback: false` in `useBiometric` means a failed
-          // face/finger scan falls back to the device passcode rather than
-          // dead-ending.
-          const result = await authenticateWithBiometrics('Unlock Trove');
-          if (!result.success) {
-            setError('Unlock failed. Try again.');
-            return;
-          }
+        // Always prompt. `disableDeviceFallback: false` in `useBiometric`
+        // means a device with no enrolled biometrics, or a failed scan, falls
+        // back to the device passcode. A device with neither stays locked: the
+        // lock must never silently open (B5-04).
+        const result = await authenticateWithBiometrics('Unlock Trove');
+        if (!result.success) {
+          setError(
+            result.error === 'not_enrolled' || result.error === 'passcode_not_set'
+              ? 'Set a device passcode or biometrics to use the app lock.'
+              : 'Unlock failed. Try again.'
+          );
+          return;
         }
       }
       const ok = await unlock();
