@@ -58,9 +58,9 @@ function envelope(id: string, overrides: Partial<EnvelopeResponse> = {}): Envelo
   };
 }
 
-function renderPeriodDetail(period = PERIOD, onDeleted = jest.fn()) {
+async function renderPeriodDetail(period = PERIOD, onDeleted = jest.fn()) {
   const client = createTestQueryClient();
-  render(
+  await render(
     <QueryClientProvider client={client}>
       <PeriodDetail period={period} onDeleted={onDeleted} testID="period-detail" />
     </QueryClientProvider>
@@ -78,7 +78,7 @@ describe('envelopes — each in its own currency, no combined total', () => {
       envelope('e1', { currency: 'CAD', categoryName: 'Groceries', allocated: '400.0000' }),
       envelope('e2', { currency: 'USD', categoryName: 'Streaming', allocated: '20.0000' }),
     ]);
-    renderPeriodDetail();
+    await renderPeriodDetail();
 
     await waitFor(() => expect(screen.getByTestId('envelope-row-e1')).toBeTruthy());
     expect(screen.getByTestId('envelope-row-e2')).toBeTruthy();
@@ -105,14 +105,14 @@ describe('envelopes — each in its own currency, no combined total', () => {
         },
       }),
     ]);
-    renderPeriodDetail();
+    await renderPeriodDetail();
     await waitFor(() => expect(screen.getByTestId('envelope-row-e1')).toBeTruthy());
     expect(screen.getByText('62%')).toBeTruthy();
   });
 
   it('shows the empty state when the period has no envelopes yet', async () => {
     mockEnvelopes.mockResolvedValue([]);
-    renderPeriodDetail();
+    await renderPeriodDetail();
     await waitFor(() => expect(screen.getByTestId('period-detail-envelopes-empty')).toBeTruthy());
   });
 });
@@ -140,12 +140,12 @@ describe('editing the period', () => {
         },
       })
     );
-    renderPeriodDetail();
+    await renderPeriodDetail();
     await waitFor(() => expect(screen.getByTestId('period-detail-edit')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('period-detail-edit'));
-    fireEvent.changeText(screen.getByTestId('period-detail-income-input'), '1.00');
-    fireEvent.press(screen.getByTestId('period-detail-save'));
+    await fireEvent.press(screen.getByTestId('period-detail-edit'));
+    await fireEvent.changeText(screen.getByTestId('period-detail-income-input'), '1.00');
+    await fireEvent.press(screen.getByTestId('period-detail-save'));
 
     await waitFor(() =>
       expect(screen.getByText('Envelopes must sum to your total income.')).toBeTruthy()
@@ -154,16 +154,16 @@ describe('editing the period', () => {
 
   it('lets the member switch budget type and cancel out of editing without saving', async () => {
     mockEnvelopes.mockResolvedValue([]);
-    renderPeriodDetail();
+    await renderPeriodDetail();
     await waitFor(() => expect(screen.getByTestId('period-detail-edit')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('period-detail-edit'));
-    fireEvent.press(screen.getByTestId('period-detail-type-ZERO_BASED'));
+    await fireEvent.press(screen.getByTestId('period-detail-edit'));
+    await fireEvent.press(screen.getByTestId('period-detail-type-ZERO_BASED'));
     expect(
       screen.getByText('Every dollar of income must be allocated to an envelope.')
     ).toBeTruthy();
 
-    fireEvent.press(screen.getByTestId('period-detail-cancel'));
+    await fireEvent.press(screen.getByTestId('period-detail-cancel'));
     expect(screen.queryByTestId('period-detail-income-input')).toBeNull();
     expect(mockUpdate).not.toHaveBeenCalled();
   });
@@ -187,12 +187,12 @@ describe('editing the period', () => {
         },
       })
     );
-    renderPeriodDetail();
+    await renderPeriodDetail();
     await waitFor(() => expect(screen.getByTestId('period-detail-edit')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('period-detail-edit'));
-    fireEvent.changeText(screen.getByTestId('period-detail-income-input'), '5100.00');
-    fireEvent.press(screen.getByTestId('period-detail-save'));
+    await fireEvent.press(screen.getByTestId('period-detail-edit'));
+    await fireEvent.changeText(screen.getByTestId('period-detail-income-input'), '5100.00');
+    await fireEvent.press(screen.getByTestId('period-detail-save'));
 
     await waitFor(() =>
       expect(screen.getByTestId('period-detail-update-error')).toHaveTextContent(
@@ -205,13 +205,13 @@ describe('editing the period', () => {
 describe('navigating to an envelope', () => {
   it('opens the envelope on tap and "Add an envelope" from its own button', async () => {
     mockEnvelopes.mockResolvedValue([envelope('e1')]);
-    renderPeriodDetail();
+    await renderPeriodDetail();
     await waitFor(() => expect(screen.getByTestId('envelope-row-e1')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('envelope-row-e1'));
+    await fireEvent.press(screen.getByTestId('envelope-row-e1'));
     expect(router.push).toHaveBeenCalledWith('/(tabs)/budgets/period/p1/envelope/e1');
 
-    fireEvent.press(screen.getByTestId('period-detail-add-envelope'));
+    await fireEvent.press(screen.getByTestId('period-detail-add-envelope'));
     expect(router.push).toHaveBeenCalledWith('/(tabs)/budgets/period/p1/envelope/new');
   });
 });
@@ -220,24 +220,24 @@ describe('deleting the period', () => {
   it('requires a confirm step and calls onDeleted only after the confirmed delete resolves', async () => {
     mockEnvelopes.mockResolvedValue([]);
     mockDelete.mockResolvedValue(undefined);
-    const { onDeleted } = renderPeriodDetail();
+    const { onDeleted } = await renderPeriodDetail();
     await waitFor(() => expect(screen.getByTestId('period-detail-delete')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('period-detail-delete'));
+    await fireEvent.press(screen.getByTestId('period-detail-delete'));
     expect(screen.getByTestId('period-detail-delete-confirm-copy')).toBeTruthy();
     expect(onDeleted).not.toHaveBeenCalled();
 
-    fireEvent.press(screen.getByTestId('period-detail-delete-confirm'));
+    await fireEvent.press(screen.getByTestId('period-detail-delete-confirm'));
     await waitFor(() => expect(onDeleted).toHaveBeenCalled());
   });
 
   it('backs out of the delete confirmation with "Keep it"', async () => {
     mockEnvelopes.mockResolvedValue([]);
-    const { onDeleted } = renderPeriodDetail();
+    const { onDeleted } = await renderPeriodDetail();
     await waitFor(() => expect(screen.getByTestId('period-detail-delete')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('period-detail-delete'));
-    fireEvent.press(screen.getByTestId('period-detail-delete-cancel'));
+    await fireEvent.press(screen.getByTestId('period-detail-delete'));
+    await fireEvent.press(screen.getByTestId('period-detail-delete-cancel'));
 
     expect(screen.queryByTestId('period-detail-delete-confirm-copy')).toBeNull();
     expect(mockDelete).not.toHaveBeenCalled();
@@ -249,12 +249,12 @@ describe('a successful income edit', () => {
   it('leaves edit mode once the save resolves', async () => {
     mockEnvelopes.mockResolvedValue([]);
     mockUpdate.mockResolvedValue({ ...PERIOD, totalIncome: '5100.0000' });
-    renderPeriodDetail();
+    await renderPeriodDetail();
     await waitFor(() => expect(screen.getByTestId('period-detail-edit')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('period-detail-edit'));
-    fireEvent.changeText(screen.getByTestId('period-detail-income-input'), '5100.00');
-    fireEvent.press(screen.getByTestId('period-detail-save'));
+    await fireEvent.press(screen.getByTestId('period-detail-edit'));
+    await fireEvent.changeText(screen.getByTestId('period-detail-income-input'), '5100.00');
+    await fireEvent.press(screen.getByTestId('period-detail-save'));
 
     // A generous timeout: under the full suite's parallel worker load this
     // assertion has been observed to need more than the default 1000ms even
@@ -274,12 +274,12 @@ describe('a successful income edit', () => {
 describe('the envelope list itself failing to load', () => {
   it('offers a retry that issues another fetch', async () => {
     mockEnvelopes.mockRejectedValue(new Error('network down'));
-    renderPeriodDetail();
+    await renderPeriodDetail();
 
     await waitFor(() => expect(screen.getByTestId('period-detail-envelopes-error')).toBeTruthy());
     const callsBeforeRetry = mockEnvelopes.mock.calls.length;
 
-    fireEvent.press(screen.getByTestId('period-detail-envelopes-retry'));
+    await fireEvent.press(screen.getByTestId('period-detail-envelopes-retry'));
     await waitFor(() => expect(mockEnvelopes.mock.calls.length).toBeGreaterThan(callsBeforeRetry));
   });
 });

@@ -34,9 +34,9 @@ const PERIOD: BudgetPeriodResponse = {
   updatedAt: '2026-09-04T14:00:00Z',
 };
 
-function renderScreen() {
+async function renderScreen() {
   const client = createTestQueryClient();
-  render(
+  await render(
     <QueryClientProvider client={client}>
       <BudgetPeriodScreen />
     </QueryClientProvider>
@@ -51,7 +51,7 @@ beforeEach(() => {
 it('fetches the period by id and renders it', async () => {
   mockFetch.mockResolvedValue(PERIOD);
   mockEnvelopes.mockResolvedValue([]);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('budget-period-detail')).toBeTruthy());
   expect(mockFetch).toHaveBeenCalledWith(ID);
 });
@@ -60,18 +60,18 @@ it('navigates back after a confirmed delete', async () => {
   mockFetch.mockResolvedValue(PERIOD);
   mockEnvelopes.mockResolvedValue([]);
   mockDelete.mockResolvedValue(undefined);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('budget-period-detail-delete')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('budget-period-detail-delete'));
-  fireEvent.press(screen.getByTestId('budget-period-detail-delete-confirm'));
+  await fireEvent.press(screen.getByTestId('budget-period-detail-delete'));
+  await fireEvent.press(screen.getByTestId('budget-period-detail-delete-confirm'));
 
   await waitFor(() => expect(router.back).toHaveBeenCalled());
 });
 
-it('treats a non-uuid param as not-found rather than querying the server', () => {
+it('treats a non-uuid param as not-found rather than querying the server', async () => {
   mockParams.mockReturnValue({ id: '../accounts/1' });
-  renderScreen();
+  await renderScreen();
   expect(screen.getByText('That budget period could not be found.')).toBeTruthy();
   expect(mockFetch).not.toHaveBeenCalled();
 });

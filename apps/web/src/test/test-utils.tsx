@@ -18,7 +18,7 @@ export function renderWithProviders(ui: ReactNode, opts: { initialPath?: string 
     client,
     ...render(
       <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={[opts.initialPath ?? '/']}>{ui}</MemoryRouter>
+        <MemoryRouter initialEntries={[opts.initialPath ?? '/']} useTransitions={false}>{ui}</MemoryRouter>
       </QueryClientProvider>
     ),
   }

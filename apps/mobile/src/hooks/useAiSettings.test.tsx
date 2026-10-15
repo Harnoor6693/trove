@@ -104,22 +104,22 @@ describe('coachReadiness', () => {
 describe('useAiSettings', () => {
   it('reads the row, which never carries a key', async () => {
     mockFetch.mockResolvedValue(READY);
-    const { result } = renderHook(() => useAiSettings(), { wrapper });
+    const { result } = await renderHook(() => useAiSettings(), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual(READY));
     expect(Object.keys(result.current.data ?? {})).not.toContain('apiKey');
   });
 });
 
 describe('useAiModels', () => {
-  it('is idle until the caller says an endpoint is saved', () => {
-    const { result } = renderHook(() => useAiModels(false), { wrapper });
+  it('is idle until the caller says an endpoint is saved', async () => {
+    const { result } = await renderHook(() => useAiModels(false), { wrapper });
     expect(result.current.fetchStatus).toBe('idle');
     expect(mockModels).not.toHaveBeenCalled();
   });
 
   it('lists the models, so the picker offers real ids rather than a free-text box', async () => {
     mockModels.mockResolvedValue([{ id: 'qwen2.5:14b', ownedBy: 'library', created: null }]);
-    const { result } = renderHook(() => useAiModels(true), { wrapper });
+    const { result } = await renderHook(() => useAiModels(true), { wrapper });
     await waitFor(() => expect(result.current.data).toHaveLength(1));
     expect(result.current.data?.[0].id).toBe('qwen2.5:14b');
   });
@@ -130,7 +130,7 @@ describe('useUpdateAiSettings', () => {
     mockUpdate.mockResolvedValue(READY);
     const qc = createTestQueryClient({ gcTime: 5_000 });
     clients.push(qc);
-    const { result } = renderHook(() => useUpdateAiSettings(), {
+    const { result } = await renderHook(() => useUpdateAiSettings(), {
       wrapper: ({ children }: { children: React.ReactNode }) => (
         <QueryClientProvider client={qc}>{children}</QueryClientProvider>
       ),
@@ -162,7 +162,7 @@ describe('useUpdateAiSettings', () => {
     const qc = createTestQueryClient();
     clients.push(qc);
     const invalidate = jest.spyOn(qc, 'invalidateQueries');
-    const { result } = renderHook(() => useUpdateAiSettings(), {
+    const { result } = await renderHook(() => useUpdateAiSettings(), {
       wrapper: ({ children }: { children: React.ReactNode }) => (
         <QueryClientProvider client={qc}>{children}</QueryClientProvider>
       ),
@@ -184,7 +184,7 @@ describe('useDeleteAiApiKey', () => {
     const qc = createTestQueryClient();
     clients.push(qc);
     const invalidate = jest.spyOn(qc, 'invalidateQueries');
-    const { result } = renderHook(() => useDeleteAiApiKey(), {
+    const { result } = await renderHook(() => useDeleteAiApiKey(), {
       wrapper: ({ children }: { children: React.ReactNode }) => (
         <QueryClientProvider client={qc}>{children}</QueryClientProvider>
       ),
@@ -211,7 +211,7 @@ describe('useTestAiConnection', () => {
     const qc = createTestQueryClient();
     clients.push(qc);
     const invalidate = jest.spyOn(qc, 'invalidateQueries');
-    const { result } = renderHook(() => useTestAiConnection(), {
+    const { result } = await renderHook(() => useTestAiConnection(), {
       wrapper: ({ children }: { children: React.ReactNode }) => (
         <QueryClientProvider client={qc}>{children}</QueryClientProvider>
       ),
@@ -227,7 +227,7 @@ describe('useTestAiConnection', () => {
     const qc = createTestQueryClient();
     clients.push(qc);
     const invalidate = jest.spyOn(qc, 'invalidateQueries');
-    const { result } = renderHook(() => useTestAiConnection(), {
+    const { result } = await renderHook(() => useTestAiConnection(), {
       wrapper: ({ children }: { children: React.ReactNode }) => (
         <QueryClientProvider client={qc}>{children}</QueryClientProvider>
       ),

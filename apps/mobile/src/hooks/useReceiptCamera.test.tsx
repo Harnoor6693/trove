@@ -76,7 +76,7 @@ afterEach(() => {
 
 describe('permissions', () => {
   it('asks for the camera permission before opening the camera', async () => {
-    const { result } = renderHook(() => useReceiptCamera(), { wrapper });
+    const { result } = await renderHook(() => useReceiptCamera(), { wrapper });
     await act(async () => {
       await expect(result.current.captureFromCamera()).resolves.toEqual({
         uri: 'file://cam.jpg',
@@ -95,7 +95,7 @@ describe('permissions', () => {
       status: 'denied',
       granted: false,
     });
-    const { result } = renderHook(() => useReceiptCamera(), { wrapper });
+    const { result } = await renderHook(() => useReceiptCamera(), { wrapper });
     await act(async () => {
       await expect(result.current.captureFromCamera()).resolves.toBeNull();
     });
@@ -108,7 +108,7 @@ describe('permissions', () => {
       status: 'denied',
       granted: false,
     });
-    const { result } = renderHook(() => useReceiptCamera(), { wrapper });
+    const { result } = await renderHook(() => useReceiptCamera(), { wrapper });
     await act(async () => {
       await expect(result.current.pickFromLibrary()).resolves.toBeNull();
     });
@@ -117,7 +117,7 @@ describe('permissions', () => {
   });
 
   it('offers the OS settings screen, the only route back from a denial', async () => {
-    const { result } = renderHook(() => useReceiptCamera(), { wrapper });
+    const { result } = await renderHook(() => useReceiptCamera(), { wrapper });
     await act(async () => {
       await result.current.openDeviceSettings();
     });
@@ -129,7 +129,7 @@ describe('permissions', () => {
       status: 'denied',
       granted: false,
     });
-    const { result } = renderHook(() => useReceiptCamera(), { wrapper });
+    const { result } = await renderHook(() => useReceiptCamera(), { wrapper });
     await act(async () => {
       await result.current.captureFromCamera();
     });
@@ -144,7 +144,7 @@ describe('permissions', () => {
 describe('picking', () => {
   it('returns null when the member backs out of the picker', async () => {
     (ImagePicker.launchCameraAsync as jest.Mock).mockResolvedValue({ canceled: true });
-    const { result } = renderHook(() => useReceiptCamera(), { wrapper });
+    const { result } = await renderHook(() => useReceiptCamera(), { wrapper });
     await act(async () => {
       await expect(result.current.captureFromCamera()).resolves.toBeNull();
     });
@@ -157,14 +157,14 @@ describe('picking', () => {
       canceled: false,
       assets: [],
     });
-    const { result } = renderHook(() => useReceiptCamera(), { wrapper });
+    const { result } = await renderHook(() => useReceiptCamera(), { wrapper });
     await act(async () => {
       await expect(result.current.pickFromLibrary()).resolves.toBeNull();
     });
   });
 
   it('picks from the library as an UPLOAD, which is not a SCAN', async () => {
-    const { result } = renderHook(() => useReceiptCamera(), { wrapper });
+    const { result } = await renderHook(() => useReceiptCamera(), { wrapper });
     await act(async () => {
       await expect(result.current.pickFromLibrary()).resolves.toEqual({
         uri: 'file://lib.jpg',
@@ -175,7 +175,7 @@ describe('picking', () => {
   });
 
   it('asks PhotoKit for the most compatible representation, so a HEIC library photo arrives as JPEG', async () => {
-    const { result } = renderHook(() => useReceiptCamera(), { wrapper });
+    const { result } = await renderHook(() => useReceiptCamera(), { wrapper });
     await act(async () => {
       await result.current.pickFromLibrary();
     });
@@ -192,7 +192,7 @@ describe('picking', () => {
       canceled: false,
       assets: [{ uri: 'file://shot.png', mimeType: 'image/png' }],
     });
-    const { result } = renderHook(() => useReceiptCamera(), { wrapper });
+    const { result } = await renderHook(() => useReceiptCamera(), { wrapper });
     await act(async () => {
       await expect(result.current.pickFromLibrary()).resolves.toEqual({
         uri: 'file://shot.png',
@@ -207,7 +207,7 @@ describe('picking', () => {
       canceled: false,
       assets: [{ uri: 'file://lib.jpg' }],
     });
-    const { result } = renderHook(() => useReceiptCamera(), { wrapper });
+    const { result } = await renderHook(() => useReceiptCamera(), { wrapper });
     await act(async () => {
       await expect(result.current.pickFromLibrary()).resolves.toEqual({
         uri: 'file://lib.jpg',
@@ -223,7 +223,7 @@ describe('uploading', () => {
     const qc = createTestQueryClient();
     clients.push(qc);
     const invalidate = jest.spyOn(qc, 'invalidateQueries');
-    const { result } = renderHook(() => useReceiptCamera(), {
+    const { result } = await renderHook(() => useReceiptCamera(), {
       wrapper: ({ children }: { children: React.ReactNode }) => (
         <QueryClientProvider client={qc}>{children}</QueryClientProvider>
       ),
@@ -245,7 +245,7 @@ describe('uploading', () => {
     // `ReceiptSource` is stored and rendered as fact by the detail screen
     // ("Uploaded file" vs "Phone camera") and `ReceiptPatchRequest` carries no
     // field for it, so a library pick recorded as `SCAN` is wrong for ever.
-    const { result } = renderHook(() => useReceiptCamera(), { wrapper });
+    const { result } = await renderHook(() => useReceiptCamera(), { wrapper });
 
     let picked: Awaited<ReturnType<typeof result.current.pickFromLibrary>> = null;
     await act(async () => {
@@ -263,7 +263,7 @@ describe('uploading', () => {
       canceled: false,
       assets: [{ uri: 'file://receipt.png', mimeType: 'image/png' }],
     });
-    const { result } = renderHook(() => useReceiptCamera(), { wrapper });
+    const { result } = await renderHook(() => useReceiptCamera(), { wrapper });
 
     let picked: Awaited<ReturnType<typeof result.current.pickFromLibrary>> = null;
     await act(async () => {
@@ -280,7 +280,7 @@ describe('uploading', () => {
     mockUpload.mockRejectedValue(
       refusal(413, 'upload-too-large', 'That image is larger than this server accepts.')
     );
-    const { result } = renderHook(() => useReceiptCamera(), { wrapper });
+    const { result } = await renderHook(() => useReceiptCamera(), { wrapper });
     await act(async () => {
       await result.current
         .uploadReceipt({ uri: 'file://big.jpg', source: 'SCAN', mimeType: 'image/jpeg' })
@@ -299,7 +299,7 @@ describe('uploading', () => {
     mockUpload.mockRejectedValue(
       refusal(400, 'validation-error', 'Those bytes are not the format they claim to be.')
     );
-    const { result } = renderHook(() => useReceiptCamera(), { wrapper });
+    const { result } = await renderHook(() => useReceiptCamera(), { wrapper });
     await act(async () => {
       await result.current
         .uploadReceipt({ uri: 'file://x.heic', source: 'UPLOAD', mimeType: 'image/heic' })
@@ -314,7 +314,7 @@ describe('uploading', () => {
     // step in this app), and that plain Error must reach the member as itself
     // rather than as "That receipt could not be uploaded."
     mockUpload.mockRejectedValue(new Error('Trove can send a JPEG or a PNG. That photo is not.'));
-    const { result } = renderHook(() => useReceiptCamera(), { wrapper });
+    const { result } = await renderHook(() => useReceiptCamera(), { wrapper });
     await act(async () => {
       await result.current
         .uploadReceipt({ uri: 'file://x.heic', source: 'UPLOAD', mimeType: 'image/heic' })
@@ -326,7 +326,7 @@ describe('uploading', () => {
 
   it('clears a previous failure when a later upload succeeds', async () => {
     mockUpload.mockRejectedValueOnce(refusal(413, 'upload-too-large', 'Too big.'));
-    const { result } = renderHook(() => useReceiptCamera(), { wrapper });
+    const { result } = await renderHook(() => useReceiptCamera(), { wrapper });
     await act(async () => {
       await result.current
         .uploadReceipt({ uri: 'file://big.jpg', source: 'SCAN', mimeType: 'image/jpeg' })
@@ -346,20 +346,20 @@ describe('uploading', () => {
 
   it('resets both states, e.g. when the capture modal is reopened', async () => {
     mockUpload.mockRejectedValue(refusal(413, 'upload-too-large', 'Too big.'));
-    const { result } = renderHook(() => useReceiptCamera(), { wrapper });
+    const { result } = await renderHook(() => useReceiptCamera(), { wrapper });
     await act(async () => {
       await result.current
         .uploadReceipt({ uri: 'file://big.jpg', source: 'SCAN', mimeType: 'image/jpeg' })
         .catch(() => undefined);
     });
     await waitFor(() => expect(result.current.uploadFailure).not.toBeNull());
-    act(() => result.current.reset());
+    await act(() => result.current.reset());
     expect(result.current.uploadFailure).toBeNull();
     expect(result.current.permissionDenied).toBeNull();
   });
 
-  it('publishes the size ceiling the capture screen quotes before the member shoots', () => {
-    const { result } = renderHook(() => useReceiptCamera(), { wrapper });
+  it('publishes the size ceiling the capture screen quotes before the member shoots', async () => {
+    const { result } = await renderHook(() => useReceiptCamera(), { wrapper });
     expect(result.current.maxUploadBytes).toBe(RECEIPT_MAX_UPLOAD_BYTES);
   });
 });

@@ -38,9 +38,9 @@ const LIABILITY: LiabilityResponse = {
   updatedAt: '2026-09-04T14:00:00Z',
 };
 
-function renderScreen() {
+async function renderScreen() {
   const client = createTestQueryClient();
-  render(
+  await render(
     <QueryClientProvider client={client}>
       <LiabilitiesScreen />
     </QueryClientProvider>
@@ -53,7 +53,7 @@ beforeEach(() => {
 
 it('lists liabilities with balance and interest rate', async () => {
   mockList.mockResolvedValue([LIABILITY]);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('liability-row-l1')).toBeTruthy());
   expect(screen.getByTestId('liability-balance-l1')).toBeTruthy();
   expect(screen.getByText(/19.9900% interest/)).toBeTruthy();
@@ -62,14 +62,17 @@ it('lists liabilities with balance and interest rate', async () => {
 it('creates a liability, defaulting interest rate to zero when left blank', async () => {
   mockList.mockResolvedValue([]);
   mockCreate.mockResolvedValue(LIABILITY);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('liabilities-new-toggle')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('liabilities-new-toggle'));
-  fireEvent.changeText(screen.getByTestId('liabilities-create-form-name'), 'Visa Credit Card');
-  fireEvent.changeText(screen.getByTestId('liabilities-create-form-rate'), '');
-  fireEvent.changeText(screen.getByTestId('liabilities-create-form-balance'), '1250.00');
-  fireEvent.press(screen.getByTestId('liabilities-create-form-submit'));
+  await fireEvent.press(screen.getByTestId('liabilities-new-toggle'));
+  await fireEvent.changeText(
+    screen.getByTestId('liabilities-create-form-name'),
+    'Visa Credit Card'
+  );
+  await fireEvent.changeText(screen.getByTestId('liabilities-create-form-rate'), '');
+  await fireEvent.changeText(screen.getByTestId('liabilities-create-form-balance'), '1250.00');
+  await fireEvent.press(screen.getByTestId('liabilities-create-form-submit'));
 
   await waitFor(() =>
     expect(mockCreate).toHaveBeenCalledWith({
@@ -84,12 +87,12 @@ it('creates a liability, defaulting interest rate to zero when left blank', asyn
 it('edits a liability without sending currency', async () => {
   mockList.mockResolvedValue([LIABILITY]);
   mockUpdate.mockResolvedValue({ ...LIABILITY, balance: '1100.0000' });
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('liability-edit-l1')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('liability-edit-l1'));
-  fireEvent.changeText(screen.getByTestId('liability-edit-form-l1-balance'), '1100.00');
-  fireEvent.press(screen.getByTestId('liability-edit-form-l1-submit'));
+  await fireEvent.press(screen.getByTestId('liability-edit-l1'));
+  await fireEvent.changeText(screen.getByTestId('liability-edit-form-l1-balance'), '1100.00');
+  await fireEvent.press(screen.getByTestId('liability-edit-form-l1-submit'));
 
   await waitFor(() =>
     expect(mockUpdate).toHaveBeenCalledWith('l1', {
@@ -106,12 +109,12 @@ it('edits a liability that is linked to a connected account without unlinking it
   const linked: LiabilityResponse = { ...LIABILITY, id: 'l2', accountId: 'acct-9' };
   mockList.mockResolvedValue([linked]);
   mockUpdate.mockResolvedValue({ ...linked, balance: '1100.0000' });
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('liability-edit-l2')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('liability-edit-l2'));
-  fireEvent.changeText(screen.getByTestId('liability-edit-form-l2-balance'), '1100.00');
-  fireEvent.press(screen.getByTestId('liability-edit-form-l2-submit'));
+  await fireEvent.press(screen.getByTestId('liability-edit-l2'));
+  await fireEvent.changeText(screen.getByTestId('liability-edit-form-l2-balance'), '1100.00');
+  await fireEvent.press(screen.getByTestId('liability-edit-form-l2-submit'));
 
   // `LiabilityUpdateRequest` is a full replace: omitting `accountId` would
   // silently sever the connected-account link (spec: omit/null means "leave
@@ -130,15 +133,15 @@ it('edits a liability that is linked to a connected account without unlinking it
 it('lets a create form record a manually-entered liability in the household other currency', async () => {
   mockList.mockResolvedValue([]);
   mockCreate.mockResolvedValue(LIABILITY);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('liabilities-new-toggle')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('liabilities-new-toggle'));
-  fireEvent.changeText(screen.getByTestId('liabilities-create-form-name'), 'US Card');
-  fireEvent.changeText(screen.getByTestId('liabilities-create-form-rate'), '');
-  fireEvent.changeText(screen.getByTestId('liabilities-create-form-balance'), '300.00');
-  fireEvent.press(screen.getByTestId('liabilities-create-form-currency-USD'));
-  fireEvent.press(screen.getByTestId('liabilities-create-form-submit'));
+  await fireEvent.press(screen.getByTestId('liabilities-new-toggle'));
+  await fireEvent.changeText(screen.getByTestId('liabilities-create-form-name'), 'US Card');
+  await fireEvent.changeText(screen.getByTestId('liabilities-create-form-rate'), '');
+  await fireEvent.changeText(screen.getByTestId('liabilities-create-form-balance'), '300.00');
+  await fireEvent.press(screen.getByTestId('liabilities-create-form-currency-USD'));
+  await fireEvent.press(screen.getByTestId('liabilities-create-form-submit'));
 
   await waitFor(() =>
     expect(mockCreate).toHaveBeenCalledWith({
@@ -154,11 +157,11 @@ it('lets a create form record a manually-entered liability in the household othe
 it('requires a second press to delete', async () => {
   mockList.mockResolvedValue([LIABILITY]);
   mockDelete.mockResolvedValue(undefined);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('liability-delete-l1')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('liability-delete-l1'));
+  await fireEvent.press(screen.getByTestId('liability-delete-l1'));
   expect(mockDelete).not.toHaveBeenCalled();
-  fireEvent.press(screen.getByTestId('liability-delete-confirm-l1'));
+  await fireEvent.press(screen.getByTestId('liability-delete-confirm-l1'));
   await waitFor(() => expect(mockDelete).toHaveBeenCalledWith('l1'));
 });

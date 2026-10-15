@@ -83,8 +83,8 @@ beforeEach(() => {
 });
 
 describe('TabLayout', () => {
-  function renderTabs() {
-    render(
+  async function renderTabs() {
+    await render(
       <SafeAreaProvider
         initialMetrics={{
           frame: { x: 0, y: 0, width: 390, height: 844 },
@@ -99,8 +99,8 @@ describe('TabLayout', () => {
   // Tax is cut with the tax engine (owner decision); Receipts had no
   // `<Tabs.Screen>` entry at all and rendered as an untitled ninth tab
   // (mobile inventory §1).
-  it('declares eight tabs — no Tax, and Receipts is no longer undeclared', () => {
-    renderTabs();
+  it('declares eight tabs — no Tax, and Receipts is no longer undeclared', async () => {
+    await renderTabs();
     expect(visibleTabNames()).toEqual([
       'index',
       'transactions',
@@ -118,19 +118,19 @@ describe('TabLayout', () => {
   // exact defect the Receipts entry above already fixed once. `href: null` is
   // how a route is declared *without* becoming a ninth and tenth button, so
   // the assertion that matters is that they are declared AND invisible.
-  it('declares the account and admin stacks as routes but not as tabs', () => {
-    renderTabs();
+  it('declares the account and admin stacks as routes but not as tabs', async () => {
+    await renderTabs();
     expect(hiddenRouteNames()).toEqual(['account', 'admin']);
     expect(visibleTabNames()).toHaveLength(8);
   });
 });
 
 describe('RootLayout routing', () => {
-  it('sweeps an export a killed app left in the cache, once, on launch', () => {
+  it('sweeps an export a killed app left in the cache, once, on launch', async () => {
     const stale = new File(Paths.cache, 'trove-export.zip');
     (Paths.cache.list as jest.Mock).mockReturnValueOnce([stale]);
     withRouter();
-    render(<RootLayout />);
+    await render(<RootLayout />);
     const remove = (File.prototype as unknown as { delete: jest.Mock }).delete;
     expect(remove).toHaveBeenCalledTimes(1);
     expect(remove.mock.contexts[0]).toBe(stale);
@@ -139,21 +139,21 @@ describe('RootLayout routing', () => {
   it('renders nothing until the stored server and session have been read', async () => {
     useAuthStore.setState({ hydrated: false });
     const replace = withRouter();
-    const { toJSON } = render(<RootLayout />);
+    const { toJSON } = await render(<RootLayout />);
     expect(toJSON()).toBeNull();
     expect(replace).not.toHaveBeenCalled();
   });
 
   it('sends a first-launch app to the connect screen, not to login', async () => {
     const replace = withRouter();
-    render(<RootLayout />);
+    await render(<RootLayout />);
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/(auth)/connect'));
   });
 
   it('does not bounce a user who is already on the connect screen', async () => {
     mockUseSegments.mockReturnValue(['(auth)', 'connect']);
     const replace = withRouter();
-    render(<RootLayout />);
+    await render(<RootLayout />);
     await waitFor(() => expect(replace).not.toHaveBeenCalled());
   });
 
@@ -164,7 +164,7 @@ describe('RootLayout routing', () => {
     });
     mockUseSegments.mockReturnValue(['(tabs)']);
     const replace = withRouter();
-    render(<RootLayout />);
+    await render(<RootLayout />);
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/(auth)/login'));
   });
 
@@ -178,9 +178,9 @@ describe('RootLayout routing', () => {
     });
     mockUseSegments.mockReturnValue([]);
     const replace = withRouter();
-    const { rerender } = render(<RootLayout />);
+    const { rerender } = await render(<RootLayout />);
     mockUseSegments.mockReturnValue(['(auth)', 'reset-password']);
-    rerender(<RootLayout />);
+    await rerender(<RootLayout />);
     await waitFor(() => expect(replace).not.toHaveBeenCalled());
   });
 
@@ -199,7 +199,7 @@ describe('RootLayout routing', () => {
     });
     mockUseSegments.mockReturnValue(['(auth)', 'login']);
     const replace = withRouter();
-    render(<RootLayout />);
+    await render(<RootLayout />);
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/(tabs)/'));
   });
 
@@ -218,7 +218,7 @@ describe('RootLayout routing', () => {
     });
     mockUseSegments.mockReturnValue(['(tabs)']);
     const replace = withRouter();
-    render(<RootLayout />);
+    await render(<RootLayout />);
     await waitFor(() => expect(replace).not.toHaveBeenCalled());
   });
 });

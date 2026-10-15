@@ -39,15 +39,15 @@ function preview(overrides: Partial<ImportPreviewResponse> = {}): ImportPreviewR
   };
 }
 
-beforeEach(() => {
-  act(() => {
+beforeEach(async () => {
+  await act(() => {
     useAuthStore.getState().setMe(ME);
   });
 });
 
 describe('ImportPreviewSummary', () => {
-  it('shows all four verdict counts before anything is committed', () => {
-    render(<ImportPreviewSummary preview={preview()} />);
+  it('shows all four verdict counts before anything is committed', async () => {
+    await render(<ImportPreviewSummary preview={preview()} />);
     expect(screen.getByTestId('import-preview-summary-NEW')).toBeTruthy();
     expect(screen.getByTestId('import-preview-summary-DUPLICATE')).toBeTruthy();
     expect(screen.getByTestId('import-preview-summary-FUZZY_DUPLICATE')).toBeTruthy();
@@ -57,21 +57,21 @@ describe('ImportPreviewSummary', () => {
     expect(screen.getByText('Rejected')).toBeTruthy();
   });
 
-  it('names the file and states the row count, kind and status', () => {
-    render(<ImportPreviewSummary preview={preview()} />);
+  it('names the file and states the row count, kind and status', async () => {
+    await render(<ImportPreviewSummary preview={preview()} />);
     expect(screen.getByText('statement-2026-09.csv')).toBeTruthy();
     expect(screen.getByTestId('import-preview-summary-rows').props.children.join('')).toBe(
       '42 rows · CSV · PREVIEW'
     );
   });
 
-  it('falls back to a placeholder when the upload carried no filename', () => {
-    render(<ImportPreviewSummary preview={preview({ originalFilename: null })} />);
+  it('falls back to a placeholder when the upload carried no filename', async () => {
+    await render(<ImportPreviewSummary preview={preview({ originalFilename: null })} />);
     expect(screen.getByText('Uploaded file')).toBeTruthy();
   });
 
-  it('renders each server warning as an alert', () => {
-    render(
+  it('renders each server warning as an alert', async () => {
+    await render(
       <ImportPreviewSummary
         preview={preview({ warnings: ['A balance column was recognised but is not used.'] })}
       />
@@ -81,8 +81,8 @@ describe('ImportPreviewSummary', () => {
     expect(warning.props.children).toBe('A balance column was recognised but is not used.');
   });
 
-  it('shows why a rejected row cannot be accepted', () => {
-    render(
+  it('shows why a rejected row cannot be accepted', async () => {
+    await render(
       <ImportPreviewSummary
         preview={preview({
           rows: [

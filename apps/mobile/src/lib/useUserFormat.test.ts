@@ -188,18 +188,18 @@ describe('useUserFormat source precedence', () => {
     onboardingCompleted: true,
   };
 
-  afterEach(() => {
+  afterEach(async () => {
     // This `afterEach` runs before the library's own unmount hook, so the
     // hook container is still mounted and the store write re-renders it —
     // wrap it, or React logs "not wrapped in act(...)" for every case here.
-    act(() => {
+    await act(() => {
       useAuthStore.setState({ me: null, preferences: null });
     });
   });
 
-  it('falls back to the /v1/auth/me fields when preferences have not loaded', () => {
-    act(() => useAuthStore.setState({ me: ME, preferences: null }));
-    const { result } = renderHook(() => useUserFormat());
+  it('falls back to the /v1/auth/me fields when preferences have not loaded', async () => {
+    await act(() => useAuthStore.setState({ me: ME, preferences: null }));
+    const { result } = await renderHook(() => useUserFormat());
 
     expect(result.current.currency).toBe('USD');
     expect(result.current.locale).toBe('en-US');
@@ -209,9 +209,9 @@ describe('useUserFormat source precedence', () => {
     expect(result.current.date('2026-09-03T02:30:00Z', 'dateTime')).toMatch(/Sep 2, 2026/);
   });
 
-  it('prefers /v1/me/preferences over /v1/auth/me once both have loaded', () => {
-    act(() => useAuthStore.setState({ me: ME, preferences: PREFERENCES }));
-    const { result } = renderHook(() => useUserFormat());
+  it('prefers /v1/me/preferences over /v1/auth/me once both have loaded', async () => {
+    await act(() => useAuthStore.setState({ me: ME, preferences: PREFERENCES }));
+    const { result } = await renderHook(() => useUserFormat());
 
     expect(result.current.locale).toBe('en-CA');
     expect(result.current.timeZone).toBe('America/Vancouver');
@@ -219,24 +219,24 @@ describe('useUserFormat source precedence', () => {
     expect(result.current.currency).toBe('USD');
   });
 
-  it('takes the timezone from preferences even when the locale comes from me', () => {
+  it('takes the timezone from preferences even when the locale comes from me', async () => {
     // The two are selected independently, so a partial preferences payload
     // must not drag the other field back to the `me` value.
-    act(() =>
+    await act(() =>
       useAuthStore.setState({
         me: ME,
         preferences: { ...PREFERENCES, locale: undefined } as unknown as UserPreferences,
       })
     );
-    const { result } = renderHook(() => useUserFormat());
+    const { result } = await renderHook(() => useUserFormat());
 
     expect(result.current.locale).toBe('en-US');
     expect(result.current.timeZone).toBe('America/Vancouver');
   });
 
-  it('renders the placeholder rather than a guessed currency before me answers', () => {
-    act(() => useAuthStore.setState({ me: null, preferences: null }));
-    const { result } = renderHook(() => useUserFormat());
+  it('renders the placeholder rather than a guessed currency before me answers', async () => {
+    await act(() => useAuthStore.setState({ me: null, preferences: null }));
+    const { result } = await renderHook(() => useUserFormat());
 
     expect(result.current.currency).toBeNull();
     expect(result.current.money('12.34')).toBe(UNKNOWN_VALUE);

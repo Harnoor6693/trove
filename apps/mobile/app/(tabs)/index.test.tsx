@@ -82,7 +82,7 @@ async function flush(): Promise<void> {
 async function renderToday() {
   const qc = createTestQueryClient();
   clients.push(qc);
-  const utils = render(
+  const utils = await render(
     <QueryClientProvider client={qc}>
       <TodayScreen />
     </QueryClientProvider>
@@ -91,9 +91,9 @@ async function renderToday() {
   return utils;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   jest.clearAllMocks();
-  act(() => {
+  await act(() => {
     useAuthStore.getState().setMe(ME);
   });
 });

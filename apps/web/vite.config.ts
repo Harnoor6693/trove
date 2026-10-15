@@ -6,13 +6,13 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src'),
-      '@components': resolve(__dirname, 'src/components'),
-      '@hooks': resolve(__dirname, 'src/hooks'),
-      '@pages': resolve(__dirname, 'src/pages'),
-      '@stores': resolve(__dirname, 'src/stores'),
-      '@api': resolve(__dirname, 'src/api'),
-      '@styles': resolve(__dirname, 'src/styles'),
+      '@': resolve(import.meta.dirname, 'src'),
+      '@components': resolve(import.meta.dirname, 'src/components'),
+      '@hooks': resolve(import.meta.dirname, 'src/hooks'),
+      '@pages': resolve(import.meta.dirname, 'src/pages'),
+      '@stores': resolve(import.meta.dirname, 'src/stores'),
+      '@api': resolve(import.meta.dirname, 'src/api'),
+      '@styles': resolve(import.meta.dirname, 'src/styles'),
     },
   },
   server: {
@@ -33,7 +33,7 @@ export default defineConfig({
     // it is written out explicitly because a change here breaks the page silently
     // in production and nowhere else. `npm run build` runs
     // scripts/check-csp-compat.mjs afterwards to prove it.
-    rollupOptions: {
+    rolldownOptions: {
       output: {
         entryFileNames: 'assets/[name]-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',

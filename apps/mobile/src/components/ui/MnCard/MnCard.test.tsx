@@ -4,8 +4,8 @@ import { Text } from 'react-native';
 import { MnCard } from './MnCard';
 
 describe('MnCard', () => {
-  it('renders children', () => {
-    const { getByText } = render(
+  it('renders children', async () => {
+    const { getByText } = await render(
       <MnCard>
         <Text>Hello</Text>
       </MnCard>

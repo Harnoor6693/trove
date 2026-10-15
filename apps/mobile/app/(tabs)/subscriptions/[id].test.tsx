@@ -41,9 +41,9 @@ const SUBSCRIPTION: SubscriptionResponse = {
   updatedAt: '2026-09-05T02:00:00Z',
 };
 
-function renderScreen() {
+async function renderScreen() {
   const client = createTestQueryClient();
-  render(
+  await render(
     <QueryClientProvider client={client}>
       <SubscriptionDetailScreen />
     </QueryClientProvider>
@@ -57,16 +57,16 @@ beforeEach(() => {
 
 it('renders the previous price when a change is on record', async () => {
   mockOne.mockResolvedValue(SUBSCRIPTION);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('subscription-previous-amount')).toBeTruthy());
 });
 
 it('the cancel confirmation states plainly that the merchant is not contacted', async () => {
   mockOne.mockResolvedValue(SUBSCRIPTION);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('subscription-cancel-start')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('subscription-cancel-start'));
+  await fireEvent.press(screen.getByTestId('subscription-cancel-start'));
 
   const explainer = screen.getByTestId('subscription-cancel-explainer');
   expect(explainer).toBeTruthy();
@@ -80,11 +80,11 @@ it('the cancel confirmation states plainly that the merchant is not contacted', 
 it('cancels only after the second, explicit confirmation', async () => {
   mockOne.mockResolvedValue(SUBSCRIPTION);
   mockCancel.mockResolvedValue(undefined);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('subscription-cancel-start')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('subscription-cancel-start'));
-  fireEvent.press(screen.getByTestId('subscription-cancel-confirm'));
+  await fireEvent.press(screen.getByTestId('subscription-cancel-start'));
+  await fireEvent.press(screen.getByTestId('subscription-cancel-confirm'));
 
   await waitFor(() =>
     expect(mockCancel).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000001')
@@ -93,14 +93,14 @@ it('cancels only after the second, explicit confirmation', async () => {
 
 it('a cancelled subscription is shown as cancelled and offers no further cancel action', async () => {
   mockOne.mockResolvedValue({ ...SUBSCRIPTION, cancelled: true });
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByText('Cancelled')).toBeTruthy());
   expect(screen.queryByTestId('subscription-cancel-start')).toBeNull();
 });
 
 it('never issues a request for a pasted or deep-linked value that is not a uuid', async () => {
   mockParams.mockReturnValue({ id: '../../v1/webhooks' });
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('subscription-detail-screen')).toBeTruthy());
   expect(mockOne).not.toHaveBeenCalled();
 });

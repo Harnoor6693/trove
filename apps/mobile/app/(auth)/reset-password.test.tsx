@@ -39,7 +39,7 @@ beforeEach(() => {
 });
 
 async function renderScreen() {
-  const utils = render(<ResetPasswordScreen />);
+  const utils = await render(<ResetPasswordScreen />);
   await act(async () => {});
   return utils;
 }
@@ -48,11 +48,12 @@ async function fill(
   getByTestId: (id: string) => never,
   { link, password, confirmation }: { link?: string; password: string; confirmation?: string }
 ) {
-  if (link !== undefined) fireEvent.changeText(getByTestId('reset-password-link-input'), link);
-  fireEvent.changeText(getByTestId('reset-password-input'), password);
-  fireEvent.changeText(getByTestId('reset-password-confirm-input'), confirmation ?? password);
+  if (link !== undefined)
+    await fireEvent.changeText(getByTestId('reset-password-link-input'), link);
+  await fireEvent.changeText(getByTestId('reset-password-input'), password);
+  await fireEvent.changeText(getByTestId('reset-password-confirm-input'), confirmation ?? password);
   await act(async () => {
-    fireEvent.press(getByTestId('reset-password-submit-btn'));
+    await fireEvent.press(getByTestId('reset-password-submit-btn'));
   });
 }
 
@@ -80,7 +81,7 @@ describe('ResetPasswordScreen', () => {
     mockParams.mockReturnValue({ token: 'FIRST-LINK' });
     const { getByTestId, rerender } = await renderScreen();
     mockParams.mockReturnValue({ token: 'NEWER-LINK' });
-    rerender(<ResetPasswordScreen />);
+    await rerender(<ResetPasswordScreen />);
 
     expect(getByTestId('reset-password-link-input').props.value).toBe('NEWER-LINK');
   });
@@ -105,7 +106,7 @@ describe('ResetPasswordScreen', () => {
   it('sends the member to sign in again afterwards', async () => {
     const { getByTestId } = await renderScreen();
     await fill(getByTestId as never, { link: 'PASTED', password: 'correct horse battery' });
-    fireEvent.press(getByTestId('reset-password-signin-btn'));
+    await fireEvent.press(getByTestId('reset-password-signin-btn'));
     expect(mockReplace).toHaveBeenCalledWith('/(auth)/login');
   });
 
@@ -209,7 +210,7 @@ describe('ResetPasswordScreen', () => {
 
   it('offers a way back to sign in without redeeming anything', async () => {
     const { getByTestId } = await renderScreen();
-    fireEvent.press(getByTestId('reset-password-cancel-link'));
+    await fireEvent.press(getByTestId('reset-password-cancel-link'));
     expect(mockReplace).toHaveBeenCalledWith('/(auth)/login');
     expect(mockRedeem).not.toHaveBeenCalled();
   });

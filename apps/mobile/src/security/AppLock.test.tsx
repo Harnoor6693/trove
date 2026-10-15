@@ -54,10 +54,10 @@ const PREFERENCES = {
   onboardingCompleted: true,
 };
 
-function emitAppState(next: AppStateStatus) {
+async function emitAppState(next: AppStateStatus) {
   const calls = (AppState.addEventListener as jest.Mock).mock.calls;
   const handler = calls[calls.length - 1][1] as (state: AppStateStatus) => void;
-  act(() => handler(next));
+  await act(() => handler(next));
 }
 
 function Child() {
@@ -102,8 +102,8 @@ describe('locked state', () => {
     useAuthStore.setState({ status: 'locked' });
   });
 
-  it('hides the app behind the unlock screen', () => {
-    const { getByTestId, queryByTestId } = render(
+  it('hides the app behind the unlock screen', async () => {
+    const { getByTestId, queryByTestId } = await render(
       <AppLock>
         <Child />
       </AppLock>
@@ -115,13 +115,13 @@ describe('locked state', () => {
   it('unlocking prompts for biometrics, refreshes the session, and re-reads /v1/auth/me', async () => {
     // Biometrics prove the human is present; they say nothing about whether
     // the session is still valid server-side, so the unlock re-validates.
-    const { getByTestId } = render(
+    const { getByTestId } = await render(
       <AppLock>
         <Child />
       </AppLock>
     );
 
-    fireEvent.press(getByTestId('app-lock-unlock-btn'));
+    await fireEvent.press(getByTestId('app-lock-unlock-btn'));
 
     await waitFor(() => expect(mockAuthenticate).toHaveBeenCalled());
     await waitFor(() => expect(useAuthStore.getState().status).toBe('authenticated'));
@@ -133,12 +133,12 @@ describe('locked state', () => {
   it('stays locked when the biometric prompt fails', async () => {
     mockAuthenticate.mockResolvedValue({ success: false, error: 'user_cancel' });
 
-    const { getByTestId, queryByTestId } = render(
+    const { getByTestId, queryByTestId } = await render(
       <AppLock>
         <Child />
       </AppLock>
     );
-    fireEvent.press(getByTestId('app-lock-unlock-btn'));
+    await fireEvent.press(getByTestId('app-lock-unlock-btn'));
 
     await waitFor(() => expect(getByTestId('app-lock-error')).toBeTruthy());
     expect(useAuthStore.getState().status).toBe('locked');
@@ -148,12 +148,12 @@ describe('locked state', () => {
   it('reports an expired session when the server rejects the refresh', async () => {
     mockRefresh.mockRejectedValue(new Error('refresh rejected'));
 
-    const { getByTestId } = render(
+    const { getByTestId } = await render(
       <AppLock>
         <Child />
       </AppLock>
     );
-    fireEvent.press(getByTestId('app-lock-unlock-btn'));
+    await fireEvent.press(getByTestId('app-lock-unlock-btn'));
 
     await waitFor(() => expect(getByTestId('app-lock-error').props.children).toMatch(/expired/i));
   });
@@ -161,7 +161,7 @@ describe('locked state', () => {
   it('auto-unlocks without a prompt when the app lock is switched off', async () => {
     useUiStore.setState({ appLockEnabled: false });
 
-    const { getByTestId } = render(
+    const { getByTestId } = await render(
       <AppLock>
         <Child />
       </AppLock>
@@ -176,7 +176,7 @@ describe('locked state', () => {
 describe('background timeout', () => {
   it('locks after longer than the configured timeout in the background', async () => {
     useUiStore.setState({ appLockTimeoutMinutes: 5 });
-    render(
+    await render(
       <AppLock>
         <Child />
       </AppLock>
@@ -186,9 +186,9 @@ describe('background timeout', () => {
     let clock = 1_000_000;
     Date.now = () => clock;
     try {
-      emitAppState('background');
+      await emitAppState('background');
       clock += 6 * 60_000;
-      emitAppState('active');
+      await emitAppState('active');
     } finally {
       Date.now = realNow;
     }
@@ -198,7 +198,7 @@ describe('background timeout', () => {
 
   it('does not lock for a brief switch away', async () => {
     useUiStore.setState({ appLockTimeoutMinutes: 5 });
-    render(
+    await render(
       <AppLock>
         <Child />
       </AppLock>
@@ -208,9 +208,9 @@ describe('background timeout', () => {
     let clock = 1_000_000;
     Date.now = () => clock;
     try {
-      emitAppState('background');
+      await emitAppState('background');
       clock += 30_000;
-      emitAppState('active');
+      await emitAppState('active');
     } finally {
       Date.now = realNow;
     }
@@ -220,21 +220,21 @@ describe('background timeout', () => {
 
   it('locks immediately when the timeout is 0', async () => {
     useUiStore.setState({ appLockTimeoutMinutes: 0 });
-    render(
+    await render(
       <AppLock>
         <Child />
       </AppLock>
     );
 
-    emitAppState('background');
-    emitAppState('active');
+    await emitAppState('background');
+    await emitAppState('active');
 
     await waitFor(() => expect(useAuthStore.getState().status).toBe('locked'));
   });
 
-  it('never locks when the app lock is off', () => {
+  it('never locks when the app lock is off', async () => {
     useUiStore.setState({ appLockEnabled: false });
-    render(
+    await render(
       <AppLock>
         <Child />
       </AppLock>
@@ -244,9 +244,9 @@ describe('background timeout', () => {
     let clock = 1_000_000;
     Date.now = () => clock;
     try {
-      emitAppState('background');
+      await emitAppState('background');
       clock += 60 * 60_000;
-      emitAppState('active');
+      await emitAppState('active');
     } finally {
       Date.now = realNow;
     }
@@ -258,18 +258,18 @@ describe('background timeout', () => {
 describe('privacy overlay', () => {
   // The ledger must not appear in the OS app switcher or in a screenshot
   // taken from it (readiness gap P4-20).
-  it('covers the app while it is inactive or backgrounded', () => {
-    const { queryByTestId } = render(
+  it('covers the app while it is inactive or backgrounded', async () => {
+    const { queryByTestId } = await render(
       <AppLock>
         <Child />
       </AppLock>
     );
     expect(queryByTestId('app-lock-privacy-overlay')).toBeNull();
 
-    emitAppState('inactive');
+    await emitAppState('inactive');
     expect(queryByTestId('app-lock-privacy-overlay')).toBeTruthy();
 
-    emitAppState('active');
+    await emitAppState('active');
     expect(queryByTestId('app-lock-privacy-overlay')).toBeNull();
   });
 });

@@ -37,20 +37,20 @@ function log(overrides: Partial<SyncLogResponse> = {}): SyncLogResponse {
   };
 }
 
-beforeEach(() => {
-  act(() => {
+beforeEach(async () => {
+  await act(() => {
     useAuthStore.getState().setMe(ME);
   });
 });
 
 describe('SyncLogRow', () => {
-  it('states the run outcome as a word', () => {
-    render(<SyncLogRow log={log({ status: 'SUCCESS' })} />);
+  it('states the run outcome as a word', async () => {
+    await render(<SyncLogRow log={log({ status: 'SUCCESS' })} />);
     expect(screen.getByText('Succeeded')).toBeTruthy();
   });
 
-  it('renders a FAILED run’s reason, which is the point of the history', () => {
-    render(
+  it('renders a FAILED run’s reason, which is the point of the history', async () => {
+    await render(
       <SyncLogRow log={log({ status: 'FAILED', errorMessage: 'The bridge did not answer.' })} />
     );
     expect(screen.getByText('Failed')).toBeTruthy();
@@ -59,8 +59,8 @@ describe('SyncLogRow', () => {
     expect(alert.props.accessibilityRole).toBe('alert');
   });
 
-  it('renders a PARTIAL_FAILURE with its non-zero refused count', () => {
-    render(
+  it('renders a PARTIAL_FAILURE with its non-zero refused count', async () => {
+    await render(
       <SyncLogRow
         log={{
           ...log(),
@@ -74,13 +74,13 @@ describe('SyncLogRow', () => {
     expect(screen.getByTestId('sync-log-error-l1')).toBeTruthy();
   });
 
-  it('shows no reason row on a clean run', () => {
-    render(<SyncLogRow log={log()} />);
+  it('shows no reason row on a clean run', async () => {
+    await render(<SyncLogRow log={log()} />);
     expect(screen.queryByTestId('sync-log-error-l1')).toBeNull();
   });
 
-  it('announces the run for a screen reader', () => {
-    render(<SyncLogRow log={log()} />);
+  it('announces the run for a screen reader', async () => {
+    await render(<SyncLogRow log={log()} />);
     expect(screen.getByLabelText(/Succeeded, .*12 new/)).toBeTruthy();
   });
 });

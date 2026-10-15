@@ -50,9 +50,9 @@ const SERIES: NetWorthSeriesResponse = {
   ],
 };
 
-function renderScreen() {
+async function renderScreen() {
   const client = createTestQueryClient();
-  render(
+  await render(
     <QueryClientProvider client={client}>
       <NetWorthScreen />
     </QueryClientProvider>
@@ -65,7 +65,7 @@ beforeEach(() => {
 
 it('renders one series card per currency and never a combined total', async () => {
   mockSeries.mockResolvedValue(SERIES);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('net-worth-series-CAD')).toBeTruthy());
   expect(screen.getByTestId('net-worth-series-USD')).toBeTruthy();
   // The absence of any combined/blended figure on screen at all.
@@ -75,7 +75,7 @@ it('renders one series card per currency and never a combined total', async () =
 
 it('shows the chart once the series has loaded', async () => {
   mockSeries.mockResolvedValue(SERIES);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('net-worth-chart')).toBeTruthy());
 });
 
@@ -116,7 +116,7 @@ it('plots each currency by its own snapshotDate, not by array position, in its o
       },
     ],
   });
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('net-worth-chart-CAD')).toBeTruthy());
   expect(screen.getByTestId('net-worth-chart-USD')).toBeTruthy();
 
@@ -136,17 +136,17 @@ it('plots each currency by its own snapshotDate, not by array position, in its o
 
 it('is empty when there are no snapshots in range', async () => {
   mockSeries.mockResolvedValue({ primaryCurrency: 'CAD', series: [] });
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('net-worth-series-empty')).toBeTruthy());
 });
 
 it('takes a snapshot and shows a confirmation', async () => {
   mockSeries.mockResolvedValue({ primaryCurrency: 'CAD', series: [] });
   mockSnapshot.mockResolvedValue([]);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('net-worth-snapshot-btn')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('net-worth-snapshot-btn'));
+  await fireEvent.press(screen.getByTestId('net-worth-snapshot-btn'));
 
   await waitFor(() => expect(mockSnapshot).toHaveBeenCalled());
   await waitFor(() => expect(screen.getByTestId('net-worth-snapshot-success')).toBeTruthy());
@@ -154,10 +154,10 @@ it('takes a snapshot and shows a confirmation', async () => {
 
 it('changes range on chip press', async () => {
   mockSeries.mockResolvedValue({ primaryCurrency: 'CAD', series: [] });
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('net-worth-range-3M')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('net-worth-range-3M'));
+  await fireEvent.press(screen.getByTestId('net-worth-range-3M'));
 
   await waitFor(() => expect(mockSeries).toHaveBeenCalledWith('3M'));
 });

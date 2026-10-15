@@ -33,14 +33,14 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
-it('asks for the password alone when no second factor is enrolled', () => {
-  render(<StepUpForm testID="s" totpEnabled={false} submitLabel="Go" onSubmit={jest.fn()} />);
+it('asks for the password alone when no second factor is enrolled', async () => {
+  await render(<StepUpForm testID="s" totpEnabled={false} submitLabel="Go" onSubmit={jest.fn()} />);
   expect(screen.getByTestId('s-password')).toBeTruthy();
   expect(screen.queryByTestId('s-code')).toBeNull();
 });
 
-it('asks for the code too when one is, with one-time-code autofill and a numeric keyboard', () => {
-  render(<StepUpForm testID="s" totpEnabled submitLabel="Go" onSubmit={jest.fn()} />);
+it('asks for the code too when one is, with one-time-code autofill and a numeric keyboard', async () => {
+  await render(<StepUpForm testID="s" totpEnabled submitLabel="Go" onSubmit={jest.fn()} />);
   const code = screen.getByTestId('s-code');
   expect(code.props.autoComplete).toBe('one-time-code');
   expect(code.props.keyboardType).toBe('number-pad');
@@ -50,86 +50,86 @@ it('asks for the code too when one is, with one-time-code autofill and a numeric
 // `null` means "we do not know": `me` is fetched best-effort and a failed
 // fetch is swallowed. Treating that as "no second factor" hides the only input
 // an enrolled member could answer the 403 with.
-it('offers the code field, optionally, when the factor set is not known yet', () => {
+it('offers the code field, optionally, when the factor set is not known yet', async () => {
   const onSubmit = jest.fn();
-  render(<StepUpForm testID="s" totpEnabled={null} submitLabel="Go" onSubmit={onSubmit} />);
+  await render(<StepUpForm testID="s" totpEnabled={null} submitLabel="Go" onSubmit={onSubmit} />);
   expect(screen.getByTestId('s-code')).toBeTruthy();
   expect(screen.getByLabelText('Two-factor code')).toBeTruthy();
   expect(screen.getByText('Two-factor code (if you use one)')).toBeTruthy();
 
-  fireEvent.changeText(screen.getByTestId('s-password'), 'correct-horse-battery');
-  fireEvent.press(screen.getByTestId('s-submit'));
+  await fireEvent.changeText(screen.getByTestId('s-password'), 'correct-horse-battery');
+  await fireEvent.press(screen.getByTestId('s-submit'));
   expect(onSubmit).toHaveBeenCalledWith({ password: 'correct-horse-battery' });
 });
 
-it('sends the code typed into that optional field', () => {
+it('sends the code typed into that optional field', async () => {
   const onSubmit = jest.fn();
-  render(<StepUpForm testID="s" totpEnabled={null} submitLabel="Go" onSubmit={onSubmit} />);
-  fireEvent.changeText(screen.getByTestId('s-password'), 'correct-horse-battery');
-  fireEvent.changeText(screen.getByTestId('s-code'), '000000');
-  fireEvent.press(screen.getByTestId('s-submit'));
+  await render(<StepUpForm testID="s" totpEnabled={null} submitLabel="Go" onSubmit={onSubmit} />);
+  await fireEvent.changeText(screen.getByTestId('s-password'), 'correct-horse-battery');
+  await fireEvent.changeText(screen.getByTestId('s-code'), '000000');
+  await fireEvent.press(screen.getByTestId('s-submit'));
   expect(onSubmit).toHaveBeenCalledWith({ password: 'correct-horse-battery', code: '000000' });
 });
 
-it('sends only the fields the member actually filled — never empty strings for the server to interpret', () => {
+it('sends only the fields the member actually filled — never empty strings for the server to interpret', async () => {
   const onSubmit = jest.fn();
-  render(<StepUpForm testID="s" totpEnabled submitLabel="Go" onSubmit={onSubmit} />);
-  fireEvent.changeText(screen.getByTestId('s-password'), 'correct-horse-battery');
-  fireEvent.press(screen.getByTestId('s-submit'));
+  await render(<StepUpForm testID="s" totpEnabled submitLabel="Go" onSubmit={onSubmit} />);
+  await fireEvent.changeText(screen.getByTestId('s-password'), 'correct-horse-battery');
+  await fireEvent.press(screen.getByTestId('s-submit'));
   expect(onSubmit).toHaveBeenCalledWith({ password: 'correct-horse-battery' });
 });
 
-it('sends the code as well when one was typed', () => {
+it('sends the code as well when one was typed', async () => {
   const onSubmit = jest.fn();
-  render(<StepUpForm testID="s" totpEnabled submitLabel="Go" onSubmit={onSubmit} />);
-  fireEvent.changeText(screen.getByTestId('s-password'), 'correct-horse-battery');
-  fireEvent.changeText(screen.getByTestId('s-code'), ' 000000 ');
-  fireEvent.press(screen.getByTestId('s-submit'));
+  await render(<StepUpForm testID="s" totpEnabled submitLabel="Go" onSubmit={onSubmit} />);
+  await fireEvent.changeText(screen.getByTestId('s-password'), 'correct-horse-battery');
+  await fireEvent.changeText(screen.getByTestId('s-code'), ' 000000 ');
+  await fireEvent.press(screen.getByTestId('s-submit'));
   expect(onSubmit).toHaveBeenCalledWith({ password: 'correct-horse-battery', code: '000000' });
 });
 
-it('allows a code-only step-up, for a member who signs in through an identity provider', () => {
+it('allows a code-only step-up, for a member who signs in through an identity provider', async () => {
   const onSubmit = jest.fn();
-  render(<StepUpForm testID="s" totpEnabled submitLabel="Go" onSubmit={onSubmit} />);
-  fireEvent.changeText(screen.getByTestId('s-code'), '000000');
-  fireEvent.press(screen.getByTestId('s-submit'));
+  await render(<StepUpForm testID="s" totpEnabled submitLabel="Go" onSubmit={onSubmit} />);
+  await fireEvent.changeText(screen.getByTestId('s-code'), '000000');
+  await fireEvent.press(screen.getByTestId('s-submit'));
   expect(onSubmit).toHaveBeenCalledWith({ code: '000000' });
 });
 
-it('cannot be submitted empty', () => {
+it('cannot be submitted empty', async () => {
   const onSubmit = jest.fn();
-  render(<StepUpForm testID="s" totpEnabled={false} submitLabel="Go" onSubmit={onSubmit} />);
-  fireEvent.press(screen.getByTestId('s-submit'));
+  await render(<StepUpForm testID="s" totpEnabled={false} submitLabel="Go" onSubmit={onSubmit} />);
+  await fireEvent.press(screen.getByTestId('s-submit'));
   expect(onSubmit).not.toHaveBeenCalled();
 });
 
-it('clears both fields the instant it submits, so no credential survives the request', () => {
-  render(<StepUpForm testID="s" totpEnabled submitLabel="Go" onSubmit={jest.fn()} />);
-  fireEvent.changeText(screen.getByTestId('s-password'), 'correct-horse-battery');
-  fireEvent.changeText(screen.getByTestId('s-code'), '000000');
-  fireEvent.press(screen.getByTestId('s-submit'));
+it('clears both fields the instant it submits, so no credential survives the request', async () => {
+  await render(<StepUpForm testID="s" totpEnabled submitLabel="Go" onSubmit={jest.fn()} />);
+  await fireEvent.changeText(screen.getByTestId('s-password'), 'correct-horse-battery');
+  await fireEvent.changeText(screen.getByTestId('s-code'), '000000');
+  await fireEvent.press(screen.getByTestId('s-submit'));
   expect(screen.getByTestId('s-password').props.value).toBe('');
   expect(screen.getByTestId('s-code').props.value).toBe('');
 });
 
-it('never writes the credential to the secure store', () => {
+it('never writes the credential to the secure store', async () => {
   const setItem = SecureStore.setItemAsync as jest.Mock;
-  render(<StepUpForm testID="s" totpEnabled submitLabel="Go" onSubmit={jest.fn()} />);
-  fireEvent.changeText(screen.getByTestId('s-password'), 'correct-horse-battery');
-  fireEvent.changeText(screen.getByTestId('s-code'), '000000');
-  fireEvent.press(screen.getByTestId('s-submit'));
+  await render(<StepUpForm testID="s" totpEnabled submitLabel="Go" onSubmit={jest.fn()} />);
+  await fireEvent.changeText(screen.getByTestId('s-password'), 'correct-horse-battery');
+  await fireEvent.changeText(screen.getByTestId('s-code'), '000000');
+  await fireEvent.press(screen.getByTestId('s-submit'));
   expect(setItem).not.toHaveBeenCalled();
 });
 
-it('never renders the credential back into the tree once submitted', () => {
-  render(<StepUpForm testID="s" totpEnabled submitLabel="Go" onSubmit={jest.fn()} />);
-  fireEvent.changeText(screen.getByTestId('s-password'), 'correct-horse-battery');
-  fireEvent.press(screen.getByTestId('s-submit'));
+it('never renders the credential back into the tree once submitted', async () => {
+  await render(<StepUpForm testID="s" totpEnabled submitLabel="Go" onSubmit={jest.fn()} />);
+  await fireEvent.changeText(screen.getByTestId('s-password'), 'correct-horse-battery');
+  await fireEvent.press(screen.getByTestId('s-submit'));
   expect(JSON.stringify(screen.toJSON())).not.toContain('correct-horse-battery');
 });
 
-it('reads 403 step-up-required as "that was not accepted", saying nothing about which was wrong', () => {
-  render(
+it('reads 403 step-up-required as "that was not accepted", saying nothing about which was wrong', async () => {
+  await render(
     <StepUpForm
       testID="s"
       totpEnabled
@@ -143,8 +143,8 @@ it('reads 403 step-up-required as "that was not accepted", saying nothing about 
   );
 });
 
-it('reads a 429 as a wait, with the seconds the limiter asked for', () => {
-  render(
+it('reads a 429 as a wait, with the seconds the limiter asked for', async () => {
+  await render(
     <StepUpForm
       testID="s"
       totpEnabled={false}
@@ -158,8 +158,8 @@ it('reads a 429 as a wait, with the seconds the limiter asked for', () => {
   );
 });
 
-it('still says wait when a proxy stripped Retry-After', () => {
-  render(
+it('still says wait when a proxy stripped Retry-After', async () => {
+  await render(
     <StepUpForm
       testID="s"
       totpEnabled={false}
@@ -173,8 +173,8 @@ it('still says wait when a proxy stripped Retry-After', () => {
   );
 });
 
-it('falls back to the server’s own detail for anything else', () => {
-  render(
+it('falls back to the server’s own detail for anything else', async () => {
+  await render(
     <StepUpForm
       testID="s"
       totpEnabled={false}
@@ -188,10 +188,10 @@ it('falls back to the server’s own detail for anything else', () => {
   );
 });
 
-it('shows a per-field validation message inline when the 400 carried one', () => {
+it('shows a per-field validation message inline when the 400 carried one', async () => {
   const failure = refusal(400, 'validation-error', 'Invalid request.');
   failure.fieldErrors = [{ field: 'password', message: 'Use at least 12 characters.' }];
-  render(
+  await render(
     <StepUpForm
       testID="s"
       totpEnabled={false}

@@ -49,9 +49,12 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "eslint"
         update-types: ["version-update:semver-major"]
+      # @eslint/js majors track eslint's; bump the two together
+      - dependency-name: "@eslint/js"
+        update-types: ["version-update:semver-major"]
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
-      # vitest 5 needs vite 6+, whose major is ignored above
+      # vitest majors track vite's; bump the two together
       - dependency-name: "vitest"
         update-types: ["version-update:semver-major"]
       - dependency-name: "@vitest/*"
@@ -75,6 +78,17 @@ updates:
         dependency-type: development
         update-types: [minor, patch]
     ignore:
+      # Blocked until Expo SDK supports Babel 8: babel-jest 29 (jest-expo)
+      # peers @babel/core ^7.8.0 and calls the sync loadPartialConfig,
+      # which Babel 8 removed (all 128 test suites fail to run).
+      - dependency-name: "@babel/core"
+        update-types: ["version-update:semver-major"]
+      # Blocked: victory-native 41+ is "Victory Native XL", a rewrite on
+      # @shopify/react-native-skia (new native module). Ported and tested
+      # on a branch; Jest passes but Detox on Android breaks (app never
+      # goes idle / disconnects), so hold until that is root-caused.
+      - dependency-name: "victory-native"
+        update-types: ["version-update:semver-major"]
       # Native runtime bumps are SDK-pinned via Expo — bump manually with prebuild.
       # react must equal the renderer react-native ships, and the native modules
       # must match the SDK's native build, so these move only with

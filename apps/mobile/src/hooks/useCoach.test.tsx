@@ -137,7 +137,7 @@ describe('useCoach', () => {
       return { content: 'Groundies.', ending: 'done', error: null, sessionId: 'c-1' };
     });
 
-    const { result } = renderHook(() => useCoach(), { wrapper });
+    const { result } = await renderHook(() => useCoach(), { wrapper });
     await act(async () => {
       await result.current.ask('Where did my money go?');
     });
@@ -158,7 +158,7 @@ describe('useCoach', () => {
       error: null,
       sessionId: 'c-7',
     });
-    const { result } = renderHook(() => useCoach(), { wrapper });
+    const { result } = await renderHook(() => useCoach(), { wrapper });
 
     // The first question carries no session id — that is what "start a new
     // conversation" means, and a client-minted id would be the wrong one.
@@ -187,7 +187,7 @@ describe('useCoach', () => {
       sessionId: 'c-1',
     });
 
-    const { result } = renderHook(() => useCoach(), { wrapper });
+    const { result } = await renderHook(() => useCoach(), { wrapper });
     await act(async () => {
       await result.current.ask('a long one');
     });
@@ -205,7 +205,7 @@ describe('useCoach', () => {
       error: null,
       sessionId: 'c-1',
     });
-    const { result } = renderHook(() => useCoach(), { wrapper });
+    const { result } = await renderHook(() => useCoach(), { wrapper });
     await act(async () => {
       await result.current.ask('q');
     });
@@ -220,7 +220,7 @@ describe('useCoach', () => {
       error: null,
       sessionId: 'c-1',
     });
-    const { result } = renderHook(() => useCoach(), { wrapper });
+    const { result } = await renderHook(() => useCoach(), { wrapper });
     await act(async () => {
       await result.current.ask('q');
     });
@@ -242,14 +242,14 @@ describe('useCoach', () => {
         })
     );
 
-    const { result, unmount } = renderHook(() => useCoach(), { wrapper });
-    act(() => {
+    const { result, unmount } = await renderHook(() => useCoach(), { wrapper });
+    await act(() => {
       void result.current.ask('q');
     });
     await waitFor(() => expect(result.current.isStreaming).toBe(true));
     expect(capturedSignal?.aborted).toBe(false);
 
-    unmount();
+    await unmount();
     expect(capturedSignal?.aborted).toBe(true);
   });
 
@@ -265,8 +265,8 @@ describe('useCoach', () => {
         })
     );
 
-    const { result } = renderHook(() => useCoach(), { wrapper });
-    act(() => {
+    const { result } = await renderHook(() => useCoach(), { wrapper });
+    await act(() => {
       void result.current.ask('q');
     });
     await waitFor(() => expect(result.current.isStreaming).toBe(true));
@@ -291,7 +291,7 @@ describe('useCoach', () => {
       })
     );
 
-    const { result } = renderHook(() => useCoach(), { wrapper });
+    const { result } = await renderHook(() => useCoach(), { wrapper });
     await act(async () => {
       await result.current.ask('q');
     });
@@ -321,7 +321,7 @@ describe('useCoach', () => {
       )
     );
 
-    const { result } = renderHook(() => useCoach(), { wrapper });
+    const { result } = await renderHook(() => useCoach(), { wrapper });
     await act(async () => {
       await result.current.ask('q');
     });
@@ -338,7 +338,7 @@ describe('useCoach', () => {
         detail: 'Too many requests.',
       })
     );
-    const { result } = renderHook(() => useCoach(), { wrapper });
+    const { result } = await renderHook(() => useCoach(), { wrapper });
     await act(async () => {
       await result.current.ask('q');
     });
@@ -347,7 +347,7 @@ describe('useCoach', () => {
 
   it('refuses to send an empty question, or a second one while streaming', async () => {
     mockStream.mockResolvedValue({ content: 'a', ending: 'done', error: null, sessionId: 'c-1' });
-    const { result } = renderHook(() => useCoach(), { wrapper });
+    const { result } = await renderHook(() => useCoach(), { wrapper });
     await act(async () => {
       await result.current.ask('   ');
     });
@@ -356,8 +356,8 @@ describe('useCoach', () => {
   });
 
   it('rehydrates a conversation from stored turns, mapping the upper-case roles', async () => {
-    const { result } = renderHook(() => useCoach(), { wrapper });
-    act(() => result.current.adoptHistory('c-1', [TURN, ANSWER_TURN]));
+    const { result } = await renderHook(() => useCoach(), { wrapper });
+    await act(() => result.current.adoptHistory('c-1', [TURN, ANSWER_TURN]));
 
     expect(result.current.sessionId).toBe('c-1');
     expect(result.current.turns).toEqual([
@@ -367,9 +367,9 @@ describe('useCoach', () => {
   });
 
   it('forgets the local transcript and the session on reset', async () => {
-    const { result } = renderHook(() => useCoach(), { wrapper });
-    act(() => result.current.adoptHistory('c-1', [TURN]));
-    act(() => result.current.reset());
+    const { result } = await renderHook(() => useCoach(), { wrapper });
+    await act(() => result.current.adoptHistory('c-1', [TURN]));
+    await act(() => result.current.reset());
     expect(result.current.turns).toEqual([]);
     expect(result.current.sessionId).toBeNull();
   });
@@ -378,7 +378,7 @@ describe('useCoach', () => {
 describe('useChatSuggestions', () => {
   it('seeds the empty state from the server rather than from hardcoded prompts', async () => {
     mockSuggestions.mockResolvedValue(['What did I spend the most on this month?']);
-    const { result } = renderHook(() => useChatSuggestions(), { wrapper });
+    const { result } = await renderHook(() => useChatSuggestions(), { wrapper });
     await waitFor(() =>
       expect(result.current.data).toEqual(['What did I spend the most on this month?'])
     );
@@ -388,7 +388,7 @@ describe('useChatSuggestions', () => {
 describe('useChatHistory', () => {
   it('asks for every conversation when given no session id', async () => {
     mockHistory.mockResolvedValue({ data: [TURN], meta: { total: 1, page: 0, limit: 50 } });
-    const { result } = renderHook(() => useChatHistory(null), { wrapper });
+    const { result } = await renderHook(() => useChatHistory(null), { wrapper });
     await waitFor(() => expect(result.current.data).toBeDefined());
     // No `sessionId` key at all — `?sessionId=` would be a 400.
     expect(mockHistory).toHaveBeenCalledWith({ page: 0 });
@@ -396,20 +396,20 @@ describe('useChatHistory', () => {
 
   it('narrows to one conversation when given an id', async () => {
     mockHistory.mockResolvedValue({ data: [TURN], meta: { total: 1, page: 0, limit: 50 } });
-    const { result } = renderHook(() => useChatHistory('c-1'), { wrapper });
+    const { result } = await renderHook(() => useChatHistory('c-1'), { wrapper });
     await waitFor(() => expect(result.current.data).toBeDefined());
     expect(mockHistory).toHaveBeenCalledWith({ sessionId: 'c-1', page: 0 });
   });
 
   it('never sends an empty session id', async () => {
     mockHistory.mockResolvedValue({ data: [TURN], meta: { total: 1, page: 0, limit: 50 } });
-    const { result } = renderHook(() => useChatHistory(''), { wrapper });
+    const { result } = await renderHook(() => useChatHistory(''), { wrapper });
     await waitFor(() => expect(result.current.data).toBeDefined());
     expect(mockHistory).toHaveBeenCalledWith({ page: 0 });
   });
 
-  it('stays idle when the caller says the coach is not configured', () => {
-    const { result } = renderHook(() => useChatHistory(null, false), { wrapper });
+  it('stays idle when the caller says the coach is not configured', async () => {
+    const { result } = await renderHook(() => useChatHistory(null, false), { wrapper });
     expect(result.current.fetchStatus).toBe('idle');
     expect(mockHistory).not.toHaveBeenCalled();
   });
@@ -421,7 +421,7 @@ describe('useDeleteChatHistory', () => {
     const qc = createTestQueryClient();
     clients.push(qc);
     const invalidate = jest.spyOn(qc, 'invalidateQueries');
-    const { result } = renderHook(() => useDeleteChatHistory(), {
+    const { result } = await renderHook(() => useDeleteChatHistory(), {
       wrapper: ({ children }: { children: React.ReactNode }) => (
         <QueryClientProvider client={qc}>{children}</QueryClientProvider>
       ),
@@ -439,7 +439,7 @@ describe('useDeleteChatHistory', () => {
 describe('useInsights', () => {
   it('reads the page and marks nothing delivered', async () => {
     mockInsights.mockResolvedValue({ data: [INSIGHT], meta: { total: 1, page: 0, limit: 50 } });
-    const { result } = renderHook(() => useInsights(), { wrapper });
+    const { result } = await renderHook(() => useInsights(), { wrapper });
     await waitFor(() => expect(result.current.data).toBeDefined());
     expect(result.current.data?.pages[0].data[0].delivered).toBe(false);
     expect(mockInsights).toHaveBeenCalledWith({ page: 0 });

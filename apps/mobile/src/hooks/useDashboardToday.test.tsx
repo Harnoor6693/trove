@@ -66,7 +66,7 @@ describe('dashboardKeys', () => {
 describe('useDashboardToday', () => {
   it('returns the server-computed day, its zone and every currency subtotal', async () => {
     mockToday.mockResolvedValue(TODAY);
-    const { result } = renderHook(() => useDashboardToday(), { wrapper });
+    const { result } = await renderHook(() => useDashboardToday(), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual(TODAY));
     expect(result.current.data?.timezone).toBe('America/Vancouver');
     expect(result.current.data?.byCurrency).toHaveLength(2);
@@ -74,7 +74,7 @@ describe('useDashboardToday', () => {
 
   it('surfaces a failure rather than zeroed figures', async () => {
     mockToday.mockRejectedValue(new Error('boom'));
-    const { result } = renderHook(() => useDashboardToday(), { wrapper });
+    const { result } = await renderHook(() => useDashboardToday(), { wrapper });
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.data).toBeUndefined();
   });

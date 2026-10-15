@@ -23,9 +23,9 @@ const CREATED: BudgetPeriodResponse = {
   updatedAt: '2026-09-04T14:00:00Z',
 };
 
-function renderScreen() {
+async function renderScreen() {
   const client = createTestQueryClient();
-  render(
+  await render(
     <QueryClientProvider client={client}>
       <NewBudgetPeriodScreen />
     </QueryClientProvider>
@@ -38,10 +38,10 @@ beforeEach(() => {
 
 it('submits month/totalIncome and leaves currency/budgetType unset by default', async () => {
   mockCreate.mockResolvedValue(CREATED);
-  renderScreen();
+  await renderScreen();
 
-  fireEvent.changeText(screen.getByTestId('new-budget-income'), '5000.00');
-  fireEvent.press(screen.getByTestId('new-budget-submit'));
+  await fireEvent.changeText(screen.getByTestId('new-budget-income'), '5000.00');
+  await fireEvent.press(screen.getByTestId('new-budget-submit'));
 
   await waitFor(() => expect(router.back).toHaveBeenCalled());
   expect(mockCreate).toHaveBeenCalledWith(
@@ -51,12 +51,12 @@ it('submits month/totalIncome and leaves currency/budgetType unset by default', 
 
 it('lets the member pick a currency and a budget type, and toggle them back off', async () => {
   mockCreate.mockResolvedValue(CREATED);
-  renderScreen();
+  await renderScreen();
 
-  fireEvent.press(screen.getByTestId('new-budget-currency-USD'));
-  fireEvent.press(screen.getByTestId('new-budget-type-ZERO_BASED'));
-  fireEvent.changeText(screen.getByTestId('new-budget-income'), '1000.00');
-  fireEvent.press(screen.getByTestId('new-budget-submit'));
+  await fireEvent.press(screen.getByTestId('new-budget-currency-USD'));
+  await fireEvent.press(screen.getByTestId('new-budget-type-ZERO_BASED'));
+  await fireEvent.changeText(screen.getByTestId('new-budget-income'), '1000.00');
+  await fireEvent.press(screen.getByTestId('new-budget-submit'));
 
   await waitFor(() =>
     expect(mockCreate).toHaveBeenCalledWith(
@@ -83,9 +83,9 @@ it('reads the household-already-has-a-period 409 in plain words', async () => {
       },
     })
   );
-  renderScreen();
-  fireEvent.changeText(screen.getByTestId('new-budget-income'), '5000.00');
-  fireEvent.press(screen.getByTestId('new-budget-submit'));
+  await renderScreen();
+  await fireEvent.changeText(screen.getByTestId('new-budget-income'), '5000.00');
+  await fireEvent.press(screen.getByTestId('new-budget-submit'));
 
   await waitFor(() =>
     expect(
