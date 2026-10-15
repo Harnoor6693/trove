@@ -4,6 +4,12 @@ module.exports = {
     args: { $0: 'jest', config: 'e2e/jest.config.js' },
     jest: { setupTimeout: 120000 },
   },
+  // Mobile CI uploads `artifacts/` after every Detox run; without these the
+  // folder stays empty and a device-side failure leaves no logcat or screen.
+  artifacts: {
+    rootDir: 'artifacts',
+    plugins: { log: 'failing', screenshot: 'failing' },
+  },
   apps: {
     'ios.debug': {
       type: 'ios.app',
