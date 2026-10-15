@@ -65,4 +65,20 @@ describe('Notification preferences', () => {
       expect(mswState.lastNotificationPreferencesBody?.budgetAlertThresholdPercent).toBe(75)
     )
   })
+
+  it('refuses a non-numeric budget threshold and sends nothing (B4-05)', async () => {
+    authenticate()
+    resetMswState()
+    const user = userEvent.setup()
+    renderWithProviders(<NotificationsSection />)
+
+    const field = await screen.findByLabelText('Budget alert threshold (%)')
+    await user.clear(field)
+    await user.type(field, 'abc')
+    await user.click(screen.getByRole('button', { name: 'Save notification preferences' }))
+
+    expect(await screen.findByText('Enter a whole number.')).toBeInTheDocument()
+    expect(mswState.lastNotificationPreferencesBody).toBeNull()
+    expect(screen.queryByTestId('notification-prefs-saved')).not.toBeInTheDocument()
+  })
 })

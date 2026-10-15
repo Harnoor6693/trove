@@ -19,6 +19,7 @@ import {
 } from '@hooks/useNotifications'
 import { notificationsErrorCopy } from '../Notifications/errorCopy'
 import type { NotificationPreferencesResponse } from '@api/types'
+import { WHOLE_NUMBER_ERROR, wholeNumber } from './wholeNumber'
 import styles from './Settings.module.css'
 
 interface FormState {
@@ -46,7 +47,9 @@ function formFrom(prefs: NotificationPreferencesResponse): FormState {
 function NotificationsForm({ prefs }: { prefs: NotificationPreferencesResponse }) {
   const [form, setForm] = useState<FormState>(() => formFrom(prefs))
   const [saved, setSaved] = useState(false)
+  const [tried, setTried] = useState(false)
   const save = useUpdateNotificationPreferencesMutation()
+  const threshold = wholeNumber(form.budgetAlertThresholdPercent)
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setSaved(false)
@@ -56,6 +59,8 @@ function NotificationsForm({ prefs }: { prefs: NotificationPreferencesResponse }
   function submit(e: React.FormEvent) {
     e.preventDefault()
     setSaved(false)
+    setTried(true)
+    if (threshold === null) return
     save.mutate(
       {
         inAppEnabled: form.inAppEnabled,
@@ -66,7 +71,7 @@ function NotificationsForm({ prefs }: { prefs: NotificationPreferencesResponse }
         weeklyDigestEnabled: form.weeklyDigestEnabled,
         subscriptionAlertEnabled: form.subscriptionAlertEnabled,
         syncFailureAlertEnabled: form.syncFailureAlertEnabled,
-        budgetAlertThresholdPercent: Number(form.budgetAlertThresholdPercent),
+        budgetAlertThresholdPercent: threshold,
       },
       {
         onSuccess: (next) => {
@@ -124,7 +129,10 @@ function NotificationsForm({ prefs }: { prefs: NotificationPreferencesResponse }
         value={form.budgetAlertThresholdPercent}
         onChange={(e) => set('budgetAlertThresholdPercent', e.target.value)}
         hint="How full an envelope gets before it tells you. Default 90."
-        error={save.error?.fieldError('budgetAlertThresholdPercent')}
+        error={
+          (tried && threshold === null ? WHOLE_NUMBER_ERROR : undefined) ??
+          save.error?.fieldError('budgetAlertThresholdPercent')
+        }
       />
 
       <label className={styles.label}>
