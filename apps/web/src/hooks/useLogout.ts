@@ -7,22 +7,19 @@
  * This hook is the single caller, used by the nav, Settings, the onboarding
  * footer and every diagnostic screen.
  *
- * It clears the react-query cache as well as the session: household financial
- * data must not survive in memory for whoever uses the browser next.
+ * The react-query cache is cleared by the auth store whenever a session ends
+ * (sign-out or expiry), so household data does not outlive the session.
  */
 import { useCallback } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@stores/authStore'
 
 export function useLogout(): () => Promise<void> {
-  const queryClient = useQueryClient()
   const navigate = useNavigate()
   const logout = useAuthStore((s) => s.logout)
 
   return useCallback(async () => {
     await logout()
-    queryClient.clear()
     navigate('/login', { replace: true })
-  }, [logout, queryClient, navigate])
+  }, [logout, navigate])
 }
