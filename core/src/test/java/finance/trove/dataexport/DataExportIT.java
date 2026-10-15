@@ -187,7 +187,8 @@ class DataExportIT extends LedgerSupport {
                 "merchant-rules.json", "budget-periods.json", "envelopes.json",
                 "savings-goals.json", "subscriptions.json", "net-worth-snapshots.json",
                 "assets.json", "liabilities.json", "receipts.json",
-                "coach-conversations.json", "notification-preferences.json");
+                "coach-conversations.json", "tax-line-mappings.json",
+                "notification-preferences.json");
 
         JsonNode manifest = objectMapper.readTree(entries.get("manifest.json"));
         assertThat(manifest.path("schemaVersion").asInt()).isEqualTo(1);
