@@ -122,6 +122,29 @@ class NetWorthSnapshotServiceTest {
     }
 
     @Test
+    @DisplayName("B2-08: a currency with a row today but no positions left is written as zero")
+    void aVanishedCurrencyIsZeroedNotLeftStale() {
+        NetWorthSnapshot staleUsd = new NetWorthSnapshot(HOUSEHOLD, UUID.randomUUID(),
+            LocalDate.of(2026, 9, 4), new BigDecimal("50.00"), new BigDecimal("0.00"),
+            CurrencyCode.USD, Instant.now());
+        when(assets.sumValueByHouseholdIdGroupByCurrency(HOUSEHOLD))
+            .thenReturn(List.of(new CurrencyTotal(CurrencyCode.CAD, new BigDecimal("100.00"))));
+        when(liabilities.sumBalanceByHouseholdIdGroupByCurrency(HOUSEHOLD)).thenReturn(List.of());
+        when(snapshots.findAllByHouseholdIdAndSnapshotDate(HOUSEHOLD, LocalDate.of(2026, 9, 4)))
+            .thenReturn(List.of(staleUsd));
+        when(snapshots.findByHouseholdIdAndSnapshotDateAndCurrency(eq(HOUSEHOLD), any(),
+            eq(CurrencyCode.CAD))).thenReturn(Optional.empty());
+        when(snapshots.findByHouseholdIdAndSnapshotDateAndCurrency(eq(HOUSEHOLD), any(),
+            eq(CurrencyCode.USD))).thenReturn(Optional.of(staleUsd));
+        savePassesThrough();
+
+        List<NetWorthSnapshot> result = service().takeSnapshot(HOUSEHOLD, null);
+
+        assertThat(byCurrency(result, CurrencyCode.USD).getTotalAssets())
+            .isEqualByComparingTo("0.00");
+    }
+
+    @Test
     @DisplayName("An empty household produces no snapshot rows, not a zero row")
     void emptyHouseholdProducesNoRows() {
         when(assets.sumValueByHouseholdIdGroupByCurrency(HOUSEHOLD)).thenReturn(List.of());
