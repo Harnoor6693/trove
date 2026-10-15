@@ -7,6 +7,7 @@ import { MnCard } from '@components/ui/MnCard/MnCard';
 import { MnEyebrow } from '@components/primitives/MnEyebrow/MnEyebrow';
 import { MnPill } from '@components/primitives/MnPill/MnPill';
 import { SyncLogRow } from '@components/mobile/SyncLogRow/SyncLogRow';
+import { syncFreshness } from '@components/mobile/AccountCard/AccountCard';
 import { ScreenState, failureMessage } from '@components/ui/ScreenState/ScreenState';
 import { FontFamily, FontSize, Radius, Space } from '@design/tokens';
 import { useTheme } from '@design/useTheme';
@@ -127,10 +128,12 @@ export default function AccountDetailScreen() {
                   variant={ACCOUNT_SYNC_STATUS_VARIANT[account.data.syncStatus]}
                   testID="account-detail-status"
                 />
-                <Text style={[styles.meta, { color: theme.ink3 }]} testID="account-detail-synced">
-                  {account.data.lastSyncedAt === null
-                    ? 'Never synced'
-                    : `Last synced ${format.date(account.data.lastSyncedAt, 'dateTime')}`}
+                <Text
+                  style={[styles.meta, { color: theme.ink3 }]}
+                  accessibilityLabel={syncFreshness(account.data, format).label}
+                  testID="account-detail-synced"
+                >
+                  {syncFreshness(account.data, format).text}
                 </Text>
                 {account.data.errorMessage === null || account.data.errorMessage === '' ? null : (
                   <Text
