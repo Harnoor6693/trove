@@ -246,12 +246,17 @@ jobs:
           cache: maven
       - name: Package core
         run: ./mvnw --batch-mode -pl core -am package -DskipTests
+      - name: Lowercase image name
+        # GHCR refuses uppercase repository names; the owner is "Harnoor6693".
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: echo "IMAGE=ghcr.io/${OWNER,,}/trove-core" >> "$GITHUB_ENV"
       - name: Build core image
-        run: docker build -t "ghcr.io/${{ github.repository_owner }}/trove-core:trivy-scan" -f core/Dockerfile .
+        run: docker build -t "${IMAGE}:trivy-scan" -f core/Dockerfile .
       - name: Scan core image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ghcr.io/${{ github.repository_owner }}/trove-core:trivy-scan
+          image-ref: ${{ env.IMAGE }}:trivy-scan
           severity: HIGH,CRITICAL
           exit-code: '1'
           ignore-unfixed: true
