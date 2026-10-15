@@ -25,6 +25,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
@@ -48,16 +49,19 @@ import tools.jackson.databind.ObjectMapper;
  * A CSV export carries no transaction id of any kind, so plugins.md §8.2 offered two options and
  * recommended leaving {@code provider_transaction_id} null and relying on the fuzzy pass. This
  * step takes the other one, deliberately: every row gets
- * {@code sha256(accountId | date | amount | normalised description | row ordinal)}. Three
- * consequences follow, and they are the reason.
+ * {@code sha256(accountId | date | amount | normalised description | occurrence)}, where the
+ * occurrence counts the earlier rows of the same file with that same date, amount and
+ * description. Three consequences follow, and they are the reason.
  * <ul>
  *   <li><strong>Re-importing the same file is idempotent.</strong> The hash is the same on the
  *       second parse, the exact-match key finds the stored row, and nothing is inserted twice.
  *       The fuzzy pass could never do that for a CSV: it required a PENDING candidate and a CSV
  *       row arrives already posted, so a re-imported file matched nothing and every row of it was
- *       inserted again (§6 M0, defect 2).</li>
- *   <li><strong>Two identical-looking rows stay two transactions.</strong> The ordinal is in the
- *       hash, so two coffees of the same amount on the same day at the same shop are two rows and
+ *       inserted again (§6 M0, defect 2). The same holds for a wider export that overlaps one
+ *       already imported, the usual "last 90 days" every month: the occurrence does not move
+ *       when earlier lines are added, where the row ordinal this used to hash did (B1-02).</li>
+ *   <li><strong>Two identical-looking rows stay two transactions.</strong> The occurrence is in
+ *       the hash, so two coffees of the same amount on the same day at the same shop are two rows and
  *       not one — which the ±2 day, ±$0.50 fuzzy window would have collapsed.</li>
  *   <li><strong>It never reaches the fuzzy pass at all</strong>, which is what §6 M0 calls the
  *       real fix for a re-imported file.</li>
@@ -177,19 +181,21 @@ public class CsvSource implements FileImportSource {
         }
 
         List<ParsedRow> rows = new ArrayList<>(data.size());
+        Map<String, Integer> occurrences = new HashMap<>();
         long deadline = System.nanoTime() + limits.parseBudget().toNanos();
         for (int i = 0; i < data.size(); i++) {
             if (i % BUDGET_CHECK_INTERVAL == 0) {
                 checkBudget(deadline, limits.parseBudget());
             }
-            rows.add(row(data.get(i), i + 1, columns, readingFormat, context.accountId()));
+            rows.add(row(data.get(i), i + 1, columns, readingFormat, context.accountId(),
+                occurrences));
         }
         return new ParsedUpload(rows, null, null, null, null, effective, candidates, warnings);
     }
 
     /** One data row, always produced — a cell the parser could not read becomes a reason. */
     private ParsedRow row(CSVRecord record, int ordinal, Columns columns, String dateFormat,
-                          UUID accountId) {
+                          UUID accountId, Map<String, Integer> occurrences) {
         String tooLong = columns.tooLongField(record, limits.maxFieldChars());
         if (tooLong != null) {
             return new ParsedRow(ordinal, empty(ordinal), "the " + tooLong + " field is longer "
@@ -239,24 +245,26 @@ public class CsvSource implements FileImportSource {
         TransactionType type = amount.signum() >= 0
             ? TransactionType.CREDIT
             : TransactionType.DEBIT;
-        String id = deterministicId(accountId, date, amount, description, ordinal);
+        String id = deterministicId(accountId, date, amount, description, occurrences);
         return ParsedRow.of(ordinal, new RawTransaction(id, accountId.toString(), amount.abs(),
             currency, description, null, date, null, type, false, Map.of()));
     }
 
     /**
-     * {@code sha256(accountId | date | amount | normalised description | ordinal)}, hex.
+     * {@code sha256(accountId | date | amount | normalised description | occurrence)}, hex.
      *
      * <p>Every component is canonicalised before it is hashed, because the hash has to be
-     * <em>identical</em> across two parses of the same bytes months apart: the amount to the
-     * ledger's own four decimal places, the description upper-cased with its whitespace collapsed,
-     * the date as ISO-8601. The ordinal is what keeps two identical-looking rows two transactions.
+     * <em>identical</em> across two parses months apart: the amount to the ledger's own four
+     * decimal places, the description upper-cased with its whitespace collapsed, the date as
+     * ISO-8601. The occurrence (how many rows earlier in {@code occurrences} had the same three) is
+     * what keeps two identical-looking rows two transactions without depending on the row's line.
      */
     static String deterministicId(UUID accountId, LocalDate date, BigDecimal amount,
-                                  String description, int ordinal) {
-        String material = accountId + "|" + date + "|"
-            + amount.setScale(HASH_SCALE, RoundingMode.HALF_UP).toPlainString() + "|"
-            + normaliseDescription(description) + "|" + ordinal;
+                                  String description, Map<String, Integer> occurrences) {
+        String row = date + "|" + amount.setScale(HASH_SCALE, RoundingMode.HALF_UP).toPlainString()
+            + "|" + normaliseDescription(description);
+        int occurrence = occurrences.merge(row, 1, Integer::sum) - 1;
+        String material = accountId + "|" + row + "|" + occurrence;
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             return HexFormat.of().formatHex(digest.digest(material.getBytes(
