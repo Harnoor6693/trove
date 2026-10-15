@@ -13,6 +13,7 @@ import { fieldError, toApiFailure } from '@api/errors';
 import { BUDGET_TYPES, BUDGET_TYPE_HINT, BUDGET_TYPE_LABEL } from '@lib/labels';
 import { useDeleteBudgetPeriod, useEnvelopes, useUpdateBudgetPeriod } from '@hooks/useBudgets';
 import type { BudgetPeriodResponse, BudgetType, EnvelopeResponse } from '@api/types';
+import { normaliseAmountInput } from '@lib/amountInput';
 
 /**
  * One budget period: its income and type (editable in place), and its
@@ -61,7 +62,7 @@ export function PeriodDetail({ period, onDeleted, testID }: PeriodDetailProps) {
 
   const save = () => {
     update.mutate(
-      { totalIncome: income.trim(), budgetType },
+      { totalIncome: normaliseAmountInput(income), budgetType },
       { onSuccess: () => setEditing(false) }
     );
   };

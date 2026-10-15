@@ -22,6 +22,7 @@ import { FontFamily, FontSize, Radius, Space } from '@design/tokens';
 import { useTheme } from '@design/useTheme';
 import { useUserFormat } from '@lib/useUserFormat';
 import type { CurrencyCode, ReceiptPatchRequest } from '@api/types';
+import { normaliseAmountInput } from '@lib/amountInput';
 
 /**
  * One receipt in full.
@@ -88,7 +89,7 @@ export default function ReceiptDetailScreen() {
     // string would be a 400.
     const body: ReceiptPatchRequest = {};
     if (merchant.trim() !== '') body.extractedMerchant = merchant.trim();
-    if (amount.trim() !== '') body.extractedAmount = amount.trim();
+    if (amount.trim() !== '') body.extractedAmount = normaliseAmountInput(amount);
     patch.mutate(body, { onSuccess: () => setEditing(false) });
   };
 

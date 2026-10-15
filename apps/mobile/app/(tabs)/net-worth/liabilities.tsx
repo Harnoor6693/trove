@@ -23,6 +23,7 @@ import {
   type LiabilityResponse,
   type LiabilityType,
 } from '@api/types';
+import { normaliseAmountInput } from '@lib/amountInput';
 
 const LIABILITY_TYPES: LiabilityType[] = [
   'MORTGAGE',
@@ -214,8 +215,8 @@ function LiabilityForm({
         {
           name: name.trim(),
           liabilityType,
-          balance: balance.trim(),
-          interestRate: interestRate.trim() === '' ? '0' : interestRate.trim(),
+          balance: normaliseAmountInput(balance),
+          interestRate: interestRate.trim() === '' ? '0' : normaliseAmountInput(interestRate),
           currency: currency ?? undefined,
         },
         { onSuccess: onDone }
@@ -228,8 +229,8 @@ function LiabilityForm({
         {
           name: name.trim(),
           liabilityType,
-          balance: balance.trim(),
-          interestRate: interestRate.trim() === '' ? '0' : interestRate.trim(),
+          balance: normaliseAmountInput(balance),
+          interestRate: interestRate.trim() === '' ? '0' : normaliseAmountInput(interestRate),
           accountId: liability?.accountId ?? null,
         },
         { onSuccess: onDone }
