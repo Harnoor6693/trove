@@ -196,13 +196,13 @@ function BudgetCard() {
                 </span>
               </div>
               {/* `health.healthPercentage`/`overPace` are the server's own figures
-                  (§202) — never a client recomputation of spent/allocated. */}
+                  (§202) — never a client recomputation of spent/allocated. Red means
+                  spent more than allocated (healthPercentage > 100), not "ahead of pace". */}
               <QlProgress
                 value={env.health.healthPercentage}
                 max={100}
                 label={env.categoryName}
-                height={3}
-                over={env.health.overPace}
+                height={8}
               />
             </div>
           ))}

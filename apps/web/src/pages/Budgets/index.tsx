@@ -505,7 +505,7 @@ function EnvelopeGrid({ period }: { period: BudgetPeriodResponse }) {
               is never conveyed by colour alone (§202 scope item 9). */}
           <span
             className={styles.envelopeHealthWord}
-            style={{ color: row.health.overPace ? 'var(--red)' : 'var(--ink-2)' }}
+            style={{ color: row.health.healthPercentage > 100 ? 'var(--red)' : row.health.overPace ? 'var(--amber)' : 'var(--ink-2)' }}
           >
             {row.health.overPace ? 'Over pace' : 'On pace'} · {row.health.healthPercentage}% of budget
           </span>
