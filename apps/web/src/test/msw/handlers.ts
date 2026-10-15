@@ -706,7 +706,7 @@ export const mswState: MswState = {
   dataExportDownloadNotReady: false,
   members: makeMembers(),
   restoreOutsideGrace: false,
-  adminSettings: { registrationOpen: false },
+  adminSettings: { registrationOpen: false, scheduledSyncEnabled: false },
   lastAdminSettingsBody: null,
   auditEntries: makeAuditEntries(),
   lastResetLinkRequest: null,
@@ -819,7 +819,7 @@ export function resetMswState(overrides: Partial<MswState> = {}): void {
     dataExportDownloadNotReady: false,
     members: makeMembers(),
     restoreOutsideGrace: false,
-    adminSettings: { registrationOpen: false },
+    adminSettings: { registrationOpen: false, scheduledSyncEnabled: false },
     lastAdminSettingsBody: null,
     auditEntries: makeAuditEntries(),
     lastResetLinkRequest: null,
@@ -3953,7 +3953,13 @@ export const handlers = [
     mswState.lastAdminSettingsBody = body
     // A partial update: an absent or null field leaves the flag alone.
     if (body.registrationOpen != null) {
-      mswState.adminSettings = { registrationOpen: body.registrationOpen }
+      mswState.adminSettings = { ...mswState.adminSettings, registrationOpen: body.registrationOpen }
+    }
+    if (body.scheduledSyncEnabled != null) {
+      mswState.adminSettings = {
+        ...mswState.adminSettings,
+        scheduledSyncEnabled: body.scheduledSyncEnabled,
+      }
     }
     return ok<AdminSettingsResponse>(mswState.adminSettings)
   }),

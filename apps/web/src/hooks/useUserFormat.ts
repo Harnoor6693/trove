@@ -52,6 +52,8 @@ export interface UserFormat {
   formatDate: (isoDate: string) => string
   /** An instant (`…T…Z`) rendered in the user's own timezone. */
   formatDateTime: (isoInstant: string) => string
+  /** How long ago an instant was ("3 hours ago"), in the user's locale. */
+  formatRelativeTime: (isoInstant: string, now?: number) => string
 }
 
 /**
@@ -63,6 +65,15 @@ export function parseDecimal(amount: string): number | null {
   const value = Number(amount.trim())
   return Number.isFinite(value) ? value : null
 }
+
+/** Largest unit first: an instant 26 hours old reads "yesterday", not "26 hours ago". */
+const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
+  ['year', 365 * 24 * 3600],
+  ['month', 30 * 24 * 3600],
+  ['day', 24 * 3600],
+  ['hour', 3600],
+  ['minute', 60],
+]
 
 function buildDateOnly(isoDate: string): Date | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate)
@@ -106,6 +117,18 @@ export function createUserFormat(locale: LocaleCode, timezone: string, isResolve
         timeStyle: 'short',
         timeZone: timezone,
       }).format(parsed)
+    },
+    formatRelativeTime: (isoInstant: string, now: number = Date.now()) => {
+      const at = Date.parse(isoInstant)
+      if (Number.isNaN(at)) return isoInstant
+      const seconds = Math.round((at - now) / 1000)
+      if (Math.abs(seconds) < 60) return 'just now'
+      const [unit, size] =
+        RELATIVE_UNITS.find(([, length]) => Math.abs(seconds) >= length) ?? RELATIVE_UNITS[4]
+      return new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(
+        Math.round(seconds / size),
+        unit
+      )
     },
   }
 }

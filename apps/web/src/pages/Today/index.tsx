@@ -32,6 +32,8 @@ import { QlSkeleton } from '@components/ui/QlSkeleton/QlSkeleton'
 import { ErrorBoundary } from '@components/ErrorBoundary/ErrorBoundary'
 import { MoneyDisplay } from '@components/MoneyDisplay/MoneyDisplay'
 import { EmptyState } from '@components/EmptyState/EmptyState'
+import { SyncFreshness } from '@components/SyncFreshness/SyncFreshness'
+import { useAccounts } from '@hooks/useAccounts'
 import { useDashboardToday } from '@hooks/useDashboardToday'
 import { useDailySpendingTrend } from '@hooks/useDailySpendingTrend'
 import { useCurrentBudget } from '@hooks/useCurrentBudget'
@@ -212,6 +214,41 @@ function BudgetCard() {
   )
 }
 
+/**
+ * How fresh each bank connection is (C-01r). Only SimpleFIN accounts are listed —
+ * they are the ones the scheduled sync refreshes — and a household with none
+ * sees no card at all.
+ */
+function BankSyncCard() {
+  const accounts = useAccounts()
+  const banks = (accounts.data ?? []).filter((a) => a.sourceKind === 'SIMPLEFIN')
+  if (banks.length === 0) return null
+
+  return (
+    <QlCard>
+      <div data-testid="today-bank-sync" className={styles.budgetsCard}>
+        <div className={styles.txnHeader}>
+          <span className={styles.sectionTitle}>Bank connections</span>
+          <Link to="/accounts" className={styles.cta}>
+            Accounts
+          </Link>
+        </div>
+        <ul className={styles.currencyList}>
+          {banks.map((a) => (
+            <li key={a.id} className={styles.currencyRow}>
+              <span className={styles.budgetName}>{a.displayName}</span>
+              <span className={styles.txnDate}>
+                {a.syncStatus === 'ERROR' ? 'Last sync failed · ' : ''}
+                <SyncFreshness account={a} />
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </QlCard>
+  )
+}
+
 function RecentTransactionsCard() {
   const q = useRecentTransactions(4)
   const categories = useCategories()
@@ -299,6 +336,10 @@ export default function Today() {
 
         <ErrorBoundary label="budgets">
           <BudgetCard />
+        </ErrorBoundary>
+
+        <ErrorBoundary label="bank connections">
+          <BankSyncCard />
         </ErrorBoundary>
 
         <ErrorBoundary label="recent transactions">

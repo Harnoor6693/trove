@@ -172,6 +172,25 @@ describe('Admin console', () => {
     await waitFor(() => expect(toggle).toBeChecked())
   })
 
+  it('turns the scheduled bank sync on through PUT /v1/admin/settings, off by default', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<AdminSection />)
+
+    const toggle = await screen.findByRole('checkbox', { name: /sync connected banks every day/i })
+    expect(toggle).not.toBeChecked()
+    expect(screen.getByTestId('scheduled-sync-note')).toHaveTextContent(
+      /SimpleFIN.*once a day.*only once/i
+    )
+
+    await user.click(toggle)
+
+    await waitFor(() =>
+      expect(mswState.lastAdminSettingsBody).toEqual({ scheduledSyncEnabled: true })
+    )
+    await waitFor(() => expect(toggle).toBeChecked())
+    expect(mswState.adminSettings.registrationOpen).toBe(false)
+  })
+
   it('pages the audit log and renders a row’s metadata as text, never as markup', async () => {
     resetMswState({
       me: { ...DEFAULT_ME, role: 'ADMIN' },

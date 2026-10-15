@@ -41,4 +41,20 @@ describe('useUserFormat', () => {
     const f = createUserFormat('en-CA', 'UTC', true)
     expect(f.formatDate('not-a-date')).toBe('not-a-date')
   })
+
+  it('says how long ago an instant was, in the largest whole unit', () => {
+    const now = Date.parse('2026-10-15T12:00:00Z')
+    const ca = createUserFormat('en-CA', 'America/Toronto', true)
+    expect(ca.formatRelativeTime('2026-10-15T11:59:40Z', now)).toBe('just now')
+    expect(ca.formatRelativeTime('2026-10-15T11:55:00Z', now)).toBe('5 minutes ago')
+    expect(ca.formatRelativeTime('2026-10-15T09:00:00Z', now)).toBe('3 hours ago')
+    expect(ca.formatRelativeTime('2026-10-14T09:00:00Z', now)).toBe('yesterday')
+    expect(ca.formatRelativeTime('2026-10-05T12:00:00Z', now)).toBe('10 days ago')
+    expect(ca.formatRelativeTime('2026-07-15T12:00:00Z', now)).toBe('3 months ago')
+    expect(ca.formatRelativeTime('2024-10-01T12:00:00Z', now)).toBe('2 years ago')
+  })
+
+  it('returns the input rather than a wrong value for an unparseable instant', () => {
+    expect(createUserFormat('en-CA', 'UTC', true).formatRelativeTime('soon')).toBe('soon')
+  })
 })
