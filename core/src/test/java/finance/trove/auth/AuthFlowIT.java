@@ -216,6 +216,39 @@ class AuthFlowIT extends AuthFlowSupport {
     }
 
     @Test
+    @DisplayName("Probing for registered addresses meets the same gate as guessing passwords")
+    void probingForRegisteredAddressesIsThrottled() {
+        // B3-09. email-taken has to say what it says: a new address is signed straight in, so
+        // the two answers cannot be made the same without a fake success that leaves somebody
+        // believing they registered. What can be bounded is how often it is asked. Before
+        // this, an open invite or open registration answered it 20 times a minute per address
+        // for as long as anybody cared to ask, and never consumed the invite.
+        Session admin = loginBootstrapAdmin();
+        String taken = uniqueEmail("probed");
+        registerWithInvite(createInvite(admin, null), taken, MEMBER_PASSWORD);
+        String openInvite = createInvite(admin, null);
+        String prober = "198.19.254.1";
+
+        for (int i = 0; i < 20; i++) {
+            HttpResponse<String> probe = postJson(appUrl("/v1/auth/register"),
+                Json.object("inviteToken", openInvite, "email", taken,
+                    "password", MEMBER_PASSWORD, "displayName", "Probe"),
+                FORWARDED_FOR, prober);
+            assertThat(probe.statusCode()).as(probe.body()).isEqualTo(400);
+        }
+        HttpResponse<String> refused = postJson(appUrl("/v1/auth/register"),
+            Json.object("inviteToken", openInvite, "email", taken,
+                "password", MEMBER_PASSWORD, "displayName", "Probe"),
+            FORWARDED_FOR, prober);
+
+        assertThat(refused.statusCode())
+            .as("each email-taken counts as a failed sign-in from the address, so twenty of them "
+                + "meet the per-address gate login guessing meets: %s", refused.body())
+            .isEqualTo(429);
+        assertThat(Json.errorCode(refused.body())).isEqualTo("account-locked");
+    }
+
+    @Test
     @DisplayName("A deny-listed password is 400 password-policy with a field error")
     void weakPasswordsAreRefusedWithAFieldError() {
         Session admin = loginBootstrapAdmin();
