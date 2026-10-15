@@ -43,9 +43,9 @@ const SYSTEM: CategoryResponse = category({
 const PARENT: CategoryResponse = category({ id: 'p1', name: 'Food' });
 const CHILD: CategoryResponse = category({ id: 'c1', name: 'Coffee Shops', parentId: 'p1' });
 
-function renderScreen() {
+async function renderScreen() {
   const client = createTestQueryClient();
-  render(
+  await render(
     <QueryClientProvider client={client}>
       <CategoriesScreen />
     </QueryClientProvider>
@@ -59,7 +59,7 @@ beforeEach(() => {
 describe('the tree', () => {
   it('nests a child under its parent and hides destructive actions on a system category', async () => {
     mockList.mockResolvedValue([SYSTEM, PARENT, CHILD]);
-    renderScreen();
+    await renderScreen();
 
     await waitFor(() => expect(screen.getByTestId('category-node-p1')).toBeTruthy());
     expect(screen.getByTestId('category-node-c1')).toBeTruthy();
@@ -80,13 +80,13 @@ describe('creating a category', () => {
   it('sends only name/parentId/icon — never id/householdId/slug', async () => {
     mockList.mockResolvedValue([PARENT]);
     mockCreate.mockResolvedValue(category({ id: 'c2', name: 'Coffee' }));
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('categories-new-toggle')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('categories-new-toggle'));
-    fireEvent.changeText(screen.getByTestId('category-create-form-name'), 'Coffee');
-    fireEvent.press(screen.getByTestId('category-create-form-parent-p1'));
-    fireEvent.press(screen.getByTestId('category-create-form-submit'));
+    await fireEvent.press(screen.getByTestId('categories-new-toggle'));
+    await fireEvent.changeText(screen.getByTestId('category-create-form-name'), 'Coffee');
+    await fireEvent.press(screen.getByTestId('category-create-form-parent-p1'));
+    await fireEvent.press(screen.getByTestId('category-create-form-submit'));
 
     await waitFor(() =>
       expect(mockCreate).toHaveBeenCalledWith({ name: 'Coffee', parentId: 'p1', icon: null })
@@ -98,12 +98,12 @@ describe('editing a category', () => {
   it('renames the category', async () => {
     mockList.mockResolvedValue([PARENT]);
     mockUpdate.mockResolvedValue({ ...PARENT, name: 'Groceries' });
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('category-edit-p1')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('category-edit-p1'));
-    fireEvent.changeText(screen.getByTestId('category-edit-form-name'), 'Groceries');
-    fireEvent.press(screen.getByTestId('category-edit-form-submit'));
+    await fireEvent.press(screen.getByTestId('category-edit-p1'));
+    await fireEvent.changeText(screen.getByTestId('category-edit-form-name'), 'Groceries');
+    await fireEvent.press(screen.getByTestId('category-edit-form-submit'));
 
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith('p1', {
@@ -135,11 +135,11 @@ describe('deleting a category still in use', () => {
         },
       })
     );
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('category-delete-p1')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('category-delete-p1'));
-    fireEvent.press(screen.getByTestId('category-delete-confirm-p1'));
+    await fireEvent.press(screen.getByTestId('category-delete-p1'));
+    await fireEvent.press(screen.getByTestId('category-delete-confirm-p1'));
 
     await waitFor(() =>
       expect(

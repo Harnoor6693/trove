@@ -89,7 +89,7 @@ async function renderScreen(row: AccountResponse = account(), logs: SyncLogRespo
   mockLogs.mockResolvedValue(logs);
   const qc = createTestQueryClient();
   clients.push(qc);
-  const utils = render(
+  const utils = await render(
     <QueryClientProvider client={qc}>
       <AccountDetailScreen />
     </QueryClientProvider>
@@ -98,11 +98,11 @@ async function renderScreen(row: AccountResponse = account(), logs: SyncLogRespo
   return utils;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   jest.clearAllMocks();
   [mockAccount, mockLogs, mockUpdate, mockDelete, mockSync].forEach((mock) => mock.mockReset());
   mockParams.mockReturnValue({ id: '22222222-2222-4222-8222-222222222222' });
-  act(() => {
+  await act(() => {
     useAuthStore.getState().setMe(ME);
   });
 });
@@ -149,7 +149,7 @@ describe('sync', () => {
     );
     await renderScreen();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('account-sync'));
+      await fireEvent.press(screen.getByTestId('account-sync'));
     });
     await waitFor(() => expect(screen.getByTestId('account-sync-outcome')).toBeTruthy());
     const outcome = screen.getByTestId('account-sync-outcome').props.children.join('');
@@ -183,7 +183,7 @@ describe('sync', () => {
     );
     await renderScreen();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('account-sync'));
+      await fireEvent.press(screen.getByTestId('account-sync'));
     });
     await waitFor(() => expect(screen.getByTestId('account-sync-error')).toBeTruthy());
     expect(screen.getByTestId('account-sync-error').props.children).toContain(
@@ -213,11 +213,11 @@ describe('rename', () => {
     mockUpdate.mockResolvedValue(account({ displayName: 'Renamed' }));
     await renderScreen();
     await act(async () => {
-      fireEvent.changeText(screen.getByTestId('account-edit-name'), 'Renamed');
-      fireEvent.press(screen.getByTestId('account-edit-type-SAVINGS'));
+      await fireEvent.changeText(screen.getByTestId('account-edit-name'), 'Renamed');
+      await fireEvent.press(screen.getByTestId('account-edit-type-SAVINGS'));
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('account-edit-submit'));
+      await fireEvent.press(screen.getByTestId('account-edit-submit'));
     });
     expect(mockUpdate).toHaveBeenCalledWith('22222222-2222-4222-8222-222222222222', {
       displayName: 'Renamed',
@@ -232,10 +232,10 @@ describe('rename', () => {
     mockUpdate.mockResolvedValue(account({ institution: null }));
     await renderScreen();
     await act(async () => {
-      fireEvent.changeText(screen.getByTestId('account-edit-institution'), '   ');
+      await fireEvent.changeText(screen.getByTestId('account-edit-institution'), '   ');
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('account-edit-submit'));
+      await fireEvent.press(screen.getByTestId('account-edit-submit'));
     });
     expect(mockUpdate.mock.calls[0][1].institution).toBeNull();
   });
@@ -245,7 +245,7 @@ describe('disconnect', () => {
   it('asks first, and the confirmation says the transactions go too', async () => {
     await renderScreen();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('account-delete'));
+      await fireEvent.press(screen.getByTestId('account-delete'));
     });
     expect(screen.getByTestId('account-delete-confirm-copy').props.children).toContain(
       'every transaction stored against it'
@@ -257,10 +257,10 @@ describe('disconnect', () => {
     mockDelete.mockResolvedValue(undefined);
     await renderScreen();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('account-delete'));
+      await fireEvent.press(screen.getByTestId('account-delete'));
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('account-delete-confirm'));
+      await fireEvent.press(screen.getByTestId('account-delete-confirm'));
     });
     expect(mockDelete).toHaveBeenCalledWith('22222222-2222-4222-8222-222222222222');
   });
@@ -268,10 +268,10 @@ describe('disconnect', () => {
   it('backs out without deleting', async () => {
     await renderScreen();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('account-delete'));
+      await fireEvent.press(screen.getByTestId('account-delete'));
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('account-delete-cancel'));
+      await fireEvent.press(screen.getByTestId('account-delete-cancel'));
     });
     expect(screen.queryByTestId('account-delete-confirm')).toBeNull();
     expect(mockDelete).not.toHaveBeenCalled();
@@ -289,7 +289,7 @@ describe('this account\u2019s own transactions', () => {
   it('opens the ledger filtered to this account, which is the affordance the filter needs', async () => {
     await renderScreen();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('account-to-transactions'));
+      await fireEvent.press(screen.getByTestId('account-to-transactions'));
     });
     // `listTransactions` declares an `accountId` filter and this is the only
     // way a member reaches it; the ledger reads the parameter off its route.
@@ -305,7 +305,7 @@ describe('a route that does not name an account', () => {
     mockParams.mockReturnValue({ id: '../transactions/22222222-2222-4222-8222-222222222222' });
     const qc = createTestQueryClient();
     clients.push(qc);
-    render(
+    await render(
       <QueryClientProvider client={qc}>
         <AccountDetailScreen />
       </QueryClientProvider>

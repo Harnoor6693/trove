@@ -145,7 +145,7 @@ describe('isTerminalReceiptStatus', () => {
 describe('useReceipts', () => {
   it('consumes GET /v1/receipts as a PAGE, with its totals', async () => {
     mockList.mockResolvedValue(page([SUMMARY], { total: 1, page: 0, limit: 50 }));
-    const { result } = renderHook(() => useReceipts(), { wrapper });
+    const { result } = await renderHook(() => useReceipts(), { wrapper });
     await waitFor(() => expect(result.current.data).toBeDefined());
     expect(result.current.data?.pages[0].data).toEqual([SUMMARY]);
     expect(result.current.data?.pages[0].meta.total).toBe(1);
@@ -158,7 +158,7 @@ describe('useReceipts', () => {
       .mockResolvedValueOnce(page([SUMMARY], { total: 2, page: 0, limit: 1 }))
       .mockResolvedValueOnce(page([second], { total: 2, page: 1, limit: 1 }));
 
-    const { result } = renderHook(() => useReceipts(), { wrapper });
+    const { result } = await renderHook(() => useReceipts(), { wrapper });
     await waitFor(() => expect(result.current.hasNextPage).toBe(true));
     await act(async () => {
       await result.current.fetchNextPage();
@@ -175,7 +175,7 @@ describe('useReceipts', () => {
 
   it('surfaces a failure rather than an empty list', async () => {
     mockList.mockRejectedValue(new Error('boom'));
-    const { result } = renderHook(() => useReceipts(), { wrapper });
+    const { result } = await renderHook(() => useReceipts(), { wrapper });
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.data).toBeUndefined();
   });
@@ -184,13 +184,13 @@ describe('useReceipts', () => {
 describe('useReceipt', () => {
   it('fetches one receipt by id', async () => {
     mockOne.mockResolvedValue(FULL);
-    const { result } = renderHook(() => useReceipt('r1'), { wrapper });
+    const { result } = await renderHook(() => useReceipt('r1'), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual(FULL));
     expect(mockOne).toHaveBeenCalledWith('r1');
   });
 
-  it('stays idle without an id', () => {
-    const { result } = renderHook(() => useReceipt(''), { wrapper });
+  it('stays idle without an id', async () => {
+    const { result } = await renderHook(() => useReceipt(''), { wrapper });
     expect(result.current.fetchStatus).toBe('idle');
     expect(mockOne).not.toHaveBeenCalled();
   });
@@ -204,13 +204,13 @@ describe('useReceiptStatus', () => {
       reviewRequired: false,
       confidence: null,
     });
-    const { result } = renderHook(() => useReceiptStatus('r1'), { wrapper });
+    const { result } = await renderHook(() => useReceiptStatus('r1'), { wrapper });
     await waitFor(() => expect(result.current.data?.status).toBe('EXTRACTING'));
     expect(mockStatus).toHaveBeenCalledWith('r1');
   });
 
-  it('is idle when the caller says the receipt is already finished', () => {
-    const { result } = renderHook(() => useReceiptStatus('r1', false), { wrapper });
+  it('is idle when the caller says the receipt is already finished', async () => {
+    const { result } = await renderHook(() => useReceiptStatus('r1', false), { wrapper });
     expect(result.current.fetchStatus).toBe('idle');
     expect(mockStatus).not.toHaveBeenCalled();
   });
@@ -227,7 +227,9 @@ describe('usePatchReceipt', () => {
     // mutations keep the `gcTime: 0` that stops the suite hanging.
     const qc = createTestQueryClient({ gcTime: 5_000 });
     clients.push(qc);
-    const { result } = renderHook(() => usePatchReceipt('r1'), { wrapper: clientWrapper(qc) });
+    const { result } = await renderHook(() => usePatchReceipt('r1'), {
+      wrapper: clientWrapper(qc),
+    });
 
     await act(async () => {
       await result.current.mutateAsync({ extractedMerchant: 'Metro' });
@@ -239,7 +241,7 @@ describe('usePatchReceipt', () => {
 
   it('surfaces the 409 a still-running pipeline answers', async () => {
     mockPatch.mockRejectedValue(new Error('This receipt is still being processed.'));
-    const { result } = renderHook(() => usePatchReceipt('r1'), { wrapper });
+    const { result } = await renderHook(() => usePatchReceipt('r1'), { wrapper });
     await act(async () => {
       await result.current.mutateAsync({ extractedMerchant: 'X' }).catch(() => undefined);
     });
@@ -250,7 +252,7 @@ describe('usePatchReceipt', () => {
 describe('useReviewReceipt', () => {
   it('calls the review route, which is not the field patch', async () => {
     mockReview.mockResolvedValue({ ...FULL, reviewRequired: false });
-    const { result } = renderHook(() => useReviewReceipt('r1'), { wrapper });
+    const { result } = await renderHook(() => useReviewReceipt('r1'), { wrapper });
     await act(async () => {
       await result.current.mutateAsync({ accepted: true });
     });
@@ -271,7 +273,7 @@ describe('useDeleteReceipt', () => {
     qc.setQueryData(receiptKeys.thumbnail('r1'), 'data:image/jpeg;base64,AAAA');
     qc.setQueryData(receiptKeys.image('r1'), 'data:image/jpeg;base64,BBBB');
 
-    const { result } = renderHook(() => useDeleteReceipt(), { wrapper: clientWrapper(qc) });
+    const { result } = await renderHook(() => useDeleteReceipt(), { wrapper: clientWrapper(qc) });
     await act(async () => {
       await result.current.mutateAsync('r1');
     });
@@ -285,26 +287,26 @@ describe('useDeleteReceipt', () => {
 describe('the authenticated image hooks', () => {
   it('fetches the thumbnail as a data URI', async () => {
     mockThumb.mockResolvedValue('data:image/jpeg;base64,AAAA');
-    const { result } = renderHook(() => useReceiptThumbnail('r1'), { wrapper });
+    const { result } = await renderHook(() => useReceiptThumbnail('r1'), { wrapper });
     await waitFor(() => expect(result.current.data).toBe('data:image/jpeg;base64,AAAA'));
     expect(mockThumb).toHaveBeenCalledWith('r1');
   });
 
-  it('does not fetch the full image until a screen asks for it', () => {
-    const { result } = renderHook(() => useReceiptImage('r1', false), { wrapper });
+  it('does not fetch the full image until a screen asks for it', async () => {
+    const { result } = await renderHook(() => useReceiptImage('r1', false), { wrapper });
     expect(result.current.fetchStatus).toBe('idle');
     expect(mockImage).not.toHaveBeenCalled();
   });
 
   it('fetches the full image when enabled', async () => {
     mockImage.mockResolvedValue('data:image/jpeg;base64,BBBB');
-    const { result } = renderHook(() => useReceiptImage('r1'), { wrapper });
+    const { result } = await renderHook(() => useReceiptImage('r1'), { wrapper });
     await waitFor(() => expect(result.current.data).toBe('data:image/jpeg;base64,BBBB'));
   });
 
   it('passes the id and nothing else — no token can ride along', async () => {
     mockThumb.mockResolvedValue('data:image/jpeg;base64,AAAA');
-    renderHook(() => useReceiptThumbnail('r1'), { wrapper });
+    await renderHook(() => useReceiptThumbnail('r1'), { wrapper });
     await waitFor(() => expect(mockThumb).toHaveBeenCalled());
     expect(mockThumb.mock.calls[0]).toEqual(['r1']);
   });

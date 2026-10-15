@@ -25,9 +25,9 @@ function period(id: string, month: string): BudgetPeriodResponse {
   };
 }
 
-function renderScreen() {
+async function renderScreen() {
   const client = createTestQueryClient();
-  render(
+  await render(
     <QueryClientProvider client={client}>
       <BudgetPeriodsScreen />
     </QueryClientProvider>
@@ -40,17 +40,17 @@ beforeEach(() => {
 
 it('lists every period and navigates to one on tap', async () => {
   mockList.mockResolvedValue([period('p1', '2026-09-01'), period('p2', '2026-08-01')]);
-  renderScreen();
+  await renderScreen();
 
   await waitFor(() => expect(screen.getByTestId('budget-period-row-p1')).toBeTruthy());
   expect(screen.getByTestId('budget-period-row-p2')).toBeTruthy();
 
-  fireEvent.press(screen.getByTestId('budget-period-row-p1'));
+  await fireEvent.press(screen.getByTestId('budget-period-row-p1'));
   expect(router.push).toHaveBeenCalledWith('/(tabs)/budgets/period/p1');
 });
 
 it('shows an empty message when the household has no periods yet', async () => {
   mockList.mockResolvedValue([]);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByText('No budget periods yet.')).toBeTruthy());
 });

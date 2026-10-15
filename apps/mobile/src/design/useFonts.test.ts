@@ -16,10 +16,10 @@ jest.mock('@expo-google-fonts/jetbrains-mono', () => ({
 }));
 
 describe('useTroveFonts', () => {
-  it('calls useFonts with all required fonts', () => {
+  it('calls useFonts with all required fonts', async () => {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { useFonts } = require('expo-font');
-    renderHook(() => useTroveFonts());
+    await renderHook(() => useTroveFonts());
     expect(useFonts).toHaveBeenCalledWith(
       expect.objectContaining({
         Fraunces_300Light: expect.anything(),
@@ -29,8 +29,8 @@ describe('useTroveFonts', () => {
     );
   });
 
-  it('returns the font loading state', () => {
-    const { result } = renderHook(() => useTroveFonts());
+  it('returns the font loading state', async () => {
+    const { result } = await renderHook(() => useTroveFonts());
     expect(result.current[0]).toBe(true);
   });
 });

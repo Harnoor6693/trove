@@ -82,10 +82,10 @@ function page(rows: NotificationResponse[], meta: Page<NotificationResponse>['me
 }
 
 /** Fires the most recently registered `AppState.addEventListener('change', …)` handler. */
-function emitAppState(next: AppStateStatus) {
+async function emitAppState(next: AppStateStatus) {
   const calls = (AppState.addEventListener as jest.Mock).mock.calls;
   const handler = calls[calls.length - 1][1] as (state: AppStateStatus) => void;
-  act(() => handler(next));
+  await act(() => handler(next));
 }
 
 let clients: ReturnType<typeof createTestQueryClient>[] = [];
@@ -127,7 +127,7 @@ describe('nextNotificationPage', () => {
 describe('useNotifications', () => {
   it('pages the caller’s own undismissed inbox', async () => {
     mockList.mockResolvedValue(page([NOTIFICATION], { total: 1, page: 0, limit: 20 }));
-    const { result } = renderHook(() => useNotifications(), { wrapper });
+    const { result } = await renderHook(() => useNotifications(), { wrapper });
     await waitFor(() => expect(result.current.data).toBeDefined());
     expect(result.current.data?.pages[0].data).toEqual([NOTIFICATION]);
     expect(mockList).toHaveBeenCalledWith({ page: 0 });
@@ -137,18 +137,18 @@ describe('useNotifications', () => {
 describe('useUnreadNotificationCount', () => {
   it('fetches the count', async () => {
     mockUnread.mockResolvedValue({ unread: 3 });
-    const { result } = renderHook(() => useUnreadNotificationCount(), { wrapper });
+    const { result } = await renderHook(() => useUnreadNotificationCount(), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual({ unread: 3 }));
   });
 
   it('refetches when the app returns to the foreground — not a push notification', async () => {
     mockUnread.mockResolvedValue({ unread: 1 });
     const { invalidate, provider } = withClient();
-    renderHook(() => useUnreadNotificationCount(), { wrapper: provider });
+    await renderHook(() => useUnreadNotificationCount(), { wrapper: provider });
     await waitFor(() => expect(mockUnread).toHaveBeenCalledTimes(1));
     invalidate.mockClear();
 
-    emitAppState('active');
+    await emitAppState('active');
 
     await waitFor(() =>
       expect(invalidate.mock.calls.map(([arg]) => arg?.queryKey)).toContainEqual([
@@ -161,11 +161,11 @@ describe('useUnreadNotificationCount', () => {
   it('does nothing on a background/inactive transition', async () => {
     mockUnread.mockResolvedValue({ unread: 1 });
     const { invalidate, provider } = withClient();
-    renderHook(() => useUnreadNotificationCount(), { wrapper: provider });
+    await renderHook(() => useUnreadNotificationCount(), { wrapper: provider });
     await waitFor(() => expect(mockUnread).toHaveBeenCalledTimes(1));
     invalidate.mockClear();
 
-    emitAppState('background');
+    await emitAppState('background');
 
     expect(invalidate).not.toHaveBeenCalled();
   });
@@ -175,7 +175,7 @@ describe('useMarkNotificationRead', () => {
   it('invalidates both the inbox and the unread count', async () => {
     mockMarkRead.mockResolvedValue({ ...NOTIFICATION, read: true });
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useMarkNotificationRead(), { wrapper: provider });
+    const { result } = await renderHook(() => useMarkNotificationRead(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync('n1');
     });
@@ -189,7 +189,7 @@ describe('useMarkAllNotificationsRead', () => {
   it('zeroes the unread-count cache directly from the response', async () => {
     mockMarkAll.mockResolvedValue({ marked: 4 });
     const { setData, provider } = withClient();
-    const { result } = renderHook(() => useMarkAllNotificationsRead(), { wrapper: provider });
+    const { result } = await renderHook(() => useMarkAllNotificationsRead(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync();
     });
@@ -201,7 +201,7 @@ describe('useDismissNotification', () => {
   it('invalidates both the inbox and the unread count', async () => {
     mockDismiss.mockResolvedValue(undefined);
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useDismissNotification(), { wrapper: provider });
+    const { result } = await renderHook(() => useDismissNotification(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync('n1');
     });
@@ -214,14 +214,16 @@ describe('useDismissNotification', () => {
 describe('useNotificationPreferences / useUpdateNotificationPreferences', () => {
   it('loads the created-on-first-access defaults', async () => {
     mockPreferences.mockResolvedValue(PREFERENCES);
-    const { result } = renderHook(() => useNotificationPreferences(), { wrapper });
+    const { result } = await renderHook(() => useNotificationPreferences(), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual(PREFERENCES));
   });
 
   it('writes the whole row back from the response, not a refetch', async () => {
     mockUpdatePreferences.mockResolvedValue({ ...PREFERENCES, budgetAlertThresholdPercent: 80 });
     const { setData, provider } = withClient();
-    const { result } = renderHook(() => useUpdateNotificationPreferences(), { wrapper: provider });
+    const { result } = await renderHook(() => useUpdateNotificationPreferences(), {
+      wrapper: provider,
+    });
     await act(async () => {
       await result.current.mutateAsync({ budgetAlertThresholdPercent: 80 });
     });

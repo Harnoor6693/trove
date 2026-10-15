@@ -71,7 +71,7 @@ async function renderScreen(row: TransactionResponse = transaction()) {
   mockFetch.mockResolvedValue(row);
   const qc = createTestQueryClient();
   clients.push(qc);
-  const utils = render(
+  const utils = await render(
     <QueryClientProvider client={qc}>
       <TransactionDetailScreen />
     </QueryClientProvider>
@@ -80,13 +80,13 @@ async function renderScreen(row: TransactionResponse = transaction()) {
   return utils;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   jest.clearAllMocks();
   mockFetch.mockReset();
   mockPatch.mockReset();
   mockDelete.mockReset();
   mockParams.mockReturnValue({ id: '11111111-1111-4111-8111-111111111111' });
-  act(() => {
+  await act(() => {
     useAuthStore.getState().setMe(ME);
   });
 });
@@ -118,10 +118,10 @@ describe('the patch body carries ONLY the changed field', () => {
     await renderScreen();
 
     await act(async () => {
-      fireEvent.changeText(screen.getByTestId('transaction-notes'), 'Reimbursable');
+      await fireEvent.changeText(screen.getByTestId('transaction-notes'), 'Reimbursable');
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('transaction-save-notes'));
+      await fireEvent.press(screen.getByTestId('transaction-save-notes'));
     });
 
     expect(mockPatch).toHaveBeenCalledTimes(1);
@@ -137,10 +137,10 @@ describe('the patch body carries ONLY the changed field', () => {
     mockPatch.mockResolvedValue(transaction({ merchantName: 'Blue Door' }));
     await renderScreen();
     await act(async () => {
-      fireEvent.changeText(screen.getByTestId('transaction-merchant'), 'Blue Door');
+      await fireEvent.changeText(screen.getByTestId('transaction-merchant'), 'Blue Door');
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('transaction-save-merchant'));
+      await fireEvent.press(screen.getByTestId('transaction-save-merchant'));
     });
     expect(patchBody()).toEqual({ merchantName: 'Blue Door' });
   });
@@ -149,10 +149,10 @@ describe('the patch body carries ONLY the changed field', () => {
     mockPatch.mockResolvedValue(transaction({ categoryId: 'c2' }));
     await renderScreen();
     await act(async () => {
-      fireEvent.changeText(screen.getByTestId('transaction-category'), 'c2');
+      await fireEvent.changeText(screen.getByTestId('transaction-category'), 'c2');
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('transaction-save-category'));
+      await fireEvent.press(screen.getByTestId('transaction-save-category'));
     });
     expect(patchBody()).toEqual({ categoryId: 'c2' });
   });
@@ -161,7 +161,7 @@ describe('the patch body carries ONLY the changed field', () => {
     mockPatch.mockResolvedValue(transaction({ categoryId: null }));
     await renderScreen();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('transaction-clear-category'));
+      await fireEvent.press(screen.getByTestId('transaction-clear-category'));
     });
     expect(patchBody()).toEqual({ categoryId: null });
     expect('categoryId' in patchBody()).toBe(true);
@@ -183,7 +183,7 @@ describe('a control that has nothing to send does not send anything', () => {
       true
     );
     await act(async () => {
-      fireEvent.press(screen.getByTestId('transaction-link-transfer'));
+      await fireEvent.press(screen.getByTestId('transaction-link-transfer'));
     });
     expect(mockPatch).not.toHaveBeenCalled();
   });
@@ -191,13 +191,13 @@ describe('a control that has nothing to send does not send anything', () => {
   it('refuses to assign a category the member has just blanked', async () => {
     await renderScreen(transaction({ categoryId: 'c1' }));
     await act(async () => {
-      fireEvent.changeText(screen.getByTestId('transaction-category'), '   ');
+      await fireEvent.changeText(screen.getByTestId('transaction-category'), '   ');
     });
     expect(screen.getByTestId('transaction-save-category').props.accessibilityState.disabled).toBe(
       true
     );
     await act(async () => {
-      fireEvent.press(screen.getByTestId('transaction-save-category'));
+      await fireEvent.press(screen.getByTestId('transaction-save-category'));
     });
     // The empty box is not "clear it": that request is the other button, and
     // it sends the explicit null the contract defines.
@@ -208,10 +208,10 @@ describe('a control that has nothing to send does not send anything', () => {
     mockPatch.mockResolvedValue(transaction({ transferGroupId: 'g1' }));
     await renderScreen();
     await act(async () => {
-      fireEvent.changeText(screen.getByTestId('transaction-transfer-group'), '  g1  ');
+      await fireEvent.changeText(screen.getByTestId('transaction-transfer-group'), '  g1  ');
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('transaction-link-transfer'));
+      await fireEvent.press(screen.getByTestId('transaction-link-transfer'));
     });
     expect(patchBody()).toEqual({ transferGroupId: 'g1' });
   });
@@ -222,10 +222,10 @@ describe('tags — the fifth writable field on the patch', () => {
     mockPatch.mockResolvedValue(transaction({ tags: ['travel', 'business'] }));
     await renderScreen();
     await act(async () => {
-      fireEvent.changeText(screen.getByTestId('transaction-tags'), ' travel , business ,, ');
+      await fireEvent.changeText(screen.getByTestId('transaction-tags'), ' travel , business ,, ');
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('transaction-save-tags'));
+      await fireEvent.press(screen.getByTestId('transaction-save-tags'));
     });
     expect(patchBody()).toEqual({ tags: ['travel', 'business'] });
     expect(patchBody()).not.toHaveProperty('notes');
@@ -235,7 +235,7 @@ describe('tags — the fifth writable field on the patch', () => {
     mockPatch.mockResolvedValue(transaction({ tags: null }));
     await renderScreen(transaction({ tags: ['travel'] }));
     await act(async () => {
-      fireEvent.press(screen.getByTestId('transaction-clear-tags'));
+      await fireEvent.press(screen.getByTestId('transaction-clear-tags'));
     });
     expect(patchBody()).toEqual({ tags: null });
     expect('tags' in patchBody()).toBe(true);
@@ -252,10 +252,10 @@ describe('transfers — the patch is the whole affordance', () => {
     mockPatch.mockResolvedValue(transaction({ transferGroupId: 'g1' }));
     await renderScreen();
     await act(async () => {
-      fireEvent.changeText(screen.getByTestId('transaction-transfer-group'), 'g1');
+      await fireEvent.changeText(screen.getByTestId('transaction-transfer-group'), 'g1');
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('transaction-link-transfer'));
+      await fireEvent.press(screen.getByTestId('transaction-link-transfer'));
     });
     expect(patchBody()).toEqual({ transferGroupId: 'g1' });
   });
@@ -264,7 +264,7 @@ describe('transfers — the patch is the whole affordance', () => {
     mockPatch.mockResolvedValue(transaction({ transferGroupId: null }));
     await renderScreen(transaction({ transferGroupId: 'g1' }));
     await act(async () => {
-      fireEvent.press(screen.getByTestId('transaction-unlink-transfer'));
+      await fireEvent.press(screen.getByTestId('transaction-unlink-transfer'));
     });
     expect(patchBody()).toEqual({ transferGroupId: null });
     expect(patchBody().transferGroupId).toBeNull();
@@ -275,7 +275,7 @@ describe('delete', () => {
   it('asks first, and says only a hand-entered row can go', async () => {
     await renderScreen();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('transaction-delete'));
+      await fireEvent.press(screen.getByTestId('transaction-delete'));
     });
     expect(screen.getByTestId('transaction-delete-confirm-copy')).toBeTruthy();
     expect(mockDelete).not.toHaveBeenCalled();
@@ -285,10 +285,10 @@ describe('delete', () => {
     mockDelete.mockResolvedValue(undefined);
     await renderScreen();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('transaction-delete'));
+      await fireEvent.press(screen.getByTestId('transaction-delete'));
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('transaction-delete-confirm'));
+      await fireEvent.press(screen.getByTestId('transaction-delete-confirm'));
     });
     expect(mockDelete).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111');
   });
@@ -317,10 +317,10 @@ describe('delete', () => {
     );
     await renderScreen(transaction({ manual: false }));
     await act(async () => {
-      fireEvent.press(screen.getByTestId('transaction-delete'));
+      await fireEvent.press(screen.getByTestId('transaction-delete'));
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('transaction-delete-confirm'));
+      await fireEvent.press(screen.getByTestId('transaction-delete-confirm'));
     });
     await waitFor(() => expect(screen.getByTestId('transaction-delete-error')).toBeTruthy());
     expect(screen.getByTestId('transaction-delete-error').props.children).toContain(
@@ -346,7 +346,7 @@ describe('a route that does not name a transaction', () => {
     mockParams.mockReturnValue({ id: '../accounts/22222222-2222-4222-8222-222222222222' });
     const qc = createTestQueryClient();
     clients.push(qc);
-    render(
+    await render(
       <QueryClientProvider client={qc}>
         <TransactionDetailScreen />
       </QueryClientProvider>

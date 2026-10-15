@@ -84,18 +84,18 @@ beforeEach(() => {
  * and React logs "not wrapped in act(...)" over the whole run.
  */
 async function renderLogin() {
-  const utils = render(<LoginScreen />);
+  const utils = await render(<LoginScreen />);
   await act(async () => {});
   return utils;
 }
 
 async function submit(getByTestId: (id: string) => never) {
-  fireEvent.changeText(getByTestId('login-email-input'), '  a@b.co  ');
-  fireEvent.changeText(getByTestId('login-password-input'), 'correct horse battery');
+  await fireEvent.changeText(getByTestId('login-email-input'), '  a@b.co  ');
+  await fireEvent.changeText(getByTestId('login-password-input'), 'correct horse battery');
   // The submit handler is async and setStates after it settles; pressing
   // inside `act` keeps those updates wrapped.
   await act(async () => {
-    fireEvent.press(getByTestId('login-submit-btn'));
+    await fireEvent.press(getByTestId('login-submit-btn'));
   });
 }
 
@@ -228,7 +228,7 @@ describe('LoginScreen', () => {
   it('offers a way back to the connect screen', async () => {
     const { getByTestId } = await renderLogin();
     await waitFor(() => expect(getByTestId('change-server-link')).toBeTruthy());
-    fireEvent.press(getByTestId('change-server-link'));
+    await fireEvent.press(getByTestId('change-server-link'));
     expect(mockReplace).toHaveBeenCalledWith('/(auth)/connect');
   });
 
@@ -288,7 +288,7 @@ describe('LoginScreen', () => {
   it('points at the reset-password screen for an admin-minted link', async () => {
     const { getByTestId } = await renderLogin();
     await waitFor(() => expect(getByTestId('reset-password-link')).toBeTruthy());
-    fireEvent.press(getByTestId('reset-password-link'));
+    await fireEvent.press(getByTestId('reset-password-link'));
     expect(mockPush).toHaveBeenCalledWith('/(auth)/reset-password');
   });
 });

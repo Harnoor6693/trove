@@ -78,7 +78,7 @@ function textOf(testID: string): string {
 
 let client: ReturnType<typeof createTestQueryClient>;
 
-function renderScreen() {
+async function renderScreen() {
   client = createTestQueryClient();
   return render(
     <QueryClientProvider client={client}>
@@ -99,13 +99,13 @@ afterEach(() => {
 describe('the role gate', () => {
   it('shows a MEMBER the clean 403 state instead of the log', async () => {
     mockAudit.mockRejectedValue(refused(403, 'forbidden', 'Administrator role required.'));
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-forbidden')).toBeTruthy());
     expect(screen.queryByTestId('admin-audit-page')).toBeNull();
   });
 
   it('shows an ADMIN the log', async () => {
-    renderScreen();
+    await renderScreen();
     await waitFor(() =>
       expect(screen.getByTestId('admin-audit-00000000-0000-4000-8000-0000000000a1')).toBeTruthy()
     );
@@ -115,7 +115,7 @@ describe('the role gate', () => {
 
 describe('the pager', () => {
   it('asks for the first page with the declared page size', async () => {
-    renderScreen();
+    await renderScreen();
     await waitFor(() =>
       expect(mockAudit).toHaveBeenCalledWith({ page: 0, limit: AUDIT_PAGE_SIZE })
     );
@@ -127,7 +127,7 @@ describe('the pager', () => {
   // `meta.total` is the number the reader needs; an infinite list hides it.
   it('shows how many pages there are and how many changes in total', async () => {
     mockAudit.mockResolvedValue(page([entry()], 137));
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(textOf('admin-audit-page')).toContain('137 changes'));
     // 137 rows at 20 a page is seven pages.
     expect(textOf('admin-audit-page')).toContain('Page 1 of 7');
@@ -135,12 +135,12 @@ describe('the pager', () => {
 
   it('turns to the next page and asks the server for it', async () => {
     mockAudit.mockResolvedValue(page([entry()], 137));
-    renderScreen();
+    await renderScreen();
     // The pager is disabled while a page is in flight, so the first page has
     // to have landed before "Next" means anything.
     await waitFor(() => expect(textOf('admin-audit-page')).toContain('Page 1 of 7'));
 
-    fireEvent.press(screen.getByTestId('admin-audit-next'));
+    await fireEvent.press(screen.getByTestId('admin-audit-next'));
     await waitFor(() =>
       expect(mockAudit).toHaveBeenCalledWith({ page: 1, limit: AUDIT_PAGE_SIZE })
     );
@@ -149,22 +149,22 @@ describe('the pager', () => {
 
   it('comes back to the previous page', async () => {
     mockAudit.mockResolvedValue(page([entry()], 137));
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(textOf('admin-audit-page')).toContain('Page 1 of 7'));
 
-    fireEvent.press(screen.getByTestId('admin-audit-next'));
+    await fireEvent.press(screen.getByTestId('admin-audit-next'));
     await waitFor(() => expect(textOf('admin-audit-page')).toContain('Page 2 of 7'));
     // `placeholderData` keeps the previous page on screen so the list does not
     // blink, which means the label reads "Page 2" before page 2 has landed —
     // and both controls stay disabled until it has.
     await waitFor(() => expect(isDisabled('admin-audit-prev')).toBe(false));
 
-    fireEvent.press(screen.getByTestId('admin-audit-prev'));
+    await fireEvent.press(screen.getByTestId('admin-audit-prev'));
     await waitFor(() => expect(textOf('admin-audit-page')).toContain('Page 1 of 7'));
   });
 
   it('cannot page off either end', async () => {
-    renderScreen();
+    await renderScreen();
     // Waiting for the page to have *landed*, not merely for the control to
     // exist: the pager is disabled while a fetch is in flight, so asserting
     // too early would pass for the wrong reason and let the query settle
@@ -179,7 +179,7 @@ describe('the pager', () => {
   // An empty log still reads "1 of 1" rather than "1 of 0".
   it('renders one page for an empty log', async () => {
     mockAudit.mockResolvedValue(page([], 0));
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-audit-empty')).toBeTruthy());
     expect(textOf('admin-audit-page')).toContain('Page 1 of 1');
   });
@@ -187,12 +187,12 @@ describe('the pager', () => {
 
 describe('a row', () => {
   it('renders the route template the server stored, not a raw URI', async () => {
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByText('/api/v1/admin/users/{id}')).toBeTruthy());
   });
 
   it('labels the row for a screen reader with the method, path, status and time', async () => {
-    renderScreen();
+    await renderScreen();
     const row = await screen.findByTestId('admin-audit-00000000-0000-4000-8000-0000000000a1');
     const label = row.props.accessibilityLabel as string;
     expect(label).toContain('DELETE');
@@ -204,14 +204,14 @@ describe('a row', () => {
   // in-process one. Neither may render as the literal word "null".
   it('says "signed out" for a null userId and prints no literal null', async () => {
     mockAudit.mockResolvedValue(page([entry({ userId: null, clientIp: null })], 1));
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByText(/signed out/)).toBeTruthy());
     expect(JSON.stringify(screen.toJSON())).not.toMatch(/>null</);
   });
 
   it('explains a failure instead of a spinner that never resolves', async () => {
     mockAudit.mockRejectedValue(refused(500, 'internal-error', 'Something broke.'));
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-audit-error')).toBeTruthy());
     expect(textOf('admin-audit-error')).toContain('Something broke.');
   });

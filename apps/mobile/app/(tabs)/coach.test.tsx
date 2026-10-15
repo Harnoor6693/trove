@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { createTestQueryClient } from '@/test/queryClient';
@@ -126,10 +126,10 @@ afterEach(() => {
 describe('CoachScreen when AI is not configured', () => {
   it('shows the configure state and LINKS to the AI settings card', async () => {
     mockSettings.mockResolvedValue(OFF);
-    const { getByTestId } = render(<CoachScreen />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<CoachScreen />, { wrapper: createWrapper() });
 
     await waitFor(() => expect(getByTestId('coach-needs-endpoint')).toBeTruthy());
-    fireEvent.press(getByTestId('coach-open-ai-settings'));
+    await fireEvent.press(getByTestId('coach-open-ai-settings'));
     expect((useRouter() as unknown as { push: jest.Mock }).push).toHaveBeenCalledWith(
       '/(tabs)/settings'
     );
@@ -137,7 +137,9 @@ describe('CoachScreen when AI is not configured', () => {
 
   it('does not render a composer that could only ever fail', async () => {
     mockSettings.mockResolvedValue(OFF);
-    const { getByTestId, queryByTestId } = render(<CoachScreen />, { wrapper: createWrapper() });
+    const { getByTestId, queryByTestId } = await render(<CoachScreen />, {
+      wrapper: createWrapper(),
+    });
     await waitFor(() => expect(getByTestId('coach-needs-endpoint')).toBeTruthy());
     expect(queryByTestId('coach-input')).toBeNull();
     expect(queryByTestId('coach-send')).toBeNull();
@@ -145,22 +147,22 @@ describe('CoachScreen when AI is not configured', () => {
 
   it('still shows the server suggestions, which need no endpoint', async () => {
     mockSettings.mockResolvedValue(OFF);
-    const { getByTestId, getByText } = render(<CoachScreen />, { wrapper: createWrapper() });
+    const { getByTestId, getByText } = await render(<CoachScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('coach-suggestions')).toBeTruthy());
     expect(getByText('What did I spend the most on this month?')).toBeTruthy();
   });
 
   it('names the privacy tier as the reason when that is what blocks the coach', async () => {
     mockSettings.mockResolvedValue({ ...READY, privacyTier: 'CLOUD_OK' });
-    const { getByTestId } = render(<CoachScreen />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<CoachScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('coach-needs-endpoint')).toBeTruthy());
-    const alert = getByTestId('coach-needs-endpoint').findByProps({ accessibilityRole: 'alert' });
+    const alert = within(getByTestId('coach-needs-endpoint')).getByRole('alert');
     expect(String(alert.props.children)).toContain('local-only');
   });
 
   it('asks for no chat history while the coach cannot run', async () => {
     mockSettings.mockResolvedValue(OFF);
-    const { getByTestId } = render(<CoachScreen />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<CoachScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('coach-needs-endpoint')).toBeTruthy());
     expect(mockHistory).not.toHaveBeenCalled();
   });
@@ -168,26 +170,26 @@ describe('CoachScreen when AI is not configured', () => {
 
 describe('CoachScreen when AI is configured', () => {
   it('seeds the empty state from the SERVER, hardcoding no prompts', async () => {
-    const { getByTestId, getByText } = render(<CoachScreen />, { wrapper: createWrapper() });
+    const { getByTestId, getByText } = await render(<CoachScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('coach-input')).toBeTruthy());
     await waitFor(() => expect(getByText('What did I spend the most on this month?')).toBeTruthy());
     expect(mockSuggestions).toHaveBeenCalled();
   });
 
   it('puts a chosen suggestion into the composer rather than sending it blind', async () => {
-    const { getByTestId } = render(<CoachScreen />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<CoachScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('coach-suggestion-0')).toBeTruthy());
-    fireEvent.press(getByTestId('coach-suggestion-0'));
+    await fireEvent.press(getByTestId('coach-suggestion-0'));
     expect(getByTestId('coach-input').props.value).toBe('What did I spend the most on this month?');
     expect(mockStream).not.toHaveBeenCalled();
   });
 
   it('sends the question and shows both turns', async () => {
-    const { getByTestId, getByText } = render(<CoachScreen />, { wrapper: createWrapper() });
+    const { getByTestId, getByText } = await render(<CoachScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('coach-input')).toBeTruthy());
 
-    fireEvent.changeText(getByTestId('coach-input'), 'Where did my money go?');
-    fireEvent.press(getByTestId('coach-send'));
+    await fireEvent.changeText(getByTestId('coach-input'), 'Where did my money go?');
+    await fireEvent.press(getByTestId('coach-send'));
 
     await waitFor(() => expect(getByText('Groceries, mostly.')).toBeTruthy());
     expect(getByText('Where did my money go?')).toBeTruthy();
@@ -195,20 +197,20 @@ describe('CoachScreen when AI is configured', () => {
   });
 
   it('caps the composer at the length one question may be', async () => {
-    const { getByTestId } = render(<CoachScreen />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<CoachScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('coach-input')).toBeTruthy());
     expect(getByTestId('coach-input').props.maxLength).toBe(4000);
   });
 
   it('announces the STATE, not the transcript, for a screen reader', async () => {
-    const { getByTestId } = render(<CoachScreen />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<CoachScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('coach-status')).toBeTruthy());
     // One small polite region. A live region over the bubbles would re-read
     // the whole answer on every token.
     expect(getByTestId('coach-status').props.accessibilityLiveRegion).toBe('polite');
 
-    fireEvent.changeText(getByTestId('coach-input'), 'q');
-    fireEvent.press(getByTestId('coach-send'));
+    await fireEvent.changeText(getByTestId('coach-input'), 'q');
+    await fireEvent.press(getByTestId('coach-send'));
     await waitFor(() =>
       expect(getByTestId('coach-status').props.children).toBe('Answer complete.')
     );
@@ -226,10 +228,12 @@ describe('CoachScreen when AI is configured', () => {
         })
     );
 
-    const { getByTestId, queryByTestId } = render(<CoachScreen />, { wrapper: createWrapper() });
+    const { getByTestId, queryByTestId } = await render(<CoachScreen />, {
+      wrapper: createWrapper(),
+    });
     await waitFor(() => expect(getByTestId('coach-input')).toBeTruthy());
-    fireEvent.changeText(getByTestId('coach-input'), 'q');
-    fireEvent.press(getByTestId('coach-send'));
+    await fireEvent.changeText(getByTestId('coach-input'), 'q');
+    await fireEvent.press(getByTestId('coach-send'));
 
     await waitFor(() => expect(getByTestId('coach-stop')).toBeTruthy());
     expect(queryByTestId('coach-send')).toBeNull();
@@ -252,10 +256,10 @@ describe('CoachScreen when AI is configured', () => {
       sessionId: 'c-1',
     });
 
-    const { getByTestId, getByText } = render(<CoachScreen />, { wrapper: createWrapper() });
+    const { getByTestId, getByText } = await render(<CoachScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('coach-input')).toBeTruthy());
-    fireEvent.changeText(getByTestId('coach-input'), 'a long one');
-    fireEvent.press(getByTestId('coach-send'));
+    await fireEvent.changeText(getByTestId('coach-input'), 'a long one');
+    await fireEvent.press(getByTestId('coach-send'));
 
     await waitFor(() => expect(getByTestId('coach-notice')).toBeTruthy());
     expect(String(getByTestId('coach-notice').props.children)).toContain(
@@ -273,10 +277,10 @@ describe('CoachScreen when AI is configured', () => {
         detail: 'No endpoint.',
       })
     );
-    const { getByTestId } = render(<CoachScreen />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<CoachScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('coach-input')).toBeTruthy());
-    fireEvent.changeText(getByTestId('coach-input'), 'q');
-    fireEvent.press(getByTestId('coach-send'));
+    await fireEvent.changeText(getByTestId('coach-input'), 'q');
+    await fireEvent.press(getByTestId('coach-send'));
 
     await waitFor(() =>
       expect(String(getByTestId('coach-notice').props.children)).toContain(
@@ -290,7 +294,7 @@ describe('CoachScreen when AI is configured', () => {
       data: STORED_TURNS,
       meta: { total: 2, page: 0, limit: 50 },
     });
-    const { getByText } = render(<CoachScreen />, { wrapper: createWrapper() });
+    const { getByText } = await render(<CoachScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByText('Groceries.')).toBeTruthy());
     expect(getByText('What did I spend the most on?')).toBeTruthy();
   });
@@ -300,26 +304,26 @@ describe('CoachScreen when AI is configured', () => {
       data: STORED_TURNS,
       meta: { total: 2, page: 0, limit: 50 },
     });
-    const { getByTestId, getByText } = render(<CoachScreen />, { wrapper: createWrapper() });
+    const { getByTestId, getByText } = await render(<CoachScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByText('Groceries.')).toBeTruthy());
 
-    fireEvent.changeText(getByTestId('coach-input'), 'And last month?');
-    fireEvent.press(getByTestId('coach-send'));
+    await fireEvent.changeText(getByTestId('coach-input'), 'And last month?');
+    await fireEvent.press(getByTestId('coach-send'));
     await waitFor(() => expect(mockStream).toHaveBeenCalled());
     expect(mockStream.mock.calls[0][0].sessionId).toBe('c-1');
   });
 
   it('confirms before clearing history, and says what is erased', async () => {
-    const { getByTestId } = render(<CoachScreen />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<CoachScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('coach-clear-start')).toBeTruthy());
 
-    fireEvent.press(getByTestId('coach-clear-start'));
+    await fireEvent.press(getByTestId('coach-clear-start'));
     const warning = String(getByTestId('coach-clear-confirm-text').props.children);
     expect(warning).toContain('every coach conversation');
     expect(warning).toContain('cannot be undone');
     expect(mockDeleteHistory).not.toHaveBeenCalled();
 
-    fireEvent.press(getByTestId('coach-clear-confirm'));
+    await fireEvent.press(getByTestId('coach-clear-confirm'));
     await waitFor(() => expect(mockDeleteHistory).toHaveBeenCalledWith(null));
   });
 
@@ -328,21 +332,23 @@ describe('CoachScreen when AI is configured', () => {
       data: STORED_TURNS,
       meta: { total: 2, page: 0, limit: 50 },
     });
-    const { getByTestId, getByText, queryByText } = render(<CoachScreen />, {
+    const { getByTestId, getByText, queryByText } = await render(<CoachScreen />, {
       wrapper: createWrapper(),
     });
     await waitFor(() => expect(getByText('Groceries.')).toBeTruthy());
 
-    fireEvent.press(getByTestId('coach-clear-start'));
-    fireEvent.press(getByTestId('coach-clear-confirm'));
+    await fireEvent.press(getByTestId('coach-clear-start'));
+    await fireEvent.press(getByTestId('coach-clear-confirm'));
     await waitFor(() => expect(queryByText('Groceries.')).toBeNull());
   });
 
   it('lets the member back out of clearing history', async () => {
-    const { getByTestId, queryByTestId } = render(<CoachScreen />, { wrapper: createWrapper() });
+    const { getByTestId, queryByTestId } = await render(<CoachScreen />, {
+      wrapper: createWrapper(),
+    });
     await waitFor(() => expect(getByTestId('coach-clear-start')).toBeTruthy());
-    fireEvent.press(getByTestId('coach-clear-start'));
-    fireEvent.press(getByTestId('coach-clear-cancel'));
+    await fireEvent.press(getByTestId('coach-clear-start'));
+    await fireEvent.press(getByTestId('coach-clear-cancel'));
     expect(queryByTestId('coach-clear-confirm')).toBeNull();
     expect(mockDeleteHistory).not.toHaveBeenCalled();
   });
@@ -351,23 +357,23 @@ describe('CoachScreen when AI is configured', () => {
 describe('CoachScreen insights', () => {
   it('shows the weekly notes and marks nothing delivered', async () => {
     mockInsights.mockResolvedValue({ data: [INSIGHT], meta: { total: 1, page: 0, limit: 50 } });
-    const { getByTestId, getByText } = render(<CoachScreen />, { wrapper: createWrapper() });
-    fireEvent.press(getByTestId('coach-segment-insights'));
+    const { getByTestId, getByText } = await render(<CoachScreen />, { wrapper: createWrapper() });
+    await fireEvent.press(getByTestId('coach-segment-insights'));
 
     await waitFor(() => expect(getByTestId('coach-insight-e-1')).toBeTruthy());
     expect(getByText('You spent less than the week before.')).toBeTruthy();
   });
 
   it('explains an empty insights page rather than showing a blank tab', async () => {
-    const { getByTestId } = render(<CoachScreen />, { wrapper: createWrapper() });
-    fireEvent.press(getByTestId('coach-segment-insights'));
+    const { getByTestId } = await render(<CoachScreen />, { wrapper: createWrapper() });
+    await fireEvent.press(getByTestId('coach-segment-insights'));
     await waitFor(() => expect(getByTestId('coach-insights-empty')).toBeTruthy());
   });
 
   it('marks the selected segment for assistive technology', async () => {
-    const { getByTestId } = render(<CoachScreen />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<CoachScreen />, { wrapper: createWrapper() });
     expect(getByTestId('coach-segment-chat').props.accessibilityState.selected).toBe(true);
-    fireEvent.press(getByTestId('coach-segment-insights'));
+    await fireEvent.press(getByTestId('coach-segment-insights'));
     await waitFor(() =>
       expect(getByTestId('coach-segment-insights').props.accessibilityState.selected).toBe(true)
     );

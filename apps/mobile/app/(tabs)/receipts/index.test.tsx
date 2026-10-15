@@ -58,7 +58,9 @@ afterEach(() => {
 describe('ReceiptsScreen', () => {
   it('renders one PAGE of receipts and says how many the household has', async () => {
     mockList.mockResolvedValue({ data: [ROW], meta: { total: 137, page: 0, limit: 50 } });
-    const { getByTestId, getByText } = render(<ReceiptsScreen />, { wrapper: createWrapper() });
+    const { getByTestId, getByText } = await render(<ReceiptsScreen />, {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => expect(getByTestId('receipt-row-r1')).toBeTruthy());
     expect(getByText('Blue Bottle Coffee')).toBeTruthy();
@@ -72,13 +74,12 @@ describe('ReceiptsScreen', () => {
       .mockResolvedValueOnce({ data: [ROW], meta: { total: 2, page: 0, limit: 1 } })
       .mockResolvedValueOnce({ data: [second], meta: { total: 2, page: 1, limit: 1 } });
 
-    const { getByTestId, getByText, UNSAFE_getByType } = render(<ReceiptsScreen />, {
+    const { getByTestId, getByText } = await render(<ReceiptsScreen />, {
       wrapper: createWrapper(),
     });
     await waitFor(() => expect(getByTestId('receipt-row-r1')).toBeTruthy());
 
-    const { FlatList } = jest.requireActual<typeof import('react-native')>('react-native');
-    fireEvent(UNSAFE_getByType(FlatList), 'endReached');
+    await fireEvent(getByTestId('receipts-list'), 'endReached');
 
     await waitFor(() => expect(mockList).toHaveBeenNthCalledWith(2, { page: 1 }));
     await waitFor(() => expect(getByText('Metro')).toBeTruthy());
@@ -86,7 +87,7 @@ describe('ReceiptsScreen', () => {
 
   it('says a receipt needs review — reviewRequired is a field, not a status', async () => {
     mockList.mockResolvedValue({ data: [ROW], meta: { total: 1, page: 0, limit: 50 } });
-    const { getByTestId } = render(<ReceiptsScreen />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<ReceiptsScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('receipt-review-r1')).toBeTruthy());
     // The status pill still says COMPLETE, which is the ordinary outcome.
     expect(getByTestId('receipt-row-r1').props.accessibilityLabel).toContain('Complete');
@@ -94,15 +95,15 @@ describe('ReceiptsScreen', () => {
 
   it('shows the empty state rather than a blank list', async () => {
     mockList.mockResolvedValue({ data: [], meta: { total: 0, page: 0, limit: 50 } });
-    const { getByTestId } = render(<ReceiptsScreen />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<ReceiptsScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('receipts-empty')).toBeTruthy());
   });
 
   it('shows a failure with a retry rather than an empty list', async () => {
     mockList.mockRejectedValue(new Error('nope'));
-    const { getByTestId } = render(<ReceiptsScreen />, { wrapper: createWrapper() });
+    const { getByTestId } = await render(<ReceiptsScreen />, { wrapper: createWrapper() });
     await waitFor(() => expect(getByTestId('receipts-error')).toBeTruthy());
-    fireEvent.press(getByTestId('receipts-retry'));
+    await fireEvent.press(getByTestId('receipts-retry'));
     await waitFor(() => expect(mockList.mock.calls.length).toBeGreaterThan(1));
   });
 
@@ -112,15 +113,15 @@ describe('ReceiptsScreen', () => {
     clients.push(qc);
     const invalidate = jest.spyOn(qc, 'invalidateQueries');
 
-    const { getByTestId } = render(<ReceiptsScreen />, {
+    const { getByTestId } = await render(<ReceiptsScreen />, {
       wrapper: ({ children }: { children: React.ReactNode }) => (
         <QueryClientProvider client={qc}>{children}</QueryClientProvider>
       ),
     });
-    fireEvent.press(getByTestId('receipts-scan-btn'));
+    await fireEvent.press(getByTestId('receipts-scan-btn'));
     await waitFor(() => expect(getByTestId('camera-btn')).toBeTruthy());
 
-    fireEvent.press(getByTestId('camera-btn'));
+    await fireEvent.press(getByTestId('camera-btn'));
     // The invalidation lands on the client this screen reads, which is the
     // whole point: a second, modal-scoped client is the shipped defect the
     // mobile inventory records.

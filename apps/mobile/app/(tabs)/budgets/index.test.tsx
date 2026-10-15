@@ -33,9 +33,9 @@ const PERIOD: BudgetPeriodResponse = {
   updatedAt: '2026-09-04T14:00:00Z',
 };
 
-function renderScreen() {
+async function renderScreen() {
   const client = createTestQueryClient();
-  render(
+  await render(
     <QueryClientProvider client={client}>
       <BudgetsHomeScreen />
     </QueryClientProvider>
@@ -51,7 +51,7 @@ describe('the current-month period', () => {
   it('renders the period when one exists for this month', async () => {
     mockCurrent.mockResolvedValue(PERIOD);
     mockEnvelopes.mockResolvedValue([]);
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('budgets-current-period')).toBeTruthy());
     expect(screen.queryByTestId('budgets-empty-month')).toBeNull();
   });
@@ -76,13 +76,13 @@ describe('no budget for this month — the 404 empty state', () => {
         },
       })
     );
-    renderScreen();
+    await renderScreen();
 
     await waitFor(() => expect(screen.getByTestId('budgets-empty-month')).toBeTruthy());
     expect(screen.queryByTestId('budgets-current-error')).toBeNull();
     expect(screen.getByText('No budget for this month yet.')).toBeTruthy();
 
-    fireEvent.press(screen.getByTestId('budgets-create-cta'));
+    await fireEvent.press(screen.getByTestId('budgets-create-cta'));
     expect(router.push).toHaveBeenCalledWith('/(tabs)/budgets/new');
   });
 });
@@ -107,7 +107,7 @@ describe('a 429 from the chain-wide limiter', () => {
         },
       })
     );
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('budgets-current-error')).toBeTruthy());
     expect(screen.getByText('Too many requests. Try again in 30 seconds.')).toBeTruthy();
     // Not the 404 empty state, and no navigation away — a 429 never clears the session.
@@ -119,16 +119,16 @@ describe('navigation', () => {
   it('links to periods, goals, categories and merchant rules', async () => {
     mockCurrent.mockResolvedValue(PERIOD);
     mockEnvelopes.mockResolvedValue([]);
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('budgets-current-period')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('budgets-nav-periods'));
+    await fireEvent.press(screen.getByTestId('budgets-nav-periods'));
     expect(router.push).toHaveBeenCalledWith('/(tabs)/budgets/periods');
-    fireEvent.press(screen.getByTestId('budgets-nav-goals'));
+    await fireEvent.press(screen.getByTestId('budgets-nav-goals'));
     expect(router.push).toHaveBeenCalledWith('/(tabs)/budgets/goals');
-    fireEvent.press(screen.getByTestId('budgets-nav-categories'));
+    await fireEvent.press(screen.getByTestId('budgets-nav-categories'));
     expect(router.push).toHaveBeenCalledWith('/(tabs)/budgets/categories');
-    fireEvent.press(screen.getByTestId('budgets-nav-rules'));
+    await fireEvent.press(screen.getByTestId('budgets-nav-rules'));
     expect(router.push).toHaveBeenCalledWith('/(tabs)/budgets/rules');
   });
 });

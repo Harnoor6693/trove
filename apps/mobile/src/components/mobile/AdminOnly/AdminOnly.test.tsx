@@ -25,8 +25,8 @@ function refusal(status: number, slug: string) {
   } as any);
 }
 
-it('renders the console when nothing was refused', () => {
-  render(
+it('renders the console when nothing was refused', async () => {
+  await render(
     <AdminOnly error={null}>
       <Text>console</Text>
     </AdminOnly>
@@ -35,8 +35,8 @@ it('renders the console when nothing was refused', () => {
   expect(screen.queryByTestId('admin-forbidden')).toBeNull();
 });
 
-it('renders a clean state — not an error toast — for the 403 forbidden a MEMBER gets', () => {
-  render(
+it('renders a clean state — not an error toast — for the 403 forbidden a MEMBER gets', async () => {
+  await render(
     <AdminOnly error={refusal(403, 'forbidden')}>
       <Text>console</Text>
     </AdminOnly>
@@ -46,8 +46,8 @@ it('renders a clean state — not an error toast — for the 403 forbidden a MEM
   expect(screen.queryByText('console')).toBeNull();
 });
 
-it('does not swallow the other 403 — step-up-required on an admin route means a SELF target', () => {
-  render(
+it('does not swallow the other 403 — step-up-required on an admin route means a SELF target', async () => {
+  await render(
     <AdminOnly error={refusal(403, 'step-up-required')}>
       <Text>console</Text>
     </AdminOnly>
@@ -56,8 +56,8 @@ it('does not swallow the other 403 — step-up-required on an admin route means 
   expect(screen.getByText('console')).toBeTruthy();
 });
 
-it('leaves an ordinary failure to the screen that raised it', () => {
-  render(
+it('leaves an ordinary failure to the screen that raised it', async () => {
+  await render(
     <AdminOnly error={refusal(500, 'internal-error')}>
       <Text>console</Text>
     </AdminOnly>

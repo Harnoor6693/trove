@@ -116,13 +116,13 @@ describe('accountKeys', () => {
 describe('useAccounts', () => {
   it('returns the bare array the operation sends', async () => {
     mockList.mockResolvedValue([ACCOUNT]);
-    const { result } = renderHook(() => useAccounts(), { wrapper });
+    const { result } = await renderHook(() => useAccounts(), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual([ACCOUNT]));
   });
 
   it('surfaces a failure rather than an empty list', async () => {
     mockList.mockRejectedValue(new Error('boom'));
-    const { result } = renderHook(() => useAccounts(), { wrapper });
+    const { result } = await renderHook(() => useAccounts(), { wrapper });
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.data).toBeUndefined();
   });
@@ -133,21 +133,21 @@ describe('useAccount and useAccountSyncLogs', () => {
     mockOne.mockResolvedValue(ACCOUNT);
     mockLogs.mockResolvedValue([LOG]);
 
-    const { result } = renderHook(() => useAccount('a1'), { wrapper });
+    const { result } = await renderHook(() => useAccount('a1'), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual(ACCOUNT));
 
-    const logs = renderHook(() => useAccountSyncLogs('a1'), { wrapper });
+    const logs = await renderHook(() => useAccountSyncLogs('a1'), { wrapper });
     await waitFor(() => expect(logs.result.current.data).toEqual([LOG]));
 
-    const idleAccount = renderHook(() => useAccount(''), { wrapper });
-    const idleLogs = renderHook(() => useAccountSyncLogs(''), { wrapper });
+    const idleAccount = await renderHook(() => useAccount(''), { wrapper });
+    const idleLogs = await renderHook(() => useAccountSyncLogs(''), { wrapper });
     expect(idleAccount.result.current.fetchStatus).toBe('idle');
     expect(idleLogs.result.current.fetchStatus).toBe('idle');
   });
 
   it('keeps a failed run resolvable, reason and all', async () => {
     mockLogs.mockResolvedValue([LOG]);
-    const { result } = renderHook(() => useAccountSyncLogs('a1'), { wrapper });
+    const { result } = await renderHook(() => useAccountSyncLogs('a1'), { wrapper });
     await waitFor(() => expect(result.current.data).toBeDefined());
     expect(result.current.data?.[0].status).toBe('PARTIAL_FAILURE');
     expect(result.current.data?.[0].errorMessage).toBe('Two rows had no amount.');
@@ -158,7 +158,7 @@ describe('useCreateAccount', () => {
   it('creates and invalidates the accounts root', async () => {
     mockCreate.mockResolvedValue(ACCOUNT);
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useCreateAccount(), { wrapper: provider });
+    const { result } = await renderHook(() => useCreateAccount(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync({
         sourceKind: 'MANUAL',
@@ -179,7 +179,7 @@ describe('useUpdateAccount', () => {
   it('PUTs against the id it was built for', async () => {
     mockUpdate.mockResolvedValue(ACCOUNT);
     const { provider } = withClient();
-    const { result } = renderHook(() => useUpdateAccount('a1'), { wrapper: provider });
+    const { result } = await renderHook(() => useUpdateAccount('a1'), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync({ displayName: 'Renamed', accountType: 'SAVINGS' });
     });
@@ -194,7 +194,7 @@ describe('useDeleteAccount', () => {
   it('invalidates the ledger too, because the delete cascades to it', async () => {
     mockDelete.mockResolvedValue(undefined);
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useDeleteAccount(), { wrapper: provider });
+    const { result } = await renderHook(() => useDeleteAccount(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync('a1');
     });
@@ -209,7 +209,7 @@ describe('useSyncAccount', () => {
   it('resolves with the run even when the run itself failed', async () => {
     mockSync.mockResolvedValue({ ...LOG, status: 'FAILED', errorMessage: 'Bridge unreachable.' });
     const { provider } = withClient();
-    const { result } = renderHook(() => useSyncAccount(), { wrapper: provider });
+    const { result } = await renderHook(() => useSyncAccount(), { wrapper: provider });
     let log: SyncLogResponse | undefined;
     await act(async () => {
       log = await result.current.mutateAsync('a1');
@@ -222,7 +222,7 @@ describe('useSyncAccount', () => {
   it('invalidates this account, its history, the ledger and the dashboard', async () => {
     mockSync.mockResolvedValue(LOG);
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useSyncAccount(), { wrapper: provider });
+    const { result } = await renderHook(() => useSyncAccount(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync('a1');
     });
@@ -236,7 +236,7 @@ describe('useSyncAccount', () => {
   it('reports a 409 as a mutation error rather than a run', async () => {
     mockSync.mockRejectedValue(new Error('conflict'));
     const { provider } = withClient();
-    const { result } = renderHook(() => useSyncAccount(), { wrapper: provider });
+    const { result } = await renderHook(() => useSyncAccount(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync('a1').catch(() => undefined);
     });
@@ -248,7 +248,7 @@ describe('useExchangeSetupToken', () => {
   it('passes the credential in the body and invalidates what the exchange created', async () => {
     mockExchange.mockResolvedValue({ accountIds: ['a1', 'a2'], syncLogs: [LOG] });
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useExchangeSetupToken(), { wrapper: provider });
+    const { result } = await renderHook(() => useExchangeSetupToken(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync({ sourceKind: 'SIMPLEFIN', setupToken: 'token' });
     });

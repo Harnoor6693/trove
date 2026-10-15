@@ -86,7 +86,7 @@ function textOf(testID: string): string {
 
 let client: ReturnType<typeof createTestQueryClient>;
 
-function renderScreen() {
+async function renderScreen() {
   client = createTestQueryClient();
   return render(
     <QueryClientProvider client={client}>
@@ -109,13 +109,13 @@ afterEach(() => {
 describe('the role gate', () => {
   it('shows a MEMBER the clean 403 state instead of the invitations', async () => {
     mockInvites.mockRejectedValue(refused(403, 'forbidden', 'Administrator role required.'));
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-forbidden')).toBeTruthy());
     expect(screen.queryByTestId('admin-invite-i1')).toBeNull();
   });
 
   it('shows an ADMIN the invitations', async () => {
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-invite-i1')).toBeTruthy());
     expect(screen.queryByTestId('admin-forbidden')).toBeNull();
   });
@@ -123,7 +123,7 @@ describe('the role gate', () => {
 
 describe('a spent invitation', () => {
   it('renders no link and never the literal string "null"', async () => {
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-invite-i2')).toBeTruthy());
 
     expect(screen.queryByTestId('admin-invite-i2-url')).toBeNull();
@@ -134,7 +134,7 @@ describe('a spent invitation', () => {
   // Offering "Revoke" on an invitation that is already spent would send a
   // request the server answers 404 or 409, for no change the admin wanted.
   it('offers no copy or revoke control once the link is gone', async () => {
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-invite-i2')).toBeTruthy());
 
     expect(screen.queryByTestId('admin-invite-i2-revoke')).toBeNull();
@@ -143,7 +143,7 @@ describe('a spent invitation', () => {
   });
 
   it('says which of the two spent states it is in', async () => {
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-invite-i2')).toBeTruthy());
 
     expect(textOf('admin-invite-i2-spent')).toContain('has been used');
@@ -154,7 +154,7 @@ describe('a spent invitation', () => {
   // computes it — not from comparing `expiresAt` to the device's clock, which
   // is a different clock and can be wrong.
   it('labels the state from the nullability, not from the device clock', async () => {
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-invite-i1')).toBeTruthy());
 
     const stateOf = (id: string, label: string) =>
@@ -167,7 +167,7 @@ describe('a spent invitation', () => {
 
 describe('a usable invitation', () => {
   it('shows the link the server sent, selectable so it can be copied', async () => {
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-invite-i1-url')).toBeTruthy());
 
     const link = screen.getByTestId('admin-invite-i1-url');
@@ -176,20 +176,20 @@ describe('a usable invitation', () => {
   });
 
   it('revokes it and refetches the list, because the link goes null with the clock', async () => {
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-invite-i1-revoke')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('admin-invite-i1-revoke'));
+    await fireEvent.press(screen.getByTestId('admin-invite-i1-revoke'));
     await waitFor(() => expect(mockRevoke).toHaveBeenCalledWith('i1'));
     await waitFor(() => expect(mockInvites).toHaveBeenCalledTimes(2));
   });
 
   it('explains a refused revoke on the row it was refused for', async () => {
     mockRevoke.mockRejectedValue(refused(404, 'not-found', 'No such invitation.'));
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-invite-i1-revoke')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('admin-invite-i1-revoke'));
+    await fireEvent.press(screen.getByTestId('admin-invite-i1-revoke'));
     await waitFor(() => expect(screen.getByTestId('admin-invite-i1-error')).toBeTruthy());
     expect(textOf('admin-invite-i1-error')).toContain('No such invitation.');
   });
@@ -199,28 +199,31 @@ describe('creating an invitation', () => {
   // `{}` is the normal body: an invitation with no address can be redeemed by
   // anyone holding the link, and `role` defaults to MEMBER.
   it('sends an empty body when no address and no role were chosen', async () => {
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-invite-create')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('admin-invite-create'));
+    await fireEvent.press(screen.getByTestId('admin-invite-create'));
     await waitFor(() => expect(mockCreate).toHaveBeenCalledWith({}));
   });
 
   it('binds the invitation to a trimmed address when one is given', async () => {
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-invite-email')).toBeTruthy());
 
-    fireEvent.changeText(screen.getByTestId('admin-invite-email'), '  invitee@example.test  ');
-    fireEvent.press(screen.getByTestId('admin-invite-create'));
+    await fireEvent.changeText(
+      screen.getByTestId('admin-invite-email'),
+      '  invitee@example.test  '
+    );
+    await fireEvent.press(screen.getByTestId('admin-invite-create'));
     await waitFor(() => expect(mockCreate).toHaveBeenCalledWith({ email: 'invitee@example.test' }));
   });
 
   it('sends the ADMIN role only when it was asked for', async () => {
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-invite-role-toggle')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('admin-invite-role-toggle'));
-    fireEvent.press(screen.getByTestId('admin-invite-create'));
+    await fireEvent.press(screen.getByTestId('admin-invite-role-toggle'));
+    await fireEvent.press(screen.getByTestId('admin-invite-create'));
     await waitFor(() => expect(mockCreate).toHaveBeenCalledWith({ role: 'ADMIN' }));
   });
 
@@ -228,19 +231,19 @@ describe('creating an invitation', () => {
   // the contract says so at `listInvites`, because redeemability is a
   // question about now.
   it('refetches the list after a create rather than trusting the 201 body', async () => {
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-invite-create')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('admin-invite-create'));
+    await fireEvent.press(screen.getByTestId('admin-invite-create'));
     await waitFor(() => expect(mockInvites).toHaveBeenCalledTimes(2));
   });
 
   it('explains a refused create instead of failing silently', async () => {
     mockCreate.mockRejectedValue(refused(400, 'validation-error', 'Email is not an address.'));
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-invite-create')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('admin-invite-create'));
+    await fireEvent.press(screen.getByTestId('admin-invite-create'));
     await waitFor(() => expect(screen.getByTestId('admin-invite-create-error')).toBeTruthy());
     expect(textOf('admin-invite-create-error')).toContain('Email is not an address.');
   });
@@ -249,7 +252,7 @@ describe('creating an invitation', () => {
 describe('an empty household', () => {
   it('says so rather than rendering an empty card', async () => {
     mockInvites.mockResolvedValue([]);
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-invites-empty')).toBeTruthy());
   });
 });

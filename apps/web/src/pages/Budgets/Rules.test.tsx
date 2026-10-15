@@ -2,7 +2,7 @@
  * Merchant rules — behaviour, not "it rendered".
  */
 import { describe, expect, it } from 'vitest'
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from '@/test/test-utils'
 import { DEFAULT_ME, mswState } from '@/test/msw/handlers'
@@ -121,7 +121,7 @@ describe('Rules', () => {
     const deleteDialog = await screen.findByTestId('delete-rule-dialog')
     await user.click(within(deleteDialog).getByRole('button', { name: /^delete$/i }))
 
-    expect(screen.queryByText('COSTCO WHOLESALE')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText('COSTCO WHOLESALE')).not.toBeInTheDocument())
     expect(mswState.categoryRules.some((r) => r.merchant === 'COSTCO WHOLESALE')).toBe(false)
   })
 })

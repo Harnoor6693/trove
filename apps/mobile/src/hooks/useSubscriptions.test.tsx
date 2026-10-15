@@ -113,7 +113,7 @@ describe('subscriptionKeys', () => {
 describe('useSubscriptions', () => {
   it('returns the bare array — not paged', async () => {
     mockList.mockResolvedValue([SUBSCRIPTION]);
-    const { result } = renderHook(() => useSubscriptions(), { wrapper });
+    const { result } = await renderHook(() => useSubscriptions(), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual([SUBSCRIPTION]));
   });
 });
@@ -121,7 +121,7 @@ describe('useSubscriptions', () => {
 describe('useSubscriptionSummary', () => {
   it('renders each currency separately — byCurrency carries the whole figure', async () => {
     mockSummary.mockResolvedValue(SUMMARY);
-    const { result } = renderHook(() => useSubscriptionSummary(), { wrapper });
+    const { result } = await renderHook(() => useSubscriptionSummary(), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual(SUMMARY));
     expect(result.current.data?.byCurrency).toHaveLength(1);
     expect(result.current.data).not.toHaveProperty('totalMonthlyRunRate');
@@ -131,7 +131,7 @@ describe('useSubscriptionSummary', () => {
 describe('useSubscriptionAlerts / useMarkSubscriptionAlertRead', () => {
   it('lists unread alerts', async () => {
     mockAlerts.mockResolvedValue([]);
-    const { result } = renderHook(() => useSubscriptionAlerts(), { wrapper });
+    const { result } = await renderHook(() => useSubscriptionAlerts(), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual([]));
   });
 
@@ -147,7 +147,9 @@ describe('useSubscriptionAlerts / useMarkSubscriptionAlertRead', () => {
       createdAt: '2026-09-05T02:00:00Z',
     });
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useMarkSubscriptionAlertRead(), { wrapper: provider });
+    const { result } = await renderHook(() => useMarkSubscriptionAlertRead(), {
+      wrapper: provider,
+    });
     await act(async () => {
       await result.current.mutateAsync('al1');
     });
@@ -162,7 +164,7 @@ describe('useScanSubscriptions', () => {
   it('seeds the list cache with the fresh result and invalidates summary+alerts', async () => {
     mockScan.mockResolvedValue([SUBSCRIPTION]);
     const { invalidate, setData, provider } = withClient();
-    const { result } = renderHook(() => useScanSubscriptions(), { wrapper: provider });
+    const { result } = await renderHook(() => useScanSubscriptions(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync();
     });
@@ -174,15 +176,15 @@ describe('useScanSubscriptions', () => {
 });
 
 describe('useSubscription', () => {
-  it('is idle until an id is known', () => {
-    const { result } = renderHook(() => useSubscription(''), { wrapper });
+  it('is idle until an id is known', async () => {
+    const { result } = await renderHook(() => useSubscription(''), { wrapper });
     expect(result.current.fetchStatus).toBe('idle');
     expect(mockOne).not.toHaveBeenCalled();
   });
 
   it('a cancelled subscription is still readable', async () => {
     mockOne.mockResolvedValue({ ...SUBSCRIPTION, cancelled: true });
-    const { result } = renderHook(() => useSubscription('s1'), { wrapper });
+    const { result } = await renderHook(() => useSubscription('s1'), { wrapper });
     await waitFor(() => expect(result.current.data?.cancelled).toBe(true));
   });
 });
@@ -191,7 +193,7 @@ describe('useCancelSubscription', () => {
   it('invalidates the list, the summary and this subscription’s own detail', async () => {
     mockCancel.mockResolvedValue(undefined);
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useCancelSubscription(), { wrapper: provider });
+    const { result } = await renderHook(() => useCancelSubscription(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync('s1');
     });

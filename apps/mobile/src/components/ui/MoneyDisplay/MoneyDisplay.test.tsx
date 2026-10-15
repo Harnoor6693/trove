@@ -41,34 +41,36 @@ afterEach(() => {
 });
 
 describe('MoneyDisplay', () => {
-  it('renders a decimal string in the user’s currency', () => {
+  it('renders a decimal string in the user’s currency', async () => {
     signIn('CAD', 'en-CA');
-    const { getByTestId } = render(<MoneyDisplay amount="1234.50" testID="amount" />);
+    const { getByTestId } = await render(<MoneyDisplay amount="1234.50" testID="amount" />);
     expect(normalise(getByTestId('amount').props.children)).toBe('$1,234.50');
   });
 
-  it('renders the same amount differently for a USD user', () => {
+  it('renders the same amount differently for a USD user', async () => {
     signIn('USD', 'en-US');
-    const { getByTestId } = render(<MoneyDisplay amount="1234.50" testID="amount" />);
+    const { getByTestId } = await render(<MoneyDisplay amount="1234.50" testID="amount" />);
     expect(normalise(getByTestId('amount').props.children)).toBe('$1,234.50');
   });
 
-  it('marks a foreign-currency row explicitly', () => {
+  it('marks a foreign-currency row explicitly', async () => {
     signIn('CAD', 'en-CA');
-    const { getByTestId } = render(<MoneyDisplay amount="10.00" currency="USD" testID="amount" />);
+    const { getByTestId } = await render(
+      <MoneyDisplay amount="10.00" currency="USD" testID="amount" />
+    );
     expect(normalise(getByTestId('amount').props.children)).toBe('US$10.00');
   });
 
-  it('accepts a Money wrapper', () => {
+  it('accepts a Money wrapper', async () => {
     signIn('CAD', 'en-CA');
-    const { getByTestId } = render(
+    const { getByTestId } = await render(
       <MoneyDisplay amount={{ amount: '3.50', currency: 'CAD' }} testID="amount" />
     );
     expect(normalise(getByTestId('amount').props.children)).toBe('$3.50');
   });
 
-  it('shows a placeholder rather than guessing a currency before the profile loads', () => {
-    const { getByTestId } = render(<MoneyDisplay amount="1234.50" testID="amount" />);
+  it('shows a placeholder rather than guessing a currency before the profile loads', async () => {
+    const { getByTestId } = await render(<MoneyDisplay amount="1234.50" testID="amount" />);
     expect(getByTestId('amount').props.children).toBe('—');
   });
 
@@ -76,19 +78,19 @@ describe('MoneyDisplay', () => {
   // `/v1/me/preferences`, so one authenticated call is enough to format
   // correctly — the first screen after login must not render in the device
   // locale while preferences are still in flight.
-  it('formats from /v1/auth/me alone, before preferences have loaded', () => {
+  it('formats from /v1/auth/me alone, before preferences have loaded', async () => {
     signIn('USD', 'en-US');
     useAuthStore.setState({ preferences: null });
-    const { getByTestId } = render(<MoneyDisplay amount="1234.50" testID="amount" />);
+    const { getByTestId } = await render(<MoneyDisplay amount="1234.50" testID="amount" />);
     expect(normalise(getByTestId('amount').props.children)).toBe('$1,234.50');
   });
 
-  it('colours by sign only when asked', () => {
+  it('colours by sign only when asked', async () => {
     signIn('CAD', 'en-CA');
-    const neutral = render(<MoneyDisplay amount="-5.00" testID="a" />).getByTestId('a');
-    const coloured = render(<MoneyDisplay amount="-5.00" colorBySign testID="b" />).getByTestId(
-      'b'
-    );
+    const neutral = (await render(<MoneyDisplay amount="-5.00" testID="a" />)).getByTestId('a');
+    const coloured = (
+      await render(<MoneyDisplay amount="-5.00" colorBySign testID="b" />)
+    ).getByTestId('b');
     expect(JSON.stringify(neutral.props.style)).not.toEqual(JSON.stringify(coloured.props.style));
   });
 });

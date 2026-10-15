@@ -103,7 +103,7 @@ const PREFERENCES: UserPreferences = {
  */
 let qc: QueryClient;
 
-function mountSettings() {
+async function mountSettings() {
   qc = createTestQueryClient();
   return render(
     <QueryClientProvider client={qc}>
@@ -134,7 +134,7 @@ async function settleQueries() {
 
 /** Render and settle the four mount queries. The default for every test. */
 async function renderSettings() {
-  const utils = mountSettings();
+  const utils = await mountSettings();
   await settleQueries();
   return utils;
 }
@@ -190,7 +190,7 @@ describe('about section', () => {
     const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
     const { getByTestId } = await renderSettings();
     expect(within(getByTestId('settings-source-code')).getByText(/AGPL-3\.0/)).toBeTruthy();
-    fireEvent.press(getByTestId('settings-source-code'));
+    await fireEvent.press(getByTestId('settings-source-code'));
     expect(openURL).toHaveBeenCalledWith('https://github.com/Harnoor6693/trove');
     openURL.mockRestore();
   });
@@ -217,13 +217,13 @@ describe('server section', () => {
 
   it('routes to the connect screen to change server', async () => {
     const { getByTestId } = await renderSettings();
-    fireEvent.press(getByTestId('settings-change-server-btn'));
+    await fireEvent.press(getByTestId('settings-change-server-btn'));
     expect(mockPush).toHaveBeenCalledWith('/(auth)/connect');
   });
 
   it('disconnecting really clears the stored server', async () => {
     const { getByTestId } = await renderSettings();
-    fireEvent.press(getByTestId('settings-disconnect-btn'));
+    await fireEvent.press(getByTestId('settings-disconnect-btn'));
     await waitFor(() => expect(useAuthStore.getState().status).toBe('disconnected'));
     expect(useAuthStore.getState().server).toBeNull();
   });
@@ -241,8 +241,8 @@ describe('account section', () => {
     const { getByTestId } = await renderSettings();
     await waitFor(() => expect(getByTestId('settings-display-name-input').props.value).toBe('Ada'));
 
-    fireEvent.changeText(getByTestId('settings-display-name-input'), 'Ada Lovelace');
-    fireEvent.press(getByTestId('settings-save-identity-btn'));
+    await fireEvent.changeText(getByTestId('settings-display-name-input'), 'Ada Lovelace');
+    await fireEvent.press(getByTestId('settings-save-identity-btn'));
 
     await waitFor(() =>
       expect(mockUpdateMe).toHaveBeenCalledWith({
@@ -255,11 +255,11 @@ describe('account section', () => {
 
   it('changes the password and says other sessions were revoked', async () => {
     const { getByTestId } = await renderSettings();
-    fireEvent.press(getByTestId('settings-change-password-btn'));
+    await fireEvent.press(getByTestId('settings-change-password-btn'));
 
-    fireEvent.changeText(getByTestId('settings-current-password-input'), 'old-password-12');
-    fireEvent.changeText(getByTestId('settings-new-password-input'), 'new-password-1234');
-    fireEvent.press(getByTestId('settings-submit-password-btn'));
+    await fireEvent.changeText(getByTestId('settings-current-password-input'), 'old-password-12');
+    await fireEvent.changeText(getByTestId('settings-new-password-input'), 'new-password-1234');
+    await fireEvent.press(getByTestId('settings-submit-password-btn'));
 
     await waitFor(() =>
       expect(mockChangePassword).toHaveBeenCalledWith({
@@ -276,10 +276,10 @@ describe('account section', () => {
     mockChangePassword.mockRejectedValue(new Error('Current password is incorrect'));
 
     const { getByTestId } = await renderSettings();
-    fireEvent.press(getByTestId('settings-change-password-btn'));
-    fireEvent.changeText(getByTestId('settings-current-password-input'), 'wrong');
-    fireEvent.changeText(getByTestId('settings-new-password-input'), 'new-password-1234');
-    fireEvent.press(getByTestId('settings-submit-password-btn'));
+    await fireEvent.press(getByTestId('settings-change-password-btn'));
+    await fireEvent.changeText(getByTestId('settings-current-password-input'), 'wrong');
+    await fireEvent.changeText(getByTestId('settings-new-password-input'), 'new-password-1234');
+    await fireEvent.press(getByTestId('settings-submit-password-btn'));
 
     await waitFor(() =>
       expect(getByTestId('settings-error').props.children).toMatch(/Current password is incorrect/)
@@ -291,7 +291,7 @@ describe('account section', () => {
     await waitFor(() =>
       expect(within(getByTestId('settings-totp-state')).getByText('Off')).toBeTruthy()
     );
-    fireEvent.press(getByTestId('settings-totp-enrol-btn'));
+    await fireEvent.press(getByTestId('settings-totp-enrol-btn'));
     expect(mockPush).toHaveBeenCalledWith('/(auth)/totp-enrol');
   });
 
@@ -303,10 +303,10 @@ describe('account section', () => {
       expect(within(getByTestId('settings-totp-state')).getByText('On')).toBeTruthy()
     );
 
-    fireEvent.press(getByTestId('settings-totp-disable-btn'));
-    fireEvent.changeText(getByTestId('settings-totp-password-input'), 'my-password-12');
-    fireEvent.changeText(getByTestId('settings-totp-code-input'), '123456');
-    fireEvent.press(getByTestId('settings-totp-submit-btn'));
+    await fireEvent.press(getByTestId('settings-totp-disable-btn'));
+    await fireEvent.changeText(getByTestId('settings-totp-password-input'), 'my-password-12');
+    await fireEvent.changeText(getByTestId('settings-totp-code-input'), '123456');
+    await fireEvent.press(getByTestId('settings-totp-submit-btn'));
 
     await waitFor(() => expect(mockDisableTotp).toHaveBeenCalledWith('my-password-12', '123456'));
   });
@@ -335,11 +335,20 @@ describe('preferences section', () => {
   it('selects nothing and disables Save until preferences load', async () => {
     // The one test that wants the *unsettled* screen, so it mounts without the
     // flush — then drains the four queries before finishing, or their state
-    // updates land after the test and outside `act()`.
-    const { getByTestId } = mountSettings();
+    // updates land after the test and outside `act()`. RNTL 14's `render` is
+    // async and lets resolved mocks land before it returns, so "unsettled" is
+    // made explicit: preferences stay pending until the assertions are done.
+    let release: (value: UserPreferences) => void = () => {};
+    mockFetchPreferences.mockReturnValue(
+      new Promise<UserPreferences>((resolve) => {
+        release = resolve;
+      })
+    );
+    const { getByTestId } = await mountSettings();
     expect(getByTestId('settings-locale-en-CA').props.accessibilityState.selected).toBe(false);
     expect(getByTestId('settings-locale-en-US').props.accessibilityState.selected).toBe(false);
     expect(getByTestId('settings-save-locale-btn').props.accessibilityState.disabled).toBe(true);
+    release(PREFERENCES);
     await settleQueries();
   });
 
@@ -357,14 +366,14 @@ describe('preferences section', () => {
       expect(getByTestId('settings-locale-en-CA').props.accessibilityState.selected).toBe(true)
     );
 
-    fireEvent.press(getByTestId('settings-locale-en-US'));
+    await fireEvent.press(getByTestId('settings-locale-en-US'));
     // The selection has to land before Save is pressed — the mutation reads
     // the chosen locale, not the one the query loaded.
     await waitFor(() =>
       expect(getByTestId('settings-locale-en-US').props.accessibilityState.selected).toBe(true)
     );
 
-    fireEvent.press(getByTestId('settings-save-locale-btn'));
+    await fireEvent.press(getByTestId('settings-save-locale-btn'));
 
     await waitFor(() => expect(mockUpdatePreferences).toHaveBeenCalledWith({ locale: 'en-US' }));
   });
@@ -384,7 +393,7 @@ describe('appearance', () => {
   // the store `useTheme()` actually consumes.
   it('persists the theme choice to the store useTheme() reads', async () => {
     const { getByTestId } = await renderSettings();
-    fireEvent.press(getByTestId('settings-theme-dark'));
+    await fireEvent.press(getByTestId('settings-theme-dark'));
     await waitFor(() => expect(useUiStore.getState().theme).toBe('dark'));
   });
 });
@@ -392,13 +401,13 @@ describe('appearance', () => {
 describe('security section', () => {
   it('toggles the app lock and persists it', async () => {
     const { getByTestId } = await renderSettings();
-    fireEvent(getByTestId('settings-app-lock-toggle'), 'onToggle', false);
+    await fireEvent(getByTestId('settings-app-lock-toggle'), 'onToggle', false);
     await waitFor(() => expect(useUiStore.getState().appLockEnabled).toBe(false));
   });
 
   it('sets the background timeout', async () => {
     const { getByTestId } = await renderSettings();
-    fireEvent.press(getByTestId('settings-app-lock-timeout-15'));
+    await fireEvent.press(getByTestId('settings-app-lock-timeout-15'));
     await waitFor(() => expect(useUiStore.getState().appLockTimeoutMinutes).toBe(15));
   });
 
@@ -416,10 +425,10 @@ describe('data section', () => {
     const { getByTestId, queryByTestId } = await renderSettings();
     expect(queryByTestId('settings-data-deferred')).toBeNull();
 
-    fireEvent.press(getByTestId('settings-export-btn'));
+    await fireEvent.press(getByTestId('settings-export-btn'));
     expect(mockPush).toHaveBeenCalledWith('/(tabs)/account/export');
 
-    fireEvent.press(getByTestId('settings-delete-account-btn'));
+    await fireEvent.press(getByTestId('settings-delete-account-btn'));
     expect(mockPush).toHaveBeenCalledWith('/(tabs)/account/delete');
   });
 
@@ -442,7 +451,7 @@ describe('administration section', () => {
   it('shows the admin console entry point to an ADMIN', async () => {
     const { getByTestId } = await renderSettings();
     await waitFor(() => expect(getByTestId('settings-admin-section')).toBeTruthy());
-    fireEvent.press(getByTestId('settings-admin-console-btn'));
+    await fireEvent.press(getByTestId('settings-admin-console-btn'));
     expect(mockPush).toHaveBeenCalledWith('/(tabs)/admin');
   });
 
@@ -457,7 +466,7 @@ describe('administration section', () => {
 describe('sign out', () => {
   it('signs out and returns to login', async () => {
     const { getByTestId } = await renderSettings();
-    fireEvent.press(getByTestId('sign-out-btn'));
+    await fireEvent.press(getByTestId('sign-out-btn'));
     await waitFor(() => expect(useAuthStore.getState().status).toBe('anonymous'));
   });
 });

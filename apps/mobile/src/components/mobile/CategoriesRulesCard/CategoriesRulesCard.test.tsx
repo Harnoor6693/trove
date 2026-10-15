@@ -4,15 +4,15 @@ import { router } from 'expo-router';
 import { CategoriesRulesCard } from './CategoriesRulesCard';
 
 describe('CategoriesRulesCard', () => {
-  it('opens the Categories screen', () => {
-    render(<CategoriesRulesCard />);
-    fireEvent.press(screen.getByTestId('settings-open-categories'));
+  it('opens the Categories screen', async () => {
+    await render(<CategoriesRulesCard />);
+    await fireEvent.press(screen.getByTestId('settings-open-categories'));
     expect(router.push).toHaveBeenCalledWith('/(tabs)/budgets/categories');
   });
 
-  it('opens the Merchant rules screen', () => {
-    render(<CategoriesRulesCard />);
-    fireEvent.press(screen.getByTestId('settings-open-rules'));
+  it('opens the Merchant rules screen', async () => {
+    await render(<CategoriesRulesCard />);
+    await fireEvent.press(screen.getByTestId('settings-open-rules'));
     expect(router.push).toHaveBeenCalledWith('/(tabs)/budgets/rules');
   });
 });

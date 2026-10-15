@@ -42,9 +42,9 @@ const PREFERENCES: NotificationPreferencesResponse = {
   updatedAt: '2026-09-05T18:00:00Z',
 };
 
-function renderCard() {
+async function renderCard() {
   const client = createTestQueryClient();
-  render(
+  await render(
     <QueryClientProvider client={client}>
       <NotificationsCard />
     </QueryClientProvider>
@@ -58,7 +58,7 @@ beforeEach(() => {
 it('shows the unread count', async () => {
   mockUnread.mockResolvedValue({ unread: 3 });
   mockPreferences.mockResolvedValue(PREFERENCES);
-  renderCard();
+  await renderCard();
   await waitFor(() => expect(screen.getByTestId('settings-notifications-unread')).toBeTruthy());
   expect(screen.getByText('3 unread')).toBeTruthy();
 });
@@ -66,10 +66,10 @@ it('shows the unread count', async () => {
 it('opens the inbox', async () => {
   mockUnread.mockResolvedValue({ unread: 0 });
   mockPreferences.mockResolvedValue(PREFERENCES);
-  renderCard();
+  await renderCard();
   await waitFor(() => expect(screen.getByTestId('settings-notifications-open-inbox')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('settings-notifications-open-inbox'));
+  await fireEvent.press(screen.getByTestId('settings-notifications-open-inbox'));
 
   expect(router.push).toHaveBeenCalledWith('/(tabs)/net-worth/notifications');
 });
@@ -78,11 +78,11 @@ it('saves preferences, clearing the email address with an explicit null when lef
   mockUnread.mockResolvedValue({ unread: 0 });
   mockPreferences.mockResolvedValue({ ...PREFERENCES, emailAddress: 'old@example.test' });
   mockUpdate.mockResolvedValue(PREFERENCES);
-  renderCard();
+  await renderCard();
   await waitFor(() => expect(screen.getByTestId('settings-notifications-save')).toBeTruthy());
 
-  fireEvent.changeText(screen.getByTestId('settings-notifications-email-address'), '');
-  fireEvent.press(screen.getByTestId('settings-notifications-save'));
+  await fireEvent.changeText(screen.getByTestId('settings-notifications-email-address'), '');
+  await fireEvent.press(screen.getByTestId('settings-notifications-save'));
 
   await waitFor(() =>
     expect(mockUpdate).toHaveBeenCalledWith(
@@ -91,10 +91,10 @@ it('saves preferences, clearing the email address with an explicit null when lef
   );
 });
 
-it('does not render the form before the preferences row has loaded', () => {
+it('does not render the form before the preferences row has loaded', async () => {
   mockUnread.mockResolvedValue({ unread: 0 });
   mockPreferences.mockImplementation(() => new Promise(() => undefined));
-  renderCard();
+  await renderCard();
   expect(screen.getByTestId('settings-notifications-loading')).toBeTruthy();
   expect(screen.queryByTestId('settings-notifications-save')).toBeNull();
 });

@@ -27,9 +27,9 @@ const WEBHOOK: WebhookResponse = {
   updatedAt: '2026-09-05T18:00:00Z',
 };
 
-function renderCard() {
+async function renderCard() {
   const client = createTestQueryClient();
-  render(
+  await render(
     <QueryClientProvider client={client}>
       <WebhooksCard />
     </QueryClientProvider>
@@ -42,7 +42,7 @@ beforeEach(() => {
 
 it('lists webhooks by URL and event types — never a secret value, which the API never sends', async () => {
   mockList.mockResolvedValue([WEBHOOK]);
-  renderCard();
+  await renderCard();
   await waitFor(() => expect(screen.getByTestId('webhook-row-w1')).toBeTruthy());
   expect(screen.getByText(WEBHOOK.targetUrl)).toBeTruthy();
   // `WebhookResponse` carries only `hasSecret: boolean` — there is no secret
@@ -53,19 +53,19 @@ it('lists webhooks by URL and event types — never a secret value, which the AP
 it('creates a webhook and clears the secret field afterwards', async () => {
   mockList.mockResolvedValue([]);
   mockCreate.mockResolvedValue(WEBHOOK);
-  renderCard();
+  await renderCard();
   await waitFor(() => expect(screen.getByTestId('settings-webhooks-add-toggle')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('settings-webhooks-add-toggle'));
-  fireEvent.changeText(
+  await fireEvent.press(screen.getByTestId('settings-webhooks-add-toggle'));
+  await fireEvent.changeText(
     screen.getByTestId('settings-webhooks-url'),
     'https://hooks.example.test/trove'
   );
-  fireEvent.changeText(
+  await fireEvent.changeText(
     screen.getByTestId('settings-webhooks-secret'),
     'a-long-enough-webhook-secret'
   );
-  fireEvent.press(screen.getByTestId('settings-webhooks-submit'));
+  await fireEvent.press(screen.getByTestId('settings-webhooks-submit'));
 
   await waitFor(() =>
     expect(mockCreate).toHaveBeenCalledWith({
@@ -96,16 +96,16 @@ it('shows the server’s own refusal sentence for a rejected URL', async () => {
     },
   };
   mockCreate.mockRejectedValue(refusal);
-  renderCard();
+  await renderCard();
   await waitFor(() => expect(screen.getByTestId('settings-webhooks-add-toggle')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('settings-webhooks-add-toggle'));
-  fireEvent.changeText(screen.getByTestId('settings-webhooks-url'), 'https://10.0.0.5/hook');
-  fireEvent.changeText(
+  await fireEvent.press(screen.getByTestId('settings-webhooks-add-toggle'));
+  await fireEvent.changeText(screen.getByTestId('settings-webhooks-url'), 'https://10.0.0.5/hook');
+  await fireEvent.changeText(
     screen.getByTestId('settings-webhooks-secret'),
     'a-long-enough-webhook-secret'
   );
-  fireEvent.press(screen.getByTestId('settings-webhooks-submit'));
+  await fireEvent.press(screen.getByTestId('settings-webhooks-submit'));
 
   await waitFor(() => expect(screen.getByTestId('settings-webhooks-error')).toBeTruthy());
   expect(screen.getByText(/private range/)).toBeTruthy();
@@ -116,12 +116,12 @@ it('shows the server’s own refusal sentence for a rejected URL', async () => {
 it('deletes a webhook after confirmation', async () => {
   mockList.mockResolvedValue([WEBHOOK]);
   mockDelete.mockResolvedValue(undefined);
-  renderCard();
+  await renderCard();
   await waitFor(() => expect(screen.getByTestId('webhook-row-w1-delete')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('webhook-row-w1-delete'));
+  await fireEvent.press(screen.getByTestId('webhook-row-w1-delete'));
   expect(mockDelete).not.toHaveBeenCalled();
-  fireEvent.press(screen.getByTestId('webhook-row-w1-delete-confirm'));
+  await fireEvent.press(screen.getByTestId('webhook-row-w1-delete-confirm'));
 
   await waitFor(() => expect(mockDelete).toHaveBeenCalledWith('w1'));
 });
@@ -144,13 +144,13 @@ it('shows an error and a retry when the webhook list fails to load — not an em
     },
   };
   mockList.mockRejectedValue(refusal);
-  renderCard();
+  await renderCard();
 
   await waitFor(() => expect(screen.getByTestId('settings-webhooks-list-error')).toBeTruthy());
   expect(screen.queryByTestId('settings-webhooks-empty')).toBeNull();
 
   mockList.mockResolvedValueOnce([]);
-  fireEvent.press(screen.getByTestId('settings-webhooks-list-retry'));
+  await fireEvent.press(screen.getByTestId('settings-webhooks-list-retry'));
   await waitFor(() => expect(screen.getByTestId('settings-webhooks-empty')).toBeTruthy());
 });
 
@@ -173,11 +173,11 @@ it('surfaces a failed delete on the row instead of silently leaving it in place'
     },
   };
   mockDelete.mockRejectedValue(refusal);
-  renderCard();
+  await renderCard();
   await waitFor(() => expect(screen.getByTestId('webhook-row-w1-delete')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('webhook-row-w1-delete'));
-  fireEvent.press(screen.getByTestId('webhook-row-w1-delete-confirm'));
+  await fireEvent.press(screen.getByTestId('webhook-row-w1-delete'));
+  await fireEvent.press(screen.getByTestId('webhook-row-w1-delete-confirm'));
 
   await waitFor(() => expect(screen.getByTestId('webhook-row-w1-delete-error')).toBeTruthy());
   expect(screen.getByText(/cannot remove/)).toBeTruthy();

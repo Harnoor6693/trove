@@ -57,9 +57,9 @@ const COMPLETE_RUN: TaxExportRunResponse = {
   fileSizeBytes: 4096,
 };
 
-function renderScreen() {
+async function renderScreen() {
   const client = createTestQueryClient();
-  render(
+  await render(
     <QueryClientProvider client={client}>
       <TaxExportRunsScreen />
     </QueryClientProvider>
@@ -73,7 +73,7 @@ beforeEach(() => {
 it('lists runs and shows "still generating" for a PENDING run, never an error', async () => {
   mockRuns.mockResolvedValue({ data: [PENDING_RUN], meta: { total: 1, page: 0, limit: 20 } });
   mockRun.mockResolvedValue(PENDING_RUN);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('tax-export-run-run1')).toBeTruthy());
   expect(screen.getByTestId('tax-export-run-run1-generating')).toBeTruthy();
   expect(screen.queryByTestId('tax-export-run-run1-view')).toBeNull();
@@ -82,13 +82,13 @@ it('lists runs and shows "still generating" for a PENDING run, never an error', 
 it('starts an export with the chosen year and format', async () => {
   mockRuns.mockResolvedValue({ data: [], meta: { total: 0, page: 0, limit: 20 } });
   mockCreate.mockResolvedValue(PENDING_RUN);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('tax-export-new-toggle')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('tax-export-new-toggle'));
-  fireEvent.changeText(screen.getByTestId('tax-export-create-form-year'), '2025');
-  fireEvent.press(screen.getByTestId('tax-export-create-form-format-PDF'));
-  fireEvent.press(screen.getByTestId('tax-export-create-form-submit'));
+  await fireEvent.press(screen.getByTestId('tax-export-new-toggle'));
+  await fireEvent.changeText(screen.getByTestId('tax-export-create-form-year'), '2025');
+  await fireEvent.press(screen.getByTestId('tax-export-create-form-format-PDF'));
+  await fireEvent.press(screen.getByTestId('tax-export-create-form-submit'));
 
   await waitFor(() => expect(mockCreate).toHaveBeenCalledWith({ taxYear: 2025, format: 'PDF' }));
 });
@@ -101,10 +101,10 @@ it('offers "View" only once a run is COMPLETE, and previews CSV text in-app', as
     text: 'date,amount,category\n2026-01-01,12.34,Software\n',
     byteLength: 42,
   });
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('tax-export-run-run2-view')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('tax-export-run-run2-view'));
+  await fireEvent.press(screen.getByTestId('tax-export-run-run2-view'));
 
   await waitFor(() => expect(mockFile).toHaveBeenCalledWith('run2', 'CSV'));
   await waitFor(() => expect(screen.getByTestId('tax-export-run-run2-preview')).toBeTruthy());
@@ -116,10 +116,10 @@ it('a PDF run shows only its size — no PDF content is ever rendered', async ()
   mockRuns.mockResolvedValue({ data: [pdfRun], meta: { total: 1, page: 0, limit: 20 } });
   mockRun.mockResolvedValue(pdfRun);
   mockFile.mockResolvedValue({ contentType: 'application/pdf', text: null, byteLength: 2048 });
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('tax-export-run-run3-view')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('tax-export-run-run3-view'));
+  await fireEvent.press(screen.getByTestId('tax-export-run-run3-view'));
 
   await waitFor(() => expect(screen.getByTestId('tax-export-run-run3-pdf-info')).toBeTruthy());
   expect(screen.queryByTestId('tax-export-run-run3-preview')).toBeNull();
@@ -145,10 +145,10 @@ it('a 409 mid-view shows "still generating", not a failure', async () => {
     },
   });
   mockFile.mockRejectedValue(conflict);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('tax-export-run-run2-view')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('tax-export-run-run2-view'));
+  await fireEvent.press(screen.getByTestId('tax-export-run-run2-view'));
 
   await waitFor(() => expect(screen.getByTestId('tax-export-run-run2-not-ready')).toBeTruthy());
   expect(screen.queryByTestId('tax-export-run-run2-view-error')).toBeNull();
@@ -162,13 +162,13 @@ it('dismissing the preview clears it from the screen and out of the mutation cac
     text: 'date,amount,category\n2026-01-01,12.34,Software\n',
     byteLength: 42,
   });
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('tax-export-run-run2-view')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('tax-export-run-run2-view'));
+  await fireEvent.press(screen.getByTestId('tax-export-run-run2-view'));
   await waitFor(() => expect(screen.getByTestId('tax-export-run-run2-preview')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('tax-export-run-run2-dismiss'));
+  await fireEvent.press(screen.getByTestId('tax-export-run-run2-dismiss'));
 
   // The whole household's ledger for a tax year should not linger on screen,
   // or in the mutation's own cached result, once dismissed.
@@ -180,12 +180,12 @@ it('deletes a run after confirmation, safe in any status', async () => {
   mockRuns.mockResolvedValue({ data: [PENDING_RUN], meta: { total: 1, page: 0, limit: 20 } });
   mockRun.mockResolvedValue(PENDING_RUN);
   mockDelete.mockResolvedValue(undefined);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('tax-export-run-run1-delete')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('tax-export-run-run1-delete'));
+  await fireEvent.press(screen.getByTestId('tax-export-run-run1-delete'));
   expect(mockDelete).not.toHaveBeenCalled();
-  fireEvent.press(screen.getByTestId('tax-export-run-run1-delete-confirm'));
+  await fireEvent.press(screen.getByTestId('tax-export-run-run1-delete-confirm'));
   await waitFor(() => expect(mockDelete).toHaveBeenCalledWith('run1'));
 });
 
@@ -211,7 +211,7 @@ describe('save or share', () => {
   it('offers no "Save or share" until the run is COMPLETE', async () => {
     mockRuns.mockResolvedValue({ data: [PENDING_RUN], meta: { total: 1, page: 0, limit: 20 } });
     mockRun.mockResolvedValue(PENDING_RUN);
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('tax-export-run-run1')).toBeTruthy());
     expect(screen.queryByTestId('tax-export-share-run1')).toBeNull();
   });
@@ -220,10 +220,10 @@ describe('save or share', () => {
     mockRuns.mockResolvedValue({ data: [COMPLETE_RUN], meta: { total: 1, page: 0, limit: 20 } });
     mockRun.mockResolvedValue(COMPLETE_RUN);
     mockBytes.mockResolvedValue(new Uint8Array([0x61, 0x2c, 0x62]).buffer);
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('tax-export-share-run2')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('tax-export-share-run2'));
+    await fireEvent.press(screen.getByTestId('tax-export-share-run2'));
 
     await waitFor(() => expect(mockShare).toHaveBeenCalledTimes(1));
     expect(mockBytes).toHaveBeenCalledWith('run2', 'CSV');
@@ -244,10 +244,10 @@ describe('save or share', () => {
     mockRuns.mockResolvedValue({ data: [pdfRun], meta: { total: 1, page: 0, limit: 20 } });
     mockRun.mockResolvedValue(pdfRun);
     mockBytes.mockResolvedValue(new Uint8Array([0x25, 0x50, 0x44, 0x46]).buffer);
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('tax-export-share-run3')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('tax-export-share-run3'));
+    await fireEvent.press(screen.getByTestId('tax-export-share-run3'));
 
     await waitFor(() =>
       expect(mockShare).toHaveBeenCalledWith('file:///cache/tax-export-2025.pdf', {
@@ -263,10 +263,10 @@ describe('save or share', () => {
     mockRuns.mockResolvedValue({ data: [COMPLETE_RUN], meta: { total: 1, page: 0, limit: 20 } });
     mockRun.mockResolvedValue(COMPLETE_RUN);
     mockBytes.mockRejectedValue(conflict());
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('tax-export-share-run2')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('tax-export-share-run2'));
+    await fireEvent.press(screen.getByTestId('tax-export-share-run2'));
 
     await waitFor(() => expect(screen.getByTestId('tax-export-run-run2-not-ready')).toBeTruthy());
     expect(screen.queryByTestId('tax-export-run-run2-share-error')).toBeNull();
@@ -278,10 +278,10 @@ describe('save or share', () => {
     mockRun.mockResolvedValue(COMPLETE_RUN);
     mockBytes.mockResolvedValue(new ArrayBuffer(1));
     (Sharing.isAvailableAsync as jest.Mock).mockResolvedValueOnce(false);
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('tax-export-share-run2')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('tax-export-share-run2'));
+    await fireEvent.press(screen.getByTestId('tax-export-share-run2'));
 
     await waitFor(() =>
       expect(screen.getByTestId('tax-export-run-run2-share-error').props.accessibilityRole).toBe(
@@ -308,7 +308,7 @@ it('a run the list already reports COMPLETE is shown as Ready even if its own qu
     status: 'PENDING',
     fileSizeBytes: null,
   });
-  render(
+  await render(
     <QueryClientProvider client={client}>
       <TaxExportRunsScreen />
     </QueryClientProvider>

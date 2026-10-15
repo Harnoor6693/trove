@@ -32,9 +32,9 @@ const GOAL: GoalResponse = {
   updatedAt: '2026-09-04T14:00:00Z',
 };
 
-function renderScreen() {
+async function renderScreen() {
   const client = createTestQueryClient();
-  render(
+  await render(
     <QueryClientProvider client={client}>
       <GoalsScreen />
     </QueryClientProvider>
@@ -47,7 +47,7 @@ beforeEach(() => {
 
 it('lists goals with progress rendered only from currentAmount/targetAmount', async () => {
   mockList.mockResolvedValue([GOAL]);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('goal-row-g1')).toBeTruthy());
   expect(screen.getByTestId('goal-current-g1')).toBeTruthy();
   expect(screen.getByTestId('goal-target-g1')).toBeTruthy();
@@ -56,13 +56,13 @@ it('lists goals with progress rendered only from currentAmount/targetAmount', as
 it('creates a goal without accepting currentAmount or achieved', async () => {
   mockList.mockResolvedValue([]);
   mockCreate.mockResolvedValue(GOAL);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('goals-new-toggle')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('goals-new-toggle'));
-  fireEvent.changeText(screen.getByTestId('goals-create-form-name'), 'Emergency Fund');
-  fireEvent.changeText(screen.getByTestId('goals-create-form-target'), '10000.00');
-  fireEvent.press(screen.getByTestId('goals-create-form-submit'));
+  await fireEvent.press(screen.getByTestId('goals-new-toggle'));
+  await fireEvent.changeText(screen.getByTestId('goals-create-form-name'), 'Emergency Fund');
+  await fireEvent.changeText(screen.getByTestId('goals-create-form-target'), '10000.00');
+  await fireEvent.press(screen.getByTestId('goals-create-form-submit'));
 
   await waitFor(() =>
     expect(mockCreate).toHaveBeenCalledWith({
@@ -76,12 +76,12 @@ it('creates a goal without accepting currentAmount or achieved', async () => {
 it('edits a goal, sending the full replace body including currentAmount', async () => {
   mockList.mockResolvedValue([GOAL]);
   mockUpdate.mockResolvedValue({ ...GOAL, currentAmount: '5000.0000' });
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('goal-edit-g1')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('goal-edit-g1'));
-  fireEvent.changeText(screen.getByTestId('goal-edit-form-g1-current'), '5000.00');
-  fireEvent.press(screen.getByTestId('goal-edit-form-g1-submit'));
+  await fireEvent.press(screen.getByTestId('goal-edit-g1'));
+  await fireEvent.changeText(screen.getByTestId('goal-edit-form-g1-current'), '5000.00');
+  await fireEvent.press(screen.getByTestId('goal-edit-form-g1-submit'));
 
   await waitFor(() =>
     expect(mockUpdate).toHaveBeenCalledWith('g1', {
@@ -96,11 +96,11 @@ it('edits a goal, sending the full replace body including currentAmount', async 
 it('requires a second press to delete', async () => {
   mockList.mockResolvedValue([GOAL]);
   mockDelete.mockResolvedValue(undefined);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('goal-delete-g1')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('goal-delete-g1'));
+  await fireEvent.press(screen.getByTestId('goal-delete-g1'));
   expect(mockDelete).not.toHaveBeenCalled();
-  fireEvent.press(screen.getByTestId('goal-delete-confirm-g1'));
+  await fireEvent.press(screen.getByTestId('goal-delete-confirm-g1'));
   await waitFor(() => expect(mockDelete).toHaveBeenCalledWith('g1'));
 });
