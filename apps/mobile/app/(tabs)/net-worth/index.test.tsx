@@ -161,3 +161,38 @@ it('changes range on chip press', async () => {
 
   await waitFor(() => expect(mockSeries).toHaveBeenCalledWith('3M'));
 });
+
+it('labels the time axis with the local calendar day (B5-09; Jest runs in Pacific/Auckland)', async () => {
+  {
+    mockSeries.mockResolvedValue({
+      primaryCurrency: 'CAD',
+      series: [
+        {
+          currency: 'CAD',
+          points: [
+            {
+              snapshotDate: '2026-10-05',
+              totalAssets: '3.0000',
+              totalLiabilities: '0.0000',
+              netWorth: '3.0000',
+            },
+            {
+              snapshotDate: '2026-10-06',
+              totalAssets: '4.0000',
+              totalLiabilities: '0.0000',
+              netWorth: '4.0000',
+            },
+          ],
+        },
+      ],
+    });
+    await renderScreen();
+    await waitFor(() => expect(screen.getByTestId('net-worth-chart-CAD')).toBeTruthy());
+
+    const timeAxis = screen
+      .getAllByTestId('victory-axis')
+      .find((axis) => !(axis.props as { dependentAxis?: boolean }).dependentAxis)!;
+    const tickFormat = (timeAxis.props as { tickFormat: (t: number) => string }).tickFormat;
+    expect(tickFormat(new Date('2026-10-05T00:00:00').getTime())).toMatch(/\b5\b/);
+  }
+});

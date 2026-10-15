@@ -14,6 +14,7 @@ import { toApiFailure } from '@api/errors';
 import { parseDecimal, useUserFormat, type UserFormat } from '@lib/useUserFormat';
 import { useNetWorthSeries, useTakeNetWorthSnapshot } from '@hooks/useNetWorth';
 import type { NetWorthRange, NetWorthSeries } from '@api/types';
+import { localDateIso } from '@lib/localDate';
 
 /**
  * `snapshotDate` is a plain calendar date (`YYYY-MM-DD`, §12300). Parsed as
@@ -186,9 +187,7 @@ function NetWorthChart({
             />
             <VictoryAxis
               scale={{ x: 'time' }}
-              tickFormat={(t: number) =>
-                format.date(new Date(t).toISOString().slice(0, 10), 'short')
-              }
+              tickFormat={(t: number) => format.date(localDateIso(new Date(t)), 'short')}
             />
             <VictoryLine
               data={one.points.map((point) => ({
