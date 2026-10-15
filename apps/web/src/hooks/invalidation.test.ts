@@ -1,6 +1,7 @@
 import { QueryClient } from '@tanstack/react-query'
 import { describe, expect, it } from 'vitest'
 import { invalidateAccountsAndLedger } from './useAccounts'
+import { invalidateCategories } from './useCategories'
 import { invalidateLedger } from './useTransactions'
 
 function seeded(keys: unknown[][]) {
@@ -19,5 +20,12 @@ describe('cross-view invalidation', () => {
       expect(stale(qc, ['budgets', 'envelopes', 'p1'])).toBe(true)
       expect(stale(qc, ['notifications', 'unread-count'])).toBe(true)
     }
+  })
+
+  it('a category change refreshes every view that shows category names (B4-07)', () => {
+    const keys = [['categories'], ['budgets', 'current'], ['transactions', 'list', {}], ['category-rules'], ['tax-export', 'runs']]
+    const qc = seeded(keys)
+    invalidateCategories(qc)
+    for (const k of keys) expect(stale(qc, k), String(k)).toBe(true)
   })
 })
