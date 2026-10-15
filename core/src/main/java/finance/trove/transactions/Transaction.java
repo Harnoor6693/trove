@@ -47,6 +47,9 @@ import org.hibernate.type.SqlTypes;
  * <p>Tenancy is {@link #getHouseholdId()}; {@link #getUserId()} means created-by, for audit.
  */
 @Entity
+// Only changed columns are written, so a background write of one column (transfer pairing,
+// category write-back) cannot overwrite a concurrent edit of another (B1-21).
+@org.hibernate.annotations.DynamicUpdate
 @Table(name = "transaction")
 public class Transaction {
 
