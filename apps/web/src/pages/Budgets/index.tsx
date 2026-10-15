@@ -64,6 +64,9 @@ function DialogShell({ title, onClose, children, testId }: DialogShellProps) {
   )
 }
 
+/** Amounts are 4-dp decimals; compare them at that precision, not as raw floating-point sums. */
+const differs = (a: number, b: number) => Math.round(a * 1e4) !== Math.round(b * 1e4)
+
 function currentMonthInput(): string {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -181,7 +184,7 @@ function EditPeriodDialog({
   // is the sole authority on the invariant (§202 scope item 6); a value that
   // this hint disagrees with is still submitted.
   const zeroBasedMismatch =
-    budgetType === 'ZERO_BASED' && Number(totalIncome) !== envelopeTotal
+    budgetType === 'ZERO_BASED' && differs(Number(totalIncome), envelopeTotal)
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -286,7 +289,7 @@ function CreateEnvelopeDialog({
   const zeroBasedMismatch =
     period.budgetType === 'ZERO_BASED' &&
     allocated !== '' &&
-    envelopeTotal + Number(allocated) !== Number(period.totalIncome)
+    differs(envelopeTotal + Number(allocated), Number(period.totalIncome))
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -365,7 +368,7 @@ function EditEnvelopeDialog({
   const zeroBasedMismatch =
     period.budgetType === 'ZERO_BASED' &&
     allocated !== '' &&
-    otherTotal + Number(allocated) !== Number(period.totalIncome)
+    differs(otherTotal + Number(allocated), Number(period.totalIncome))
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
