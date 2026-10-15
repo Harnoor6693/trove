@@ -258,7 +258,7 @@ jobs:
       - name: Run Detox Android tests
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
-          # Expo SDK 57 needs API 36, and .detoxrc.js boots the AVD by name:
+          # Expo SDK 58 (RN 0.88: targetSdk 36, compileSdk 37) runs on API 36, and .detoxrc.js boots the AVD by name:
           # keep api-level and avd-name in step with it.
           api-level: 36
           avd-name: Pixel_5_API_36
