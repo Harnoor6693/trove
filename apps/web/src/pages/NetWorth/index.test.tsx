@@ -28,14 +28,28 @@ describe('Net worth', () => {
     expect(cad).toHaveTextContent('CAD')
     expect(usd).toHaveTextContent('USD')
 
-    // One chart per currency — never one line mixing both.
-    expect(screen.getAllByTestId('ql-chart')).toHaveLength(2)
+    // A line needs two points: CAD has two snapshots and is charted, USD has one
+    // and is shown as figures instead — never one line mixing both.
+    expect(within(cad).getByTestId('ql-chart')).toBeInTheDocument()
+    expect(within(usd).queryByTestId('ql-chart')).not.toBeInTheDocument()
 
     // Nowhere on the page is a figure that adds the two currencies together.
     // The fixture's CAD net worth is 3980.5000 and USD is 12000.0000; a
     // blended total would be some form of "15980" or a bare "$" with no code.
     expect(screen.queryByText(/15,?980/)).not.toBeInTheDocument()
     expect(screen.queryByText(/^total net worth$/i)).not.toBeInTheDocument()
+  })
+
+  it('shows figures instead of a one-dot chart when a currency has a single snapshot (D1-04)', async () => {
+    authenticate()
+    resetMswState()
+    renderWithProviders(<NetWorth />)
+
+    const usd = await screen.findByTestId('networth-series-USD')
+    expect(within(usd).queryByTestId('ql-chart')).not.toBeInTheDocument()
+    expect(within(usd).getByTestId('networth-single-point')).toHaveTextContent(/assets/i)
+    expect(within(usd).getByTestId('networth-single-point')).toHaveTextContent(/liabilities/i)
+    expect(usd).toHaveTextContent(/trend appears after your second snapshot/i)
   })
 
   it('gives each chart a text-alternative table, since a line is not readable by a screen reader', async () => {

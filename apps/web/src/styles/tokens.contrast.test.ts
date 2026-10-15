@@ -1,8 +1,8 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+/// <reference types="node" />
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
 
-const css = readFileSync(resolve(__dirname, 'tokens.css'), 'utf8')
+const css = readFileSync(`${process.cwd()}/src/styles/tokens.css`, 'utf8')
 
 function token(name: string): string {
   const m = new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`).exec(css)
