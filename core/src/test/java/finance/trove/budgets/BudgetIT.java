@@ -214,6 +214,21 @@ class BudgetIT extends BudgetTestSupport {
     }
 
     @Test
+    @DisplayName("B2-02: an exponent-bomb income is a 400 in well under a second, not a minute of CPU")
+    void anExponentBombIncomeIsRefusedFast() {
+        Session member = freshHousehold("budget-bomb");
+
+        long started = System.nanoTime();
+        HttpResponse<String> response = postJson(appUrl("/v1/budgets"),
+            "{\"month\":\"2026-09-01\",\"totalIncome\":\"1e99999999\",\"currency\":\"CAD\","
+                + "\"budgetType\":\"FLEXIBLE\"}",
+            "Authorization", "Bearer " + member.accessToken());
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(System.nanoTime() - started).isLessThan(5_000_000_000L);
+    }
+
+    @Test
     @DisplayName("a negative income is refused with a field error")
     void aNegativeIncomeIsRefused() {
         Session member = freshHousehold("budget-validation");
