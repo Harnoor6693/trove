@@ -37,6 +37,9 @@ class EnvelopeSpendServiceIT extends BudgetTestSupport {
     @Autowired
     private TestBankSource source;
 
+    @Autowired
+    private finance.trove.transactions.TransferPairingJob pairingJob;
+
     private Session member;
     private String accountId;
     private String periodId;
@@ -94,6 +97,42 @@ class EnvelopeSpendServiceIT extends BudgetTestSupport {
         assertSpentEqualsTheSqlSum();
         assertThat(readEnvelope(member, periodId, envelopeId).path("spent").asString())
             .isEqualTo("100.0000");
+    }
+
+    @Test
+    @DisplayName("B2-04: deleting a categorised manual transaction takes it out of spent")
+    void deletingATransactionRecomputesSpent() {
+        String id = spend("60.00", "2026-09-05", "DEBIT", groceries);
+        assertThat(storedSpent(envelopeId)).isEqualByComparingTo(new BigDecimal("60.0000"));
+
+        HttpResponse<String> deleted = exchange("DELETE", appUrl("/v1/transactions/" + id), null,
+            "Authorization", "Bearer " + member.accessToken());
+        assertThat(deleted.statusCode()).as(deleted.body()).isEqualTo(200);
+
+        assertThat(storedSpent(envelopeId)).isEqualByComparingTo(BigDecimal.ZERO);
+        assertSpentEqualsTheSqlSum();
+    }
+
+    @Test
+    @DisplayName("B2-04: pairing a transfer, by the job or by PATCH, takes the leg out of spent")
+    void transferPairingRecomputesSpent() {
+        String other = createManualAccount(member, "Card " + UUID.randomUUID());
+        String debit = spend("60.00", "2026-09-25", "DEBIT", groceries);
+        createManualTransaction(member, other, "60.00", "2026-09-26", "CREDIT", "CARD PAYMENT");
+        assertThat(storedSpent(envelopeId)).isEqualByComparingTo(new BigDecimal("60.0000"));
+
+        pairingJob.runOnce();
+
+        assertThat(storedSpent(envelopeId))
+            .as("a paired leg is a transfer, not spending")
+            .isEqualByComparingTo(BigDecimal.ZERO);
+        assertSpentEqualsTheSqlSum();
+
+        HttpResponse<String> unlinked = patchJson(appUrl("/v1/transactions/" + debit),
+            "{\"transferGroupId\":null}", "Authorization", "Bearer " + member.accessToken());
+        assertThat(unlinked.statusCode()).as(unlinked.body()).isEqualTo(200);
+        assertThat(storedSpent(envelopeId)).isEqualByComparingTo(new BigDecimal("60.0000"));
+        assertSpentEqualsTheSqlSum();
     }
 
     @Test

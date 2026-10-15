@@ -1,13 +1,16 @@
 package finance.trove.transactions;
 
+import finance.trove.common.events.TransactionCategorisedEvent;
 import finance.trove.common.plugin.TransactionType;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -66,9 +69,12 @@ public class TransferPairingService {
     public static final int LOOKBACK_DAYS = 30;
 
     private final TransactionRepository transactions;
+    private final ApplicationEventPublisher events;
 
-    public TransferPairingService(TransactionRepository transactions) {
+    public TransferPairingService(TransactionRepository transactions,
+                                  ApplicationEventPublisher events) {
         this.transactions = transactions;
+        this.events = events;
     }
 
     /** Households with at least one unpaired leg in the window — the job's work list. */
@@ -88,6 +94,14 @@ public class TransferPairingService {
         List<Transaction> changed = pair(legs);
         if (!changed.isEmpty()) {
             transactions.saveAll(changed);
+            // A paired leg leaves every spend aggregate; tell the envelopes (B2-04).
+            for (Transaction leg : changed) {
+                if (leg.getCategoryId() != null) {
+                    events.publishEvent(new TransactionCategorisedEvent(householdId,
+                        leg.getUserId(), leg.getId(), leg.getCategoryId(), leg.getCategoryId(),
+                        YearMonth.from(leg.getDate()), leg.getCurrency()));
+                }
+            }
         }
         return changed.size() / 2;
     }
