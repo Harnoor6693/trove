@@ -685,12 +685,17 @@ export interface paths {
          *     byte count), `transactions.csv`, and one JSON document per dataset —
          *     accounts, categories, merchant rules, budget periods, envelopes, savings
          *     goals, subscriptions, net-worth snapshots, assets, liabilities, receipts,
-         *     coach conversations and notification preferences.
+         *     coach conversations, the member's own tax-line mappings and notification
+         *     preferences.
          *
-         *     The transactions file is written by the same builder the tax export uses,
-         *     with the same columns and the same protection: a cell that begins with an
-         *     equals sign, a plus, a minus, an at sign, a tab or a carriage return is
-         *     prefixed with an apostrophe, so a merchant literally named
+         *     `transactions.csv` is the whole ledger, every transaction the household
+         *     has: both legs of a transfer and pending rows are included. It uses the
+         *     tax export's columns followed by `type`, `accountId`, `transferGroupId`
+         *     and `pending`, and it has no totals section, so it is one rectangular
+         *     table an importer can read. It is UTF-8 with a byte order mark. The cell
+         *     protection is the tax export's: a cell that begins with an equals sign,
+         *     a plus, a minus, an at sign, a tab or a carriage return is prefixed with
+         *     an apostrophe, so a merchant literally named
          *     `=HYPERLINK("http://evil","click")` opens as text rather than as a live
          *     formula.
          *
@@ -703,11 +708,8 @@ export interface paths {
          *
          *     Every amount is a decimal string at the ledger's four-decimal scale and
          *     carries its own currency on its own row. Nothing is converted and no
-         *     total is blended across currencies. The only computed figures anywhere in
-         *     the archive are the plain per-currency sums in the `Totals by tax line`
-         *     section that the shared builder appends under the last row of
-         *     `transactions.csv`: one row per tax line per currency, added and nothing
-         *     else. Dates are the member's own local dates.
+         *     total is blended across currencies. No figure in the archive is computed.
+         *     Dates are the member's own local dates.
          *
          *     **The rows are the household's, the run is the member's.** The ledger is
          *     shared, so the archive contains the whole household's transactions; a
@@ -7555,7 +7557,12 @@ export interface components {
         /**
          * @description What the generated file is. `CSV` is the machine-readable one an
          *     accountant imports; `PDF` renders the same columns for printing. Both
-         *     carry the member's own amounts and labels and no computed figure.
+         *     carry the member's own amounts and labels. Amounts are always
+         *     positive; the final `type` column (`DEBIT`, `CREDIT`, `REFUND`, `FEE`,
+         *     `INTEREST`, `TRANSFER`, `OTHER`) says which way the money moved. The
+         *     per-tax-line totals are spending only: a `DEBIT` adds, a `REFUND`
+         *     subtracts, and every other type is listed on its row but never added
+         *     into a total. This is an export, not a tax calculation.
          * @example CSV
          * @enum {string}
          */
