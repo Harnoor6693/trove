@@ -7,7 +7,10 @@ import finance.trove.common.plugin.SourceKind;
 import finance.trove.ingestion.simplefin.dto.SimplefinAccount;
 import finance.trove.ingestion.simplefin.dto.SimplefinAccountSet;
 import finance.trove.ingestion.simplefin.dto.SimplefinTransaction;
+import java.time.DateTimeException;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -67,6 +70,7 @@ public class SimplefinSource implements BankSource {
                 + "account. Exchange a setup token again to relink it.");
         }
 
+        ZoneId zone = zoneOf(config.get(MEMBER_ZONE));
         SimplefinAccountSet set = bridge.fetchAccounts(accessUrl, from);
         List<RawTransaction> rows = new ArrayList<>();
         for (SimplefinAccount account : set.accountsOrEmpty()) {
@@ -74,7 +78,7 @@ public class SimplefinSource implements BankSource {
                 continue;
             }
             for (SimplefinTransaction transaction : account.transactions()) {
-                RawTransaction row = normalizer.normalize(account, transaction);
+                RawTransaction row = normalizer.normalize(account, transaction, zone);
                 if (row.date() == null) {
                     // Kept rather than dropped: the pipeline refuses it with "the source reported
                     // no date", which is counted and summarised into the run's log. Dropping it
@@ -87,5 +91,18 @@ public class SimplefinSource implements BankSource {
             }
         }
         return List.copyOf(rows);
+    }
+
+    /** The member's zone from {@code config}, or UTC when the caller sent none (B1-22). */
+    private static ZoneId zoneOf(String id) {
+        if (id == null) {
+            return ZoneOffset.UTC;
+        }
+        try {
+            return ZoneId.of(id);
+        } catch (DateTimeException e) {
+            // swallow-ok: UserClock already resolved this id; UTC is what dating was before.
+            return ZoneOffset.UTC;
+        }
     }
 }

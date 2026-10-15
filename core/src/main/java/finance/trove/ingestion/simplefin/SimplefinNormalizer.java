@@ -9,6 +9,7 @@ import finance.trove.ingestion.simplefin.dto.SimplefinTransaction;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Map;
 import org.springframework.stereotype.Component;
@@ -39,8 +40,16 @@ import org.springframework.stereotype.Component;
 @Component
 public class SimplefinNormalizer {
 
-    /** Maps one bridge transaction onto a {@link RawTransaction}. */
+    private static final long SECONDS_PER_DAY = 86_400;
+
+    /** {@link #normalize(SimplefinAccount, SimplefinTransaction, ZoneId)} for a member in UTC. */
     public RawTransaction normalize(SimplefinAccount account, SimplefinTransaction transaction) {
+        return normalize(account, transaction, ZoneOffset.UTC);
+    }
+
+    /** Maps one bridge transaction onto a {@link RawTransaction}, dated in {@code zone}. */
+    public RawTransaction normalize(SimplefinAccount account, SimplefinTransaction transaction,
+                                    ZoneId zone) {
         BigDecimal amount = Amounts.parse(transaction.amount());
         // The protocol writes "posted": 0 on a pending row; the epoch is not a settlement day.
         Instant posted = transaction.posted() == null || transaction.posted().getEpochSecond() == 0
@@ -54,16 +63,26 @@ public class SimplefinNormalizer {
             : Map.of();
         return new RawTransaction(transaction.id(), account.id(),
             amount == null ? null : amount.abs(), blankToNull(account.currency()),
-            transaction.description(), null, dateOf(transaction.transacted(), posted),
+            transaction.description(), null, dateOf(transaction.transacted(), posted, zone),
             pending ? null : posted,
             amount == null ? null : Amounts.direction(amount, transaction.description()), pending,
             metadata);
     }
 
-    /** {@code transacted_at}, then {@code posted}, then nothing — never the day of the sync. */
-    private static LocalDate dateOf(Instant transacted, Instant posted) {
+    /**
+     * {@code transacted_at}, then {@code posted}, then nothing — never the day of the sync.
+     *
+     * <p>B1-22: the day is the member's, in {@code zone}: 00:30 UTC on the 1st is 19:30 on the 31st
+     * in Toronto. A stamp of exactly midnight UTC is a bridge writing a bare date, and is that date
+     * everywhere; reading it in Toronto would move every such row back a day.
+     */
+    private static LocalDate dateOf(Instant transacted, Instant posted, ZoneId zone) {
         Instant when = transacted != null ? transacted : posted;
-        return when == null ? null : LocalDate.ofInstant(when, ZoneOffset.UTC);
+        if (when == null) {
+            return null;
+        }
+        boolean dateOnly = when.getEpochSecond() % SECONDS_PER_DAY == 0 && when.getNano() == 0;
+        return LocalDate.ofInstant(when, dateOnly ? ZoneOffset.UTC : zone);
     }
 
     private static String blankToNull(String value) {

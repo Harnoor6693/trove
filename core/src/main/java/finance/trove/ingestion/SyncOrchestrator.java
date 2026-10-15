@@ -11,6 +11,7 @@ import finance.trove.common.plugin.BankSourceConnectionException;
 import finance.trove.common.plugin.RawTransaction;
 import finance.trove.common.time.UserClock;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -168,7 +169,7 @@ public class SyncOrchestrator {
         try {
             List<RawTransaction> rows = source.fetch(account.getExternalAccountId(),
                 windowStart(account, userId), clock.today(userId),
-                config != null ? config : configOf(account));
+                withMemberZone(config != null ? config : configOf(account), userId));
             fetched = rows.size();
 
             batch = batchWriter.persist(account, userId, rows, importBatchId);
@@ -230,6 +231,16 @@ public class SyncOrchestrator {
             return clock.today(userId).minusDays(FIRST_SYNC_LOOKBACK_DAYS);
         }
         return clock.dateOf(userId, account.getLastSyncedAt()).minusDays(OVERLAP_DAYS);
+    }
+
+    /**
+     * {@code config} plus the member's zone under {@link BankSource#MEMBER_ZONE}: the window is
+     * the member's days, and so are the dates of the rows in it (B1-22).
+     */
+    private Map<String, String> withMemberZone(Map<String, String> config, UUID userId) {
+        Map<String, String> withZone = new HashMap<>(config);
+        withZone.put(BankSource.MEMBER_ZONE, clock.zoneOf(userId).getId());
+        return withZone;
     }
 
     /**

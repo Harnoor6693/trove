@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import finance.trove.app.support.Json;
 import finance.trove.app.support.LedgerSupport;
+import finance.trove.common.plugin.BankSource;
 import finance.trove.common.plugin.RawTransaction;
 import finance.trove.common.plugin.TransactionType;
+import finance.trove.common.time.UserClock;
 import java.math.BigDecimal;
 import java.net.http.HttpResponse;
 import java.time.Instant;
@@ -53,6 +55,9 @@ class SyncOrchestratorIT extends LedgerSupport {
 
     @Autowired
     private TestBankSource source;
+
+    @Autowired
+    private UserClock clock;
 
     private Session admin;
     private String accountId;
@@ -161,6 +166,19 @@ class SyncOrchestratorIT extends LedgerSupport {
         assertThat(new BigDecimal(rows.get(0).path("amount").asString()))
             .as("the bank charged 48.00; the ledger kept the 40.00 pre-authorisation for ever")
             .isEqualByComparingTo("48.00");
+    }
+
+    @Test
+    @DisplayName("B1-22: the source is told the member's zone, so it dates rows where they live")
+    void theSourceIsToldTheMembersZone() {
+        source.returning(List.of());
+
+        sync();
+
+        assertThat(source.lastConfig())
+            .as("SimpleFIN stamps rows in epoch seconds; read in UTC, a purchase at 20:00 in "
+                + "Toronto on the 31st landed on the 1st, and so in the next month")
+            .containsEntry(BankSource.MEMBER_ZONE, clock.zoneOf(admin.userId()).getId());
     }
 
     @Test
