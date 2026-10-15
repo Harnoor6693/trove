@@ -32,7 +32,7 @@ class CsvExportBuilderTest {
                                  String lineCode, String lineLabel) {
         return new ExportRow(LocalDate.of(2025, 3, 4), merchant, description, notes,
             new BigDecimal(amount), currency, category, lineCode, lineLabel, null,
-            TransactionType.DEBIT);
+            TransactionType.DEBIT, null, null, false);
     }
 
     private List<CSVRecord> parse(byte[] content) {
@@ -66,7 +66,7 @@ class CsvExportBuilderTest {
         UUID receiptId = UUID.fromString("00000000-0000-4000-8000-0000000000e1");
         byte[] content = builder.build(List.of(new ExportRow(LocalDate.of(2025, 3, 4), "Cafe",
             "Latte", "", new BigDecimal("11.30"), CurrencyCode.CAD, "Coffee Shops", "8523",
-            "Meals and entertainment", receiptId, TransactionType.DEBIT)));
+            "Meals and entertainment", receiptId, TransactionType.DEBIT, null, null, false)));
 
         List<CSVRecord> records = parse(content);
         assertThat(records.get(1).get(9))
@@ -204,7 +204,7 @@ class CsvExportBuilderTest {
 
     private static ExportRow typed(String merchant, String amount, TransactionType type) {
         return new ExportRow(LocalDate.of(2025, 3, 4), merchant, "", "", new BigDecimal(amount),
-            CurrencyCode.CAD, "Software", "8810", "Office expenses", null, type);
+            CurrencyCode.CAD, "Software", "8810", "Office expenses", null, type, null, null, false);
     }
 
     @Test

@@ -79,19 +79,38 @@ public class CsvExportBuilder {
 
     private static final byte[] UTF8_BOM = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
 
-    /** Builds the whole document. Never returns null. */
+    /** The extra columns the full data export adds after {@link #HEADERS} (B2-03). */
+    public static final List<String> LEDGER_HEADERS = List.of("type", "accountId",
+        "transferGroupId", "pending");
+
+    /** Builds the tax document: the fixed columns plus the totals section. Never returns null. */
     public byte[] build(List<ExportRow> rows) {
+        return render(rows, false);
+    }
+
+    /**
+     * Builds the full-ledger document for the data export: one row per transaction with the
+     * account, transfer group and pending flag, and no totals section, so it stays rectangular
+     * for an importer (B2-03).
+     */
+    public byte[] buildLedger(List<ExportRow> rows) {
+        return render(rows, true);
+    }
+
+    private byte[] render(List<ExportRow> rows, boolean ledger) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         // UTF-8 byte order mark: without it Excel on Windows reads the file as Latin-1 and
         // mangles accented merchants (B2-14).
         out.writeBytes(UTF8_BOM);
         try (OutputStreamWriter writer = new OutputStreamWriter(out, StandardCharsets.UTF_8);
              CSVPrinter printer = new CSVPrinter(writer,
-                 CSVFormat.DEFAULT.builder().setHeader(HEADERS.toArray(String[]::new)).get())) {
+                 CSVFormat.DEFAULT.builder().setHeader(headers(ledger)).get())) {
             for (ExportRow row : rows) {
-                printer.printRecord(transactionRecord(row));
+                printer.printRecord(ledger ? ledgerRecord(row) : transactionRecord(row));
             }
-            printTotals(printer, rows);
+            if (!ledger) {
+                printTotals(printer, rows);
+            }
         } catch (IOException e) {
             // A ByteArrayOutputStream does no I/O, so this is unreachable in practice. It is
             // rethrown rather than swallowed so that it can never become a silently truncated
@@ -99,6 +118,22 @@ public class CsvExportBuilder {
             throw new UncheckedIOException("Could not render the export as CSV", e);
         }
         return out.toByteArray();
+    }
+
+    private static String[] headers(boolean ledger) {
+        List<String> all = new ArrayList<>(HEADERS);
+        if (ledger) {
+            all.addAll(LEDGER_HEADERS);
+        }
+        return all.toArray(String[]::new);
+    }
+
+    private static List<String> ledgerRecord(ExportRow row) {
+        List<String> record = new ArrayList<>(transactionRecord(row));
+        record.add(escape(text(row.accountId())));
+        record.add(escape(text(row.transferGroupId())));
+        record.add(String.valueOf(row.pending()));
+        return record;
     }
 
     private static List<String> transactionRecord(ExportRow row) {

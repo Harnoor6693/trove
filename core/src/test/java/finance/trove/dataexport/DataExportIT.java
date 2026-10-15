@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import finance.trove.app.support.Json;
 import finance.trove.app.support.LedgerSupport;
 import finance.trove.common.storage.LocalDiskStorage;
+import finance.trove.transactions.TransferPairingJob;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -52,6 +53,9 @@ class DataExportIT extends LedgerSupport {
 
     @Autowired
     private DataExportSweep sweep;
+
+    @Autowired
+    private TransferPairingJob pairingJob;
 
     private Session admin;
 
@@ -203,7 +207,7 @@ class DataExportIT extends LedgerSupport {
         assertThat(csv.lines().findFirst().orElse(""))
             .as("the transactions file is CsvExportBuilder's, with the column list step 15 fixed")
             .isEqualTo("date,merchant,description,notes,amount,currency,category,taxLineCode,"
-                + "taxLineLabel,receiptId,type");
+                + "taxLineLabel,receiptId,type,accountId,transferGroupId,pending");
         assertThat(csv)
             .as("gap row 16's named regression, proved through THIS pipeline rather than through "
                 + "the builder in isolation: the merchant is neutralised, not merely escaped "
@@ -218,6 +222,32 @@ class DataExportIT extends LedgerSupport {
         assertThat(new String(entries.get("receipts.json"), StandardCharsets.UTF_8))
             .as("receipts are metadata only: no storage key ever leaves the server")
             .doesNotContain("receipts/" + member.householdId());
+    }
+
+    @Test
+    @DisplayName("A full export keeps paired transfer legs, names the account and has no totals (B2-03)")
+    void theFullExportKeepsTransferLegs() {
+        Session member = inviteAndRegister(admin, "data-export-transfers");
+        String chequing = createManualAccount(member, "Chequing " + UUID.randomUUID());
+        String card = createManualAccount(member, "Card " + UUID.randomUUID());
+        String today = todayForCaller(member);
+        createManualTransaction(member, chequing, "250.00", today, "DEBIT", "Card payment out");
+        createManualTransaction(member, card, "250.00", today, "CREDIT", "Card payment in");
+        pairingJob.runOnce();
+
+        String csv = new String(archiveOf(member, startAndComplete(member))
+            .get("transactions.csv"), StandardCharsets.UTF_8).replaceFirst("^\uFEFF", "");
+
+        assertThat(csv)
+            .as("a user leaving with everything needs both legs of a transfer")
+            .contains("Card payment out")
+            .contains("Card payment in")
+            .contains(chequing)
+            .contains(card)
+            .as("a rectangular file an importer can read: no totals section appended")
+            .doesNotContain("Totals by tax line");
+        assertThat(csv.lines().findFirst().orElse(""))
+            .endsWith(",type,accountId,transferGroupId,pending");
     }
 
     // ------------------------------------------------------------------ the refusals

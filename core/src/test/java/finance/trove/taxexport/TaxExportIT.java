@@ -164,10 +164,10 @@ class TaxExportIT extends LedgerSupport {
         assertThat(download.headers().firstValue("x-content-type-options").orElse(""))
             .isEqualTo("nosniff");
 
-        String csv = download.body();
+        String csv = download.body().replaceFirst("^\uFEFF", "");
         assertThat(csv.lines().findFirst().orElse(""))
             .isEqualTo("date,merchant,description,notes,amount,currency,category,taxLineCode,"
-                + "taxLineLabel,receiptId");
+                + "taxLineLabel,receiptId,type");
         assertThat(csv).contains("Office Depot", "Paper for the home office", "8810");
         assertThat(csv)
             .as("1 January and 31 December of the target year are both inside the window")

@@ -35,10 +35,10 @@ class PdfExportBuilderTest {
         return List.of(
             new ExportRow(LocalDate.of(2025, 6, 1), "Office Depot", "Printer paper", "For the desk",
                 new BigDecimal("42.5000"), CurrencyCode.CAD, "Office Supplies", "8810",
-                "T2125 line 8810 - Office expenses", null, TransactionType.DEBIT),
+                "T2125 line 8810 - Office expenses", null, TransactionType.DEBIT, null, null, false),
             new ExportRow(LocalDate.of(2025, 6, 2), "Corner Shop", "Milk", null,
                 new BigDecimal("3.2500"), CurrencyCode.USD, "Groceries", "NONE",
-                "No tax line - personal expense", null, TransactionType.DEBIT));
+                "No tax line - personal expense", null, TransactionType.DEBIT, null, null, false));
     }
 
     private static String textOf(byte[] pdf) {

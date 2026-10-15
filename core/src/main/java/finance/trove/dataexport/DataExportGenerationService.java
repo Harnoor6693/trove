@@ -195,7 +195,7 @@ public class DataExportGenerationService {
             categoryNames.put(category.getId(), category.getName());
         }
 
-        List<Transaction> ledger = transactions.findSpendableInRange(householdId, LEDGER_EPOCH,
+        List<Transaction> ledger = transactions.findAllInRange(householdId, LEDGER_EPOCH,
             LEDGER_HORIZON);
         List<ExportRow> rows = new ArrayList<>(ledger.size());
         for (Transaction transaction : ledger) {
@@ -211,7 +211,8 @@ public class DataExportGenerationService {
                 line.code(),
                 line.label(),
                 transaction.getReceiptId(),
-                transaction.getType()));
+                transaction.getType(), transaction.getAccountId(),
+                transaction.getTransferGroupId(), transaction.isPending()));
         }
         return rows;
     }

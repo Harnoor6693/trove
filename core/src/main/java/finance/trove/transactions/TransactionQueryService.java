@@ -119,6 +119,23 @@ public class TransactionQueryService {
     }
 
     /**
+     * Every transaction of this household in the inclusive window, transfer legs and pending
+     * rows included. Only the full data export uses it: a user leaving with their data needs the
+     * whole ledger, not the spending view (B2-03).
+     */
+    @Transactional(readOnly = true)
+    public List<Transaction> findAllInRange(UUID householdId, LocalDate from, LocalDate to) {
+        return entityManager.createQuery(
+                "select t from Transaction t where t.householdId = :householdId "
+                    + "and t.date >= :fromDate and t.date <= :toDate "
+                    + "order by t.date asc, t.createdAt asc", Transaction.class)
+            .setParameter("householdId", householdId)
+            .setParameter("fromDate", from)
+            .setParameter("toDate", to)
+            .getResultList();
+    }
+
+    /**
      * The household's rows with these ids — the read collapse step 8's ingest listener makes
      * (§6 D1).
      *
