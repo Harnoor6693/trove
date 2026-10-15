@@ -14,6 +14,7 @@ import { fieldError, toApiFailure } from '@api/errors';
 import { useAccounts } from '@hooks/useAccounts';
 import { useCreateManualTransaction } from '@hooks/useTransactions';
 import type { TransactionType } from '@api/types';
+import { normaliseAmountInput } from '@lib/amountInput';
 
 /**
  * Record a transaction by hand — `POST /v1/transactions`.
@@ -58,7 +59,7 @@ export default function NewTransactionScreen() {
     create.mutate(
       {
         accountId,
-        amount: amount.trim(),
+        amount: normaliseAmountInput(amount),
         date: date.trim(),
         type,
         merchant: merchant.trim() === '' ? undefined : merchant.trim(),

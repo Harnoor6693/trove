@@ -14,6 +14,7 @@ import { fieldError, toApiFailure } from '@api/errors';
 import { isUuid } from '@api/paths';
 import { useDeleteEnvelope, useEnvelope, useUpdateEnvelope } from '@hooks/useBudgets';
 import type { CurrencyCode } from '@api/types';
+import { normaliseAmountInput } from '@lib/amountInput';
 
 /**
  * One envelope: its live health (spent / allocated / remaining, the pace
@@ -48,7 +49,10 @@ export default function EnvelopeDetailScreen() {
   };
 
   const save = () => {
-    update.mutate({ allocated: allocated.trim() }, { onSuccess: () => setEditing(false) });
+    update.mutate(
+      { allocated: normaliseAmountInput(allocated) },
+      { onSuccess: () => setEditing(false) }
+    );
   };
 
   return (

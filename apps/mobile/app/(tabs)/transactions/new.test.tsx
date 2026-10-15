@@ -171,6 +171,18 @@ describe('recording a transaction', () => {
     expect(mockCreate.mock.calls[0][0]).not.toHaveProperty('currency');
   });
 
+  it('sends a comma-decimal amount as a dot decimal (B5-08)', async () => {
+    mockCreate.mockResolvedValue(CREATED);
+    await fillForm();
+    await act(async () => {
+      await fireEvent.changeText(screen.getByTestId('new-transaction-amount'), '12,34');
+    });
+    await act(async () => {
+      await fireEvent.press(screen.getByTestId('new-transaction-submit'));
+    });
+    expect(mockCreate.mock.calls[0][0].amount).toBe('12.34');
+  });
+
   it('carries the chosen type rather than assuming a debit', async () => {
     mockCreate.mockResolvedValue({ ...CREATED, type: 'CREDIT' });
     await fillForm();

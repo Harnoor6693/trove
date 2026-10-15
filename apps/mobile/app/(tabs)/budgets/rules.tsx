@@ -21,6 +21,7 @@ import {
   useUpdateCategoryRule,
 } from '@hooks/useCategories';
 import type { CategoryRuleResponse, MatchType } from '@api/types';
+import { normaliseAmountInput } from '@lib/amountInput';
 
 /**
  * `/v1/categories/rules*` — the household's merchant rules, in the ORDER
@@ -254,7 +255,7 @@ function RuleForm({
       merchant: merchant.trim(),
       matchType,
       categoryId,
-      confidence: confidence.trim() === '' ? undefined : confidence.trim(),
+      confidence: confidence.trim() === '' ? undefined : normaliseAmountInput(confidence),
     };
     if (mode === 'create') {
       create.mutate(body, { onSuccess: onDone });

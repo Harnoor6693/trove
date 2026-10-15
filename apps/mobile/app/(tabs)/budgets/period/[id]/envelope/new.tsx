@@ -13,6 +13,7 @@ import { isUuid } from '@api/paths';
 import { useCategories } from '@hooks/useCategories';
 import { useCreateEnvelope } from '@hooks/useBudgets';
 import { CURRENCY_CODES, type CurrencyCode } from '@api/types';
+import { normaliseAmountInput } from '@lib/amountInput';
 
 /**
  * `POST /v1/budgets/{id}/envelopes` — budget a category inside this period.
@@ -39,7 +40,7 @@ export default function NewEnvelopeScreen() {
 
   const submit = () => {
     create.mutate(
-      { categoryId, allocated: allocated.trim(), currency: currency ?? undefined },
+      { categoryId, allocated: normaliseAmountInput(allocated), currency: currency ?? undefined },
       { onSuccess: () => router.back() }
     );
   };

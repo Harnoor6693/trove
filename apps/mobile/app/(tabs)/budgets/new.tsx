@@ -12,6 +12,7 @@ import { fieldError, toApiFailure } from '@api/errors';
 import { BUDGET_TYPES, BUDGET_TYPE_HINT, BUDGET_TYPE_LABEL } from '@lib/labels';
 import { useCreateBudgetPeriod } from '@hooks/useBudgets';
 import { CURRENCY_CODES, type BudgetType, type CurrencyCode } from '@api/types';
+import { normaliseAmountInput } from '@lib/amountInput';
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -43,7 +44,7 @@ export default function NewBudgetPeriodScreen() {
     create.mutate(
       {
         month: month.trim(),
-        totalIncome: totalIncome.trim(),
+        totalIncome: normaliseAmountInput(totalIncome),
         currency: currency ?? undefined,
         budgetType: budgetType ?? undefined,
       },

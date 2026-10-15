@@ -13,6 +13,7 @@ import { useTheme } from '@design/useTheme';
 import { fieldError, toApiFailure, type ApiFailure } from '@api/errors';
 import { useCreateGoal, useDeleteGoal, useGoals, useUpdateGoal } from '@hooks/useGoals';
 import type { GoalResponse } from '@api/types';
+import { normaliseAmountInput } from '@lib/amountInput';
 
 /**
  * `/v1/goals*` — list, create, edit, delete. Not paged (a household
@@ -194,7 +195,7 @@ function GoalForm({
       create.mutate(
         {
           name: name.trim(),
-          targetAmount: targetAmount.trim(),
+          targetAmount: normaliseAmountInput(targetAmount),
           deadline: deadline.trim() === '' ? undefined : deadline.trim(),
         },
         { onSuccess: onDone }
@@ -203,8 +204,8 @@ function GoalForm({
       update.mutate(
         {
           name: name.trim(),
-          targetAmount: targetAmount.trim(),
-          currentAmount: currentAmount.trim(),
+          targetAmount: normaliseAmountInput(targetAmount),
+          currentAmount: normaliseAmountInput(currentAmount),
           deadline: deadline.trim() === '' ? null : deadline.trim(),
         },
         { onSuccess: onDone }
