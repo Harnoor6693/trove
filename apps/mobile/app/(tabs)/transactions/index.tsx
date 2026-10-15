@@ -184,7 +184,7 @@ export default function TransactionsScreen() {
               >
                 Loading more…
               </Text>
-            ) : null
+            ) : undefined
           }
           testID="transactions-list"
         />

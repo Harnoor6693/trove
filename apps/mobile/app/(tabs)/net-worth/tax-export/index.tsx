@@ -124,7 +124,7 @@ export default function TaxExportRunsScreen() {
               <Text style={[styles.footer, { color: theme.ink3 }]} testID="tax-export-loading-more">
                 Loading more…
               </Text>
-            ) : null
+            ) : undefined
           }
         />
       </ScreenState>
