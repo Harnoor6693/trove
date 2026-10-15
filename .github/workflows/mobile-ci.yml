@@ -136,6 +136,16 @@ jobs:
       - name: Build Detox iOS
         run: npx detox build --configuration ios.sim.debug
 
+      # The debug builds load JavaScript from Metro, so it must be running
+      # before Detox launches the app (locally it is the developer's `npm start`).
+      - name: Start Metro
+        run: |
+          nohup npx expo start --port 8081 > metro.log 2>&1 &
+          for _ in $(seq 1 90); do
+            curl -s http://localhost:8081/status | grep -q packager-status:running && exit 0
+            sleep 2
+          done
+          cat metro.log; exit 1
       - name: Run Detox iOS tests
         run: npx detox test --configuration ios.sim.debug --headless
 
@@ -187,6 +197,16 @@ jobs:
       - name: Build Detox Android
         run: npx detox build --configuration android.emu.debug
 
+      # The debug builds load JavaScript from Metro, so it must be running
+      # before Detox launches the app (locally it is the developer's `npm start`).
+      - name: Start Metro
+        run: |
+          nohup npx expo start --port 8081 > metro.log 2>&1 &
+          for _ in $(seq 1 90); do
+            curl -s http://localhost:8081/status | grep -q packager-status:running && exit 0
+            sleep 2
+          done
+          cat metro.log; exit 1
       - name: Run Detox Android tests
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
