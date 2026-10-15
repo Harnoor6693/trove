@@ -1,14 +1,17 @@
 package finance.trove.common.exception;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 import finance.trove.common.dto.ApiResponse;
 import finance.trove.common.dto.ErrorResponse;
+import finance.trove.common.json.TroveJsonModule;
 import finance.trove.common.observability.RequestIdMdcFilter;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -36,6 +39,8 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Every handler of {@code docs/recovery/06-COLLAPSE-PLAN.md} §5.3, exercised directly.
@@ -269,6 +274,25 @@ class GlobalExceptionHandlerTest {
         }
 
         @Test
+        @DisplayName("B2-02: an amount the column cannot hold is a field error, not unreadable JSON")
+        void anAmountTheColumnCannotHoldIsAFieldError() {
+            JsonMapper mapper = JsonMapper.builder().addModule(new TroveJsonModule()).build();
+            JacksonException refused = catchThrowableOfType(JacksonException.class,
+                () -> mapper.readValue("{\"targetAmount\":\"19.99999\"}", Goal.class));
+            HttpMessageNotReadableException exception = new HttpMessageNotReadableException(
+                "JSON parse error", refused, (org.springframework.http.HttpInputMessage) null);
+
+            ErrorResponse error =
+                errorOf(handler.handleNotReadable(exception, request), HttpStatus.BAD_REQUEST);
+
+            assertThat(error.type()).isEqualTo(ErrorResponse.TYPE_BASE_URI + "validation-error");
+            assertThat(error.fieldErrors()).singleElement().satisfies(field -> {
+                assertThat(field.field()).isEqualTo("targetAmount");
+                assertThat(field.message()).contains("4 after").doesNotContain("19.99999");
+            });
+        }
+
+        @Test
         void anOversizedUploadIs413() {
             ErrorResponse error = errorOf(
                 handler.handleUploadTooLarge(new MaxUploadSizeExceededException(20_971_520L),
@@ -484,5 +508,9 @@ class GlobalExceptionHandlerTest {
         public int getAmount() {
             return amount;
         }
+    }
+
+    /** A request body with one raw {@code BigDecimal}, as a goal's is. */
+    private record Goal(BigDecimal targetAmount) {
     }
 }
