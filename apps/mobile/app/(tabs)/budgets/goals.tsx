@@ -14,6 +14,7 @@ import { fieldError, toApiFailure, type ApiFailure } from '@api/errors';
 import { useCreateGoal, useDeleteGoal, useGoals, useUpdateGoal } from '@hooks/useGoals';
 import type { GoalResponse } from '@api/types';
 import { normaliseAmountInput } from '@lib/amountInput';
+import { keyboardScrollProps } from '@components/ui/FormScroll/FormScroll';
 
 /**
  * `/v1/goals*` — list, create, edit, delete. Not paged (a household
@@ -57,6 +58,7 @@ export default function GoalsScreen() {
         testID="goals"
       >
         <FlatList
+          {...keyboardScrollProps}
           data={goals.data ?? []}
           keyExtractor={(goal) => goal.id}
           contentContainerStyle={styles.list}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -23,6 +23,7 @@ import { useTheme } from '@design/useTheme';
 import { useUserFormat } from '@lib/useUserFormat';
 import type { CurrencyCode, ReceiptPatchRequest } from '@api/types';
 import { normaliseAmountInput } from '@lib/amountInput';
+import { FormScroll } from '@components/ui/FormScroll/FormScroll';
 
 /**
  * One receipt in full.
@@ -98,7 +99,7 @@ export default function ReceiptDetailScreen() {
       style={[styles.safe, { backgroundColor: theme.paper }]}
       testID="receipt-detail-screen"
     >
-      <ScrollView contentContainerStyle={styles.content}>
+      <FormScroll contentContainerStyle={styles.content}>
         <ScreenState
           isLoading={isLoading}
           error={error}
@@ -350,7 +351,7 @@ export default function ReceiptDetailScreen() {
             </>
           )}
         </ScreenState>
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }

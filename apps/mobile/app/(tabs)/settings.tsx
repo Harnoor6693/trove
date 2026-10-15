@@ -1,13 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Linking,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -40,6 +32,7 @@ import {
   type AppLockTimeout,
   type ThemePreference,
 } from '@stores/uiStore';
+import { FormScroll } from '@components/ui/FormScroll/FormScroll';
 
 /**
  * `locale` is a closed set on the server — §4.2 states `locale ∈ {en-CA, en-US}`
@@ -229,7 +222,7 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.paper }]} testID="settings-screen">
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <FormScroll contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {notice !== null && (
           <Text testID="settings-notice" style={[styles.notice, { color: theme.sage }]}>
             {notice}
@@ -584,7 +577,7 @@ export default function SettingsScreen() {
             void signOut().then(() => router.replace('/(auth)/login'));
           }}
         />
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }

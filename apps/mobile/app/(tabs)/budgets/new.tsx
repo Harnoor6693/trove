@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MnBtn } from '@components/ui/MnBtn/MnBtn';
@@ -14,6 +14,7 @@ import { useCreateBudgetPeriod } from '@hooks/useBudgets';
 import { CURRENCY_CODES, type BudgetType, type CurrencyCode } from '@api/types';
 import { normaliseAmountInput } from '@lib/amountInput';
 import { localDateIso } from '@lib/localDate';
+import { FormScroll } from '@components/ui/FormScroll/FormScroll';
 
 /**
  * `POST /v1/budgets` — open a budget period for a month.
@@ -54,7 +55,7 @@ export default function NewBudgetPeriodScreen() {
       style={[styles.safe, { backgroundColor: theme.paper }]}
       testID="new-budget-screen"
     >
-      <ScrollView contentContainerStyle={styles.content}>
+      <FormScroll contentContainerStyle={styles.content}>
         <MnBtn
           label="Back"
           variant="ghost"
@@ -164,7 +165,7 @@ export default function NewBudgetPeriodScreen() {
           onPress={submit}
           testID="new-budget-submit"
         />
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }

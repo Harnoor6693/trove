@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MnBtn } from '@components/ui/MnBtn/MnBtn';
@@ -16,6 +16,7 @@ import { fieldError, toApiFailure } from '@api/errors';
 import { isUuid } from '@api/paths';
 import { useDeleteTransaction, usePatchTransaction, useTransaction } from '@hooks/useTransactions';
 import { failureMessage } from '@components/ui/ScreenState/ScreenState';
+import { FormScroll } from '@components/ui/FormScroll/FormScroll';
 
 /**
  * One transaction — `GET`, `PATCH` and `DELETE /v1/transactions/{id}`.
@@ -83,7 +84,7 @@ export default function TransactionDetailScreen() {
       style={[styles.safe, { backgroundColor: theme.paper }]}
       testID="transaction-detail-screen"
     >
-      <ScrollView contentContainerStyle={styles.content}>
+      <FormScroll contentContainerStyle={styles.content}>
         <MnBtn
           label="Back"
           variant="ghost"
@@ -349,7 +350,7 @@ export default function TransactionDetailScreen() {
             </View>
           )}
         </ScreenState>
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }

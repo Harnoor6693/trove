@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MnBtn } from '@components/ui/MnBtn/MnBtn';
@@ -30,6 +30,7 @@ import {
   useUpdateAccount,
 } from '@hooks/useAccounts';
 import type { AccountType } from '@api/types';
+import { FormScroll } from '@components/ui/FormScroll/FormScroll';
 
 /**
  * One account — rename, sync, sync history, disconnect, and the way in to an
@@ -90,7 +91,7 @@ export default function AccountDetailScreen() {
       style={[styles.safe, { backgroundColor: theme.paper }]}
       testID="account-detail-screen"
     >
-      <ScrollView contentContainerStyle={styles.content}>
+      <FormScroll contentContainerStyle={styles.content}>
         <MnBtn
           label="Back"
           variant="ghost"
@@ -342,7 +343,7 @@ export default function AccountDetailScreen() {
             </View>
           )}
         </ScreenState>
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }

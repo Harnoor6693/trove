@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MnBtn } from '@components/ui/MnBtn/MnBtn';
@@ -14,6 +14,7 @@ import { useCategories } from '@hooks/useCategories';
 import { useCreateEnvelope } from '@hooks/useBudgets';
 import { CURRENCY_CODES, type CurrencyCode } from '@api/types';
 import { normaliseAmountInput } from '@lib/amountInput';
+import { FormScroll } from '@components/ui/FormScroll/FormScroll';
 
 /**
  * `POST /v1/budgets/{id}/envelopes` — budget a category inside this period.
@@ -50,7 +51,7 @@ export default function NewEnvelopeScreen() {
       style={[styles.safe, { backgroundColor: theme.paper }]}
       testID="new-envelope-screen"
     >
-      <ScrollView contentContainerStyle={styles.content}>
+      <FormScroll contentContainerStyle={styles.content}>
         <MnBtn
           label="Back"
           variant="ghost"
@@ -157,7 +158,7 @@ export default function NewEnvelopeScreen() {
             />
           </View>
         </ScreenState>
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }

@@ -14,6 +14,7 @@ import { useAssets, useCreateAsset, useDeleteAsset, useUpdateAsset } from '@hook
 import { useUserFormat } from '@lib/useUserFormat';
 import { CURRENCY_CODES, type AssetResponse, type CurrencyCode, type AssetType } from '@api/types';
 import { normaliseAmountInput } from '@lib/amountInput';
+import { keyboardScrollProps } from '@components/ui/FormScroll/FormScroll';
 
 const ASSET_TYPES: AssetType[] = ['CASH', 'INVESTMENT', 'REAL_ESTATE', 'VEHICLE', 'OTHER'];
 
@@ -64,6 +65,7 @@ export default function AssetsScreen() {
         testID="assets"
       >
         <FlatList
+          {...keyboardScrollProps}
           data={assets.data ?? []}
           keyExtractor={(asset) => asset.id}
           contentContainerStyle={styles.list}

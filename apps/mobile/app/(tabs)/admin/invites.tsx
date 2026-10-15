@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MnBtn } from '@components/ui/MnBtn/MnBtn';
@@ -13,6 +13,7 @@ import { useCreateInvite, useInvites, useRevokeInvite } from '@hooks/useAdmin';
 import { toApiFailure } from '@api/errors';
 import type { InviteResponse } from '@api/types';
 import { useUserFormat } from '@lib/useUserFormat';
+import { FormScroll } from '@components/ui/FormScroll/FormScroll';
 
 /**
  * Invitations — `GET/POST /v1/admin/invites` and `DELETE /v1/admin/invites/{id}`.
@@ -61,7 +62,7 @@ export default function AdminInvitesScreen() {
       style={[styles.safe, { backgroundColor: theme.paper }]}
       testID="admin-invites-screen"
     >
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <FormScroll contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={[styles.title, { color: theme.ink }]}>Invitations</Text>
 
         <AdminOnly error={invites.error}>
@@ -210,7 +211,7 @@ export default function AdminInvitesScreen() {
           style={styles.section}
           onPress={() => router.back()}
         />
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }

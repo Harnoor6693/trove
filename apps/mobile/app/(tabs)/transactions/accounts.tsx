@@ -1,13 +1,5 @@
 import React, { useState } from 'react';
-import {
-  FlatList,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MnBtn } from '@components/ui/MnBtn/MnBtn';
@@ -27,6 +19,7 @@ import {
 import { fieldError, toApiFailure } from '@api/errors';
 import { useAccounts, useCreateAccount, useExchangeSetupToken } from '@hooks/useAccounts';
 import type { AccountType, SourceKind } from '@api/types';
+import { FormScroll } from '@components/ui/FormScroll/FormScroll';
 
 /**
  * The accounts surface — `GET /v1/accounts`, `POST /v1/accounts` and
@@ -149,7 +142,7 @@ export default function AccountsScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.paper }]} testID="accounts-screen">
-      <ScrollView contentContainerStyle={styles.content}>
+      <FormScroll contentContainerStyle={styles.content}>
         <MnBtn label="Back" variant="ghost" onPress={() => router.back()} testID="accounts-back" />
         <MnEyebrow>Accounts</MnEyebrow>
 
@@ -331,7 +324,7 @@ export default function AccountsScreen() {
             testID="accounts-list"
           />
         </ScreenState>
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }

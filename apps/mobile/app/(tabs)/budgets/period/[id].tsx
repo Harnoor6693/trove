@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MnBtn } from '@components/ui/MnBtn/MnBtn';
@@ -10,6 +10,7 @@ import { Space } from '@design/tokens';
 import { useTheme } from '@design/useTheme';
 import { isUuid } from '@api/paths';
 import { useBudgetPeriod } from '@hooks/useBudgets';
+import { FormScroll } from '@components/ui/FormScroll/FormScroll';
 
 /** `GET /v1/budgets/{id}` — one period, from the periods list or a deep link. */
 export default function BudgetPeriodScreen() {
@@ -25,7 +26,7 @@ export default function BudgetPeriodScreen() {
       style={[styles.safe, { backgroundColor: theme.paper }]}
       testID="budget-period-screen"
     >
-      <ScrollView contentContainerStyle={styles.content}>
+      <FormScroll contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <MnBtn
             label="Back"
@@ -53,7 +54,7 @@ export default function BudgetPeriodScreen() {
             />
           ) : null}
         </ScreenState>
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }
