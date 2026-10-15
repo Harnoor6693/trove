@@ -12,11 +12,12 @@ import java.time.LocalDate;
  * on {@code (account_id, provider_transaction_id)} meant an OFX account could hold exactly one
  * transaction for ever (finding O7/M0).
  *
- * @param fitId      {@code FITID}
+ * @param fitId      {@code FITID}, or {@code null} when the block has none
  * @param type       {@code TRNTYPE}
  * @param datePosted {@code DTPOSTED}
  * @param dateUser   {@code DTUSER}
- * @param amount     {@code TRNAMT}, signed as the institution wrote it
+ * @param amount     {@code TRNAMT}, signed as the institution wrote it, or {@code null} when it
+ *                   is missing or not a number the ledger can store
  * @param name       {@code NAME}
  * @param memo       {@code MEMO}
  * @param checkNum   {@code CHECKNUM}

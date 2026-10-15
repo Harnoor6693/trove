@@ -152,33 +152,27 @@ public class OfxSgmlParser {
                     + maxTransactions + " transactions, which is more than this server imports in "
                     + "one file.");
             }
-            OfxTransaction transaction = parseTransaction(blocks[i]);
-            if (transaction != null) {
-                result.add(transaction);
-            }
+            result.add(parseTransaction(blocks[i]));
         }
         return result;
     }
 
     private OfxTransaction parseTransaction(String block) {
-        String fitId = extractTagValue(block, "FITID");
-        String amount = extractTagValue(block, "TRNAMT");
-        if (fitId == null || amount == null) {
-            return null;
-        }
-        BigDecimal parsedAmount = amount(amount);
-        if (parsedAmount == null) {
-            return null;
-        }
-        return new OfxTransaction(fitId, extractTagValue(block, "TRNTYPE"),
-            date(extractTagValue(block, "DTPOSTED")), date(extractTagValue(block, "DTUSER")),
-            parsedAmount, extractTagValue(block, "NAME"), extractTagValue(block, "MEMO"),
+        // A missing FITID or an unreadable TRNAMT stays null: OfxSource gives the row its reason.
+        return new OfxTransaction(extractTagValue(block, "FITID"),
+            extractTagValue(block, "TRNTYPE"), date(extractTagValue(block, "DTPOSTED")),
+            date(extractTagValue(block, "DTUSER")), amount(extractTagValue(block, "TRNAMT")),
+            extractTagValue(block, "NAME"), extractTagValue(block, "MEMO"),
             extractTagValue(block, "CHECKNUM"), extractTagValue(block, "CURSYM"));
     }
 
-    /** Through {@link Amounts#parse}: an exponent such as {@code -1E9999999} is not an amount. */
-    private static BigDecimal amount(String raw) {
-        return Amounts.parse(raw);
+    /**
+     * {@code TRNAMT} through {@link Amounts#parse}: an exponent such as {@code -1E9999999} is not an
+     * amount. OFX allows a decimal comma and no grouping, so a comma with no dot is the decimal
+     * point ({@code -12,50}).
+     */
+    static BigDecimal amount(String raw) {
+        return Amounts.parse(raw != null && raw.indexOf('.') < 0 ? raw.replace(',', '.') : raw);
     }
 
     /** OFX dates are {@code yyyyMMdd} with an optional time and zone suffix that is ignored. */
