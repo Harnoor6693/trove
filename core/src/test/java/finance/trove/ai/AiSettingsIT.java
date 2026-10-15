@@ -2,6 +2,7 @@ package finance.trove.ai;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import finance.trove.ai.AiGateway;
 import finance.trove.app.support.AuthFlowSupport;
 import finance.trove.app.support.Json;
 import java.net.http.HttpResponse;
@@ -9,6 +10,7 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -25,6 +27,9 @@ import tools.jackson.databind.JsonNode;
  * what happens when an endpoint cannot be reached.
  */
 class AiSettingsIT extends AuthFlowSupport {
+
+    @Autowired
+    private AiGateway gateway;
 
     private static final String ENDPOINT = "https://203.0.113.10/v1";
     private static final String API_KEY = "sk-integration-test-key-9f2c";
@@ -323,6 +328,28 @@ class AiSettingsIT extends AuthFlowSupport {
         JsonNode mine = Json.data(get(appUrl("/v1/ai/settings"), one.accessToken()).body());
         assertThat(mine.path("endpointUrl").asString()).isEqualTo(ENDPOINT);
         assertThat(mine.path("enabled").asBoolean()).isTrue();
+    }
+
+    @Test
+    @DisplayName("a member who has left is never called on behalf of, during the deletion grace too")
+    void aDeletedMembersSettingsAreNotUsed() {
+        Session admin = loginBootstrapAdmin();
+        Session member = inviteAndRegister(admin, "ai-leaver");
+        putJson(appUrl("/v1/ai/settings"),
+            settingsBody(true, ENDPOINT, API_KEY, "llama3", "llava", "LOCAL_ONLY"),
+            "Authorization", "Bearer " + member.accessToken());
+        assertThat(gateway.forUser(member.userId()).isEnabled())
+            .as("the settings are live while the member is, or the assertion below proves nothing")
+            .isTrue();
+
+        HttpResponse<String> deleted = delete(appUrl("/v1/admin/users/" + member.userId()),
+            null, "Authorization", "Bearer " + admin.accessToken());
+        assertThat(deleted.statusCode()).as(deleted.body()).isLessThan(300);
+
+        assertThat(gateway.forUser(member.userId()).isEnabled())
+            .as("B3-14: the receipt sweep re-runs a stuck receipt as its uploader, and spent a "
+                + "deleted member's key at their endpoint for the seven days of the grace")
+            .isFalse();
     }
 
     @Test

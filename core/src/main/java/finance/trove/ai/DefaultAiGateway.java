@@ -63,7 +63,8 @@ public class DefaultAiGateway implements AiGateway {
 
     @Override
     public AiHandle forUser(UUID userId) {
-        AiSettings settings = repository.findByUserId(userId)
+        // An inactive member reads as one who never configured AI: off (B3-14).
+        AiSettings settings = repository.findForActiveUser(userId)
             .orElseGet(() -> AiSettings.defaultsFor(userId));
         return new SettingsBackedHandle(userId, settings);
     }
