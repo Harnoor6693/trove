@@ -6,6 +6,7 @@ import * as Linking from 'expo-linking';
 import { AxiosError, AxiosHeaders } from 'axios';
 import { createTestQueryClient } from '@/test/queryClient';
 import { useReceiptCamera } from './useReceiptCamera';
+import { isLockSuppressed } from '@/security/lockSuppression';
 import { RECEIPT_MAX_UPLOAD_BYTES, uploadReceipt } from '@api/receipts';
 
 jest.mock('@api/receipts', () => ({
@@ -72,6 +73,30 @@ beforeEach(() => {
 afterEach(() => {
   clients.forEach((c) => c.clear());
   clients = [];
+});
+
+describe('app lock (B5-12)', () => {
+  it.each(['captureFromCamera', 'pickFromLibrary'] as const)(
+    '%s runs inside the lock-suppression window',
+    async (method) => {
+      const seen: boolean[] = [];
+      const launch = (
+        method === 'captureFromCamera'
+          ? ImagePicker.launchCameraAsync
+          : ImagePicker.launchImageLibraryAsync
+      ) as jest.Mock;
+      launch.mockImplementation(async () => {
+        seen.push(isLockSuppressed());
+        return { canceled: true };
+      });
+      const { result } = await renderHook(() => useReceiptCamera(), { wrapper });
+      await act(async () => {
+        await result.current[method]();
+      });
+      expect(seen).toEqual([true]);
+      expect(isLockSuppressed()).toBe(false);
+    }
+  );
 });
 
 describe('permissions', () => {
