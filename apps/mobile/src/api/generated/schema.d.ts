@@ -48,6 +48,15 @@ export interface paths {
          *
          *     An unrecognised `timezone` does not fail the request; it falls back to
          *     `UTC`. `currency` and `country` default to `CAD` and `CA`.
+         *
+         *     **`email-taken` tells the caller the address has an account.** A new
+         *     address is signed straight in, so the two answers cannot be made the
+         *     same without a success that creates nothing, and no email is sent that
+         *     could carry the difference instead. Only a caller holding an invite
+         *     without a bound address, or any caller once registration is open, can
+         *     ask. Each `email-taken` counts as a failed sign-in from the caller's
+         *     address, so asking meets the gate that guessing passwords meets: 429
+         *     `account-locked` after 20 inside 10 minutes.
          */
         post: operations["register"];
         delete?: never;
@@ -8864,7 +8873,7 @@ export interface components {
                 };
             };
         };
-        /** @description **429.** The sign-in was refused before any password was verified, for one of two reasons, and the slug says which. `account-locked` is the brute-force gate: too many failed attempts from this client address inside the lockout window, checked before a credential is read so it costs an attacker the same whether or not the account exists. `rate-limited` is the request-rate limiter in front of it: too many calls to this route from this client address, regardless of whether they failed. Both carry `Retry-After` in seconds. */
+        /** @description **429.** The sign-in or registration was refused before any password was verified, for one of two reasons, and the slug says which. `account-locked` is the brute-force gate: too many failed attempts from this client address inside the lockout window (a registration refused as `email-taken` counts as one), checked before a credential is read so it costs an attacker the same whether or not the account exists. `rate-limited` is the request-rate limiter in front of it: too many calls to this route from this client address, regardless of whether they failed. Both carry `Retry-After` in seconds. */
         LoginThrottled: {
             headers: {
                 "X-Request-Id": components["headers"]["XRequestId"];
@@ -9451,7 +9460,7 @@ export interface operations {
             403: components["responses"]["RegistrationClosed"];
             404: components["responses"]["InviteInvalid"];
             410: components["responses"]["InviteExpired"];
-            429: components["responses"]["RateLimited"];
+            429: components["responses"]["LoginThrottled"];
             500: components["responses"]["InternalServerError"];
             503: components["responses"]["LimiterUnavailable"];
         };

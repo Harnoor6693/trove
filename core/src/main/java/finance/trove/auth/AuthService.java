@@ -117,6 +117,7 @@ public class AuthService {
     @Transactional
     public LoginOutcome.Session register(RegisterRequest request, String ip, String userAgent,
                                          Instant now) {
+        lockout.assertAddressNotThrottled(ip, now);
         String email = normalise(request.email());
         boolean invited = request.inviteToken() != null && !request.inviteToken().isBlank();
 
@@ -138,6 +139,12 @@ public class AuthService {
         // Checked before the password is hashed: argon2id at 64 MiB is the expensive half of this
         // request, and there is no reason to spend it on a registration that cannot succeed.
         if (users.existsByEmailIgnoreCase(email)) {
+            // The answer discloses that the address has an account, and has to: a new address is
+            // signed straight in (EmailAlreadyRegisteredException's javadoc has the trade). What
+            // is bounded is how often it can be asked: recorded as a failed sign-in from this
+            // address, so the gate above refuses a prober exactly when it refuses a guesser
+            // (B3-09). Committed on its own, like every failure LockoutService records.
+            lockout.recordFailure(email, ip, null, now);
             throw new EmailAlreadyRegisteredException();
         }
 

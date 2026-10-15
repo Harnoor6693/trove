@@ -1009,7 +1009,7 @@
               "raw": "{\n  \"inviteToken\": \"aW52aXRlLXRva2VuLUVYQU1QTEUtbm90LXJlYWw\",\n  \"email\": \"invitee@example.test\",\n  \"password\": \"not-a-real-password-example\",\n  \"displayName\": \"Example Member\",\n  \"currency\": \"CAD\",\n  \"country\": \"CA\",\n  \"timezone\": \"America/Halifax\"\n}"
             },
             "description": {
-              "content": "201 with the same body shape as a login. Registration is closed by\ndefault: the ordinary path is redeeming an invite an admin minted, and\nthe household comes from that invite — never from this body.\n\nAn unrecognised `timezone` does not fail the request; it falls back to\n`UTC`. `currency` and `country` default to `CAD` and `CA`.\n",
+              "content": "201 with the same body shape as a login. Registration is closed by\ndefault: the ordinary path is redeeming an invite an admin minted, and\nthe household comes from that invite — never from this body.\n\nAn unrecognised `timezone` does not fail the request; it falls back to\n`UTC`. `currency` and `country` default to `CAD` and `CA`.\n\n**`email-taken` tells the caller the address has an account.** A new\naddress is signed straight in, so the two answers cannot be made the\nsame without a success that creates nothing, and no email is sent that\ncould carry the difference instead. Only a caller holding an invite\nwithout a bound address, or any caller once registration is open, can\nask. Each `email-taken` counts as a failed sign-in from the caller's\naddress, so asking meets the gate that guessing passwords meets: 429\n`account-locked` after 20 inside 10 minutes.\n",
               "type": "text/plain"
             },
             "header": [

@@ -21,7 +21,11 @@ import org.springframework.http.HttpStatus;
  * On an install that has deliberately opened self-serve signup the leak is the ordinary
  * signup-enumeration one that every "this email is taken" form has, and the alternative — a
  * silent success that creates no account — is worse: it produces a user who believes they have
- * registered and cannot log in.
+ * registered and cannot log in. Email is off, so there is no "check your inbox" to hide it behind.
+ *
+ * <p>What is bounded is how often it can be asked (B3-09): {@code AuthService#register} records
+ * each one as a failed sign-in from the caller's address, so probing for accounts meets the same
+ * per-address gate as guessing passwords. Its timing is left alone: the status already differs.
  */
 public class EmailAlreadyRegisteredException extends TroveException
     implements FieldAwareException {
