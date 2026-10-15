@@ -9,7 +9,6 @@ import finance.trove.common.plugin.SourceKind;
 import finance.trove.ingestion.simplefin.dto.SimplefinAccount;
 import finance.trove.ingestion.simplefin.dto.SimplefinAccountSet;
 import finance.trove.ingestion.simplefin.dto.SimplefinTransaction;
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -50,7 +49,7 @@ class SimplefinSourceTest {
             transaction("before", "2026-08-30"),
             transaction("inside", "2026-09-05"),
             transaction("after", "2026-10-02"),
-            new SimplefinTransaction("dateless", BigDecimal.ONE, "X", null, null))), null);
+            new SimplefinTransaction("dateless", "1", "X", null, null, null))), null);
 
         List<RawTransaction> rows = source.fetch("mine", FROM, TO, config("https://bridge/x"));
 
@@ -108,7 +107,7 @@ class SimplefinSourceTest {
 
     private static SimplefinTransaction transaction(String id, String date) {
         Instant at = LocalDate.parse(date).atStartOfDay(java.time.ZoneOffset.UTC).toInstant();
-        return new SimplefinTransaction(id, new BigDecimal("-1.00"), "A PURCHASE", at, at);
+        return new SimplefinTransaction(id, "-1.00", "A PURCHASE", at, at, null);
     }
 
     /** A bridge that answers from memory, so the source's own filtering is what is measured. */

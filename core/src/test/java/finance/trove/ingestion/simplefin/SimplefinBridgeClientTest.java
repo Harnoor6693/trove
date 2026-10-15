@@ -14,6 +14,7 @@ import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import finance.trove.app.HttpClientConfig;
+import finance.trove.app.JacksonConfig;
 import finance.trove.app.HttpClientProperties;
 import finance.trove.app.support.LogCapture;
 import finance.trove.common.exception.ConflictException;
@@ -23,6 +24,9 @@ import finance.trove.common.net.OutboundUrlPolicy;
 import finance.trove.common.net.OutboundUrlPolicyException;
 import finance.trove.common.net.ResolvedTarget;
 import finance.trove.common.plugin.BankSourceConnectionException;
+import finance.trove.common.plugin.RawTransaction;
+import finance.trove.ingestion.ParsedRow;
+import finance.trove.ingestion.simplefin.dto.SimplefinAccount;
 import finance.trove.ingestion.simplefin.dto.SimplefinAccountSet;
 import java.net.InetAddress;
 import java.time.LocalDate;
@@ -101,6 +105,41 @@ class SimplefinBridgeClientTest {
             .isInstanceOf(ConflictException.class)
             .hasMessageContaining("already been used")
             .hasMessageNotContaining("SECRET-SETUP-TOKEN-VALUE");
+    }
+
+    @Test
+    @DisplayName("B1-05: a spec-shaped response is read with transacted_at, pending and every row")
+    void readsTheProtocolsOwnFieldNames() throws java.io.IOException {
+        byte[] body;
+        try (java.io.InputStream in = getClass().getResourceAsStream("/simplefin/accounts.json")) {
+            body = java.util.Objects.requireNonNull(in).readAllBytes();
+        }
+        server.stubFor(get(urlPathEqualTo("/simplefin/" + ACCESS_SECRET + "/accounts"))
+            .willReturn(aResponse().withStatus(200)
+                .withHeader("Content-Type", "application/json").withBody(body)));
+        JsonMapper.Builder app = JsonMapper.builder();
+        new JacksonConfig().troveJsonMapperCustomizer().customize(app);
+        SimplefinBridgeClient appClient = new SimplefinBridgeClient(loopbackPolicy(), factory(),
+            SimplefinProperties.defaults(), app.build());
+
+        SimplefinAccountSet set = appClient.fetchAccounts(accessUrl(), LocalDate.of(2025, 10, 1));
+        SimplefinAccount account = set.accountsOrEmpty().get(0);
+        List<RawTransaction> rows = account.transactions().stream()
+            .map(tx -> new SimplefinNormalizer().normalize(account, tx)).toList();
+
+        assertThat(rows.get(0).date())
+            .as("transacted_at is the protocol's name; the record's 'transacted' never bound, so "
+                + "every row was dated by its posting day")
+            .isEqualTo(LocalDate.of(2025, 10, 9));
+        assertThat(rows.get(1).pending())
+            .as("\"pending\": true with \"posted\": 0 became a posted row dated 1970-01-01")
+            .isTrue();
+        assertThat(rows.get(1).postedAt()).isNull();
+        assertThat(rows.get(1).date()).isEqualTo(LocalDate.of(2025, 10, 11));
+        assertThat(rows.get(2).amount())
+            .as("one amount the ledger cannot store is that row's problem, not the whole sync's")
+            .isNull();
+        assertThat(rows.get(2).metadata().get(ParsedRow.PARSE_ERROR)).contains("amount");
     }
 
     @Test

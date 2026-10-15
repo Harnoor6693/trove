@@ -1,10 +1,13 @@
 package finance.trove.ingestion.simplefin;
 
+import finance.trove.common.domain.Money;
 import finance.trove.common.plugin.RawTransaction;
 import finance.trove.ingestion.Amounts;
+import finance.trove.ingestion.ParsedRow;
 import finance.trove.ingestion.simplefin.dto.SimplefinAccount;
 import finance.trove.ingestion.simplefin.dto.SimplefinTransaction;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Map;
@@ -23,8 +26,8 @@ import org.springframework.stereotype.Component;
  * discarded as a duplicate.
  *
  * <h2>The date</h2>
- * {@code transacted}, then {@code posted}, then <strong>nothing</strong>. The source fell back to
- * {@code LocalDate.now(UTC)} for a row with no {@code transacted}, which silently dated somebody
+ * {@code transacted_at}, then {@code posted}, then <strong>nothing</strong>. The source fell back
+ * to {@code LocalDate.now(UTC)} for a row with no {@code transacted}, which silently dated somebody
  * else's transaction to the day of the sync — wrong in a way no later reader could detect, and
  * wrong again on the next sync, producing a different row. A row with no date at all is refused by
  * {@code DeduplicationService} with a reason the member can see.
@@ -38,24 +41,29 @@ public class SimplefinNormalizer {
 
     /** Maps one bridge transaction onto a {@link RawTransaction}. */
     public RawTransaction normalize(SimplefinAccount account, SimplefinTransaction transaction) {
-        BigDecimal amount = transaction.amount();
-        LocalDate date = dateOf(transaction);
-        boolean pending = transaction.posted() == null;
+        BigDecimal amount = Amounts.parse(transaction.amount());
+        // The protocol writes "posted": 0 on a pending row; the epoch is not a settlement day.
+        Instant posted = transaction.posted() == null || transaction.posted().getEpochSecond() == 0
+            ? null
+            : transaction.posted();
+        boolean pending = Boolean.TRUE.equals(transaction.pending()) || posted == null;
+        Map<String, String> metadata = amount == null && transaction.amount() != null
+            ? Map.of(ParsedRow.PARSE_ERROR, "the amount is not a number this server can store "
+                + "(no exponent, at most " + Money.MAX_INTEGER_DIGITS + " digits before the "
+                + "decimal point and " + Money.MAX_FRACTION_DIGITS + " after it)")
+            : Map.of();
         return new RawTransaction(transaction.id(), account.id(),
             amount == null ? null : amount.abs(), blankToNull(account.currency()),
-            transaction.description(), null, date, transaction.posted(),
+            transaction.description(), null, dateOf(transaction.transacted(), posted),
+            pending ? null : posted,
             amount == null ? null : Amounts.direction(amount, transaction.description()), pending,
-            Map.of());
+            metadata);
     }
 
-    private static LocalDate dateOf(SimplefinTransaction transaction) {
-        if (transaction.transacted() != null) {
-            return LocalDate.ofInstant(transaction.transacted(), ZoneOffset.UTC);
-        }
-        if (transaction.posted() != null) {
-            return LocalDate.ofInstant(transaction.posted(), ZoneOffset.UTC);
-        }
-        return null;
+    /** {@code transacted_at}, then {@code posted}, then nothing — never the day of the sync. */
+    private static LocalDate dateOf(Instant transacted, Instant posted) {
+        Instant when = transacted != null ? transacted : posted;
+        return when == null ? null : LocalDate.ofInstant(when, ZoneOffset.UTC);
     }
 
     private static String blankToNull(String value) {
