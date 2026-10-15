@@ -7,6 +7,7 @@ import { authenticateWithBiometrics } from '@hooks/useBiometric';
 import { logError } from '@lib/logError';
 import { fetchMe } from '@api/me';
 import { fetchPreferences } from '@api/preferences';
+import { isLockSuppressed } from './lockSuppression';
 import { useAuthStore } from '@stores/authStore';
 import { useUiStore } from '@stores/uiStore';
 
@@ -115,7 +116,10 @@ export function AppLock({ children }: { children: React.ReactNode }) {
       setObscured(leaving);
 
       if (leaving) {
-        if (backgroundedAt.current === null) backgroundedAt.current = Date.now();
+        // The system camera/picker sent us away, not the member (B5-12).
+        if (backgroundedAt.current === null && !isLockSuppressed()) {
+          backgroundedAt.current = Date.now();
+        }
         return;
       }
 

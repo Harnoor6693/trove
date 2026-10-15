@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { RECEIPT_MAX_UPLOAD_BYTES, uploadReceipt } from '@api/receipts';
 import { toApiFailure, type ApiFailure } from '@api/errors';
 import type { ReceiptSource, ReceiptUploadResponse } from '@api/types';
+import { withLockSuppressed } from '@/security/lockSuppression';
 import { receiptKeys } from './useReceipts';
 
 /**
@@ -82,43 +83,54 @@ export function useReceiptCamera(): UseReceiptCamera {
   const [permissionDenied, setPermissionDenied] = useState<CaptureSource | null>(null);
   const [uploadFailure, setUploadFailure] = useState<ApiFailure | null>(null);
 
-  const captureFromCamera = useCallback(async (): Promise<PickedReceiptImage | null> => {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) {
-      setPermissionDenied('camera');
-      return null;
-    }
-    setPermissionDenied(null);
-    const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 });
-    const asset = result.canceled ? undefined : result.assets[0];
-    if (asset === undefined) return null;
-    // A photograph taken in the app is the contract's `SCAN`, and that is the
-    // only thing this path may claim.
-    return { uri: asset.uri, source: 'SCAN', mimeType: asset.mimeType ?? null };
-  }, []);
+  const captureFromCamera = useCallback(
+    (): Promise<PickedReceiptImage | null> =>
+      withLockSuppressed(async () => {
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+        if (!permission.granted) {
+          setPermissionDenied('camera');
+          return null;
+        }
+        setPermissionDenied(null);
+        const result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ['images'],
+          quality: 0.8,
+        });
+        const asset = result.canceled ? undefined : result.assets[0];
+        if (asset === undefined) return null;
+        // A photograph taken in the app is the contract's `SCAN`, and that is the
+        // only thing this path may claim.
+        return { uri: asset.uri, source: 'SCAN', mimeType: asset.mimeType ?? null };
+      }),
+    []
+  );
 
-  const pickFromLibrary = useCallback(async (): Promise<PickedReceiptImage | null> => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      setPermissionDenied('library');
-      return null;
-    }
-    setPermissionDenied(null);
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.8,
-      // iOS keeps a library photo in its stored format by default, which is
-      // HEIC — a format this API refuses. `Compatible` asks PhotoKit for the
-      // most compatible representation (JPEG). Ignored on Android.
-      preferredAssetRepresentationMode:
-        ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
-    });
-    const asset = result.canceled ? undefined : result.assets[0];
-    if (asset === undefined) return null;
-    // A file the member chose is `UPLOAD`. It is not a scan, the detail screen
-    // says which it was, and no later request can correct it.
-    return { uri: asset.uri, source: 'UPLOAD', mimeType: asset.mimeType ?? null };
-  }, []);
+  const pickFromLibrary = useCallback(
+    (): Promise<PickedReceiptImage | null> =>
+      withLockSuppressed(async () => {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+          setPermissionDenied('library');
+          return null;
+        }
+        setPermissionDenied(null);
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'],
+          quality: 0.8,
+          // iOS keeps a library photo in its stored format by default, which is
+          // HEIC — a format this API refuses. `Compatible` asks PhotoKit for the
+          // most compatible representation (JPEG). Ignored on Android.
+          preferredAssetRepresentationMode:
+            ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+        });
+        const asset = result.canceled ? undefined : result.assets[0];
+        if (asset === undefined) return null;
+        // A file the member chose is `UPLOAD`. It is not a scan, the detail screen
+        // says which it was, and no later request can correct it.
+        return { uri: asset.uri, source: 'UPLOAD', mimeType: asset.mimeType ?? null };
+      }),
+    []
+  );
 
   const uploadMutation = useMutation({
     mutationFn: (picked: PickedReceiptImage) =>

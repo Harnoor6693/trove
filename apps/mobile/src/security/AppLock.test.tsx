@@ -3,6 +3,7 @@ import { AppState, Text, type AppStateStatus } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { AppLock } from './AppLock';
+import { withLockSuppressed } from './lockSuppression';
 import { fetchMe } from '@api/me';
 import { fetchPreferences } from '@api/preferences';
 import { __resetClientForTests, refreshAccessToken, setSession } from '@api/client';
@@ -261,6 +262,23 @@ describe('background timeout', () => {
     await emitAppState('active');
 
     await waitFor(() => expect(useAuthStore.getState().status).toBe('locked'));
+  });
+
+  it('does not lock when the system camera or picker sent the app away (B5-12)', async () => {
+    useUiStore.setState({ appLockTimeoutMinutes: 0 });
+    const { getByTestId } = await render(
+      <AppLock>
+        <Child />
+      </AppLock>
+    );
+
+    await withLockSuppressed(async () => {
+      await emitAppState('background');
+    });
+    await emitAppState('active');
+
+    expect(useAuthStore.getState().status).toBe('authenticated');
+    expect(getByTestId('protected-content')).toBeTruthy();
   });
 
   it('never locks when the app lock is off', async () => {
