@@ -160,6 +160,22 @@ class ManualTransactionIT extends LedgerSupport {
     }
 
     @Test
+    @DisplayName("B1-14: an amount finer than a cent is refused, not rounded to 0.00 or 12.35")
+    void subCentAmountsAreRejected() {
+        Session admin = loginBootstrapAdmin();
+        String accountId = createManualAccount(admin, "Cash " + UUID.randomUUID());
+        for (String amount : new String[] {"0.004", "12.345"}) {
+            HttpResponse<String> response = withoutRequestValidation(
+                "the contract now says at most two decimals; this asserts the SERVER refuses a "
+                    + "finer amount too rather than trusting the document",
+                () -> postJson(appUrl("/v1/transactions"),
+                    Json.object("accountId", accountId, "amount", amount, "date", "2026-09-04"),
+                    "Authorization", "Bearer " + admin.accessToken()));
+            assertThat(response.statusCode()).as(amount).isEqualTo(400);
+        }
+    }
+
+    @Test
     @DisplayName("A hand-entered transaction can be deleted; a synced one cannot")
     void onlyManualRowsAreDeletable() {
         Session admin = loginBootstrapAdmin();
