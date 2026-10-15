@@ -21,10 +21,12 @@ import java.util.UUID;
  * @param updatedCount  transactions modified
  * @param failureReason human-readable cause; {@code null} when {@code outcome} is
  *                      {@link Outcome#SUCCESS}
+ * @param failureAlert  how a failure of this run is announced (C-01r)
  */
 public record SyncCompletedEvent(UUID householdId, UUID userId, UUID accountId, UUID syncLogId,
                                  Outcome outcome, int newCount, int updatedCount,
-                                 String failureReason) implements HouseholdEvent {
+                                 String failureReason, FailureAlert failureAlert)
+    implements HouseholdEvent {
 
     /** How a sync run ended. */
     public enum Outcome {
@@ -36,11 +38,36 @@ public record SyncCompletedEvent(UUID householdId, UUID userId, UUID accountId, 
         FAILURE
     }
 
+    /**
+     * How a failed run is announced to its member (C-01r).
+     *
+     * <p>A member who pressed Sync is watching; a scheduled run is not, and a dead connection
+     * would fail every day. So the scheduled job decides, before the run, whether the account was
+     * healthy — and a failure is news only on the run that moves it from healthy to failing.
+     */
+    public enum FailureAlert {
+        /** A manual run: at most one alert per account per recipient's local day. */
+        DAILY,
+        /** A scheduled run on a healthy account: a failure is announced, keyed by this run. */
+        ONCE,
+        /** A scheduled run on an account already failing: the member has been told. */
+        NONE
+    }
+
     public SyncCompletedEvent {
         Objects.requireNonNull(householdId, "householdId cannot be null");
         Objects.requireNonNull(userId, "userId cannot be null");
         Objects.requireNonNull(accountId, "accountId cannot be null");
         Objects.requireNonNull(outcome, "outcome cannot be null");
+        Objects.requireNonNull(failureAlert, "failureAlert cannot be null");
+    }
+
+    /** A manual run, which is what every run was before C-01r. */
+    public SyncCompletedEvent(UUID householdId, UUID userId, UUID accountId, UUID syncLogId,
+                              Outcome outcome, int newCount, int updatedCount,
+                              String failureReason) {
+        this(householdId, userId, accountId, syncLogId, outcome, newCount, updatedCount,
+            failureReason, FailureAlert.DAILY);
     }
 
     public boolean isSuccess() {

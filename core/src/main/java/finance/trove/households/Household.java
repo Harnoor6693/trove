@@ -21,6 +21,10 @@ import java.util.UUID;
  * {@code PUT /v1/admin/settings {registrationOpen}} is the write path; it is false by default,
  * because an open {@code /register} on the public internet lets a stranger create an account on
  * somebody's finance server (gap P2-7).
+ *
+ * <p>{@code scheduledSyncEnabled} (V45, C-01r) lives here for the same reason and is false by
+ * default for the same kind of reason: {@code ScheduledSyncJob} calls the SimpleFIN bridge on the
+ * server's own schedule only once an admin has said so.
  */
 @Entity
 @Table(name = "households")
@@ -36,6 +40,9 @@ public class Household {
 
     @Column(name = "registration_open", nullable = false)
     private boolean registrationOpen;
+
+    @Column(name = "scheduled_sync_enabled", nullable = false)
+    private boolean scheduledSyncEnabled;
 
     @Column(name = "created_at", nullable = false, updatable = false, insertable = false)
     private Instant createdAt;
@@ -67,6 +74,14 @@ public class Household {
 
     public void setRegistrationOpen(boolean registrationOpen) {
         this.registrationOpen = registrationOpen;
+    }
+
+    public boolean isScheduledSyncEnabled() {
+        return scheduledSyncEnabled;
+    }
+
+    public void setScheduledSyncEnabled(boolean scheduledSyncEnabled) {
+        this.scheduledSyncEnabled = scheduledSyncEnabled;
     }
 
     public Instant getCreatedAt() {

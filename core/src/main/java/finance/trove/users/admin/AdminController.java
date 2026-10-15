@@ -179,12 +179,12 @@ public class AdminController {
     @GetMapping("/settings")
     public ApiResponse<AdminSettingsResponse> settings(
         @AuthenticationPrincipal TroveUserDetails principal) {
-        return ApiResponse.ok(
-            new AdminSettingsResponse(household(principal).isRegistrationOpen()));
+        return ApiResponse.ok(AdminSettingsResponse.of(household(principal)));
     }
 
     /**
-     * {@code PUT /v1/admin/settings} — {@code {registrationOpen}}.
+     * {@code PUT /v1/admin/settings} — {@code {registrationOpen, scheduledSyncEnabled}}, each
+     * optional.
      *
      * <p>Written to the household row rather than to configuration so that an admin's decision
      * survives a restart. The environment variable is only ever a seed for the first boot.
@@ -197,9 +197,12 @@ public class AdminController {
         Household household = household(principal);
         if (request.registrationOpen() != null) {
             household.setRegistrationOpen(request.registrationOpen());
-            households.save(household);
         }
-        return ApiResponse.ok(new AdminSettingsResponse(household.isRegistrationOpen()));
+        if (request.scheduledSyncEnabled() != null) {
+            household.setScheduledSyncEnabled(request.scheduledSyncEnabled());
+        }
+        households.save(household);
+        return ApiResponse.ok(AdminSettingsResponse.of(household));
     }
 
     /**

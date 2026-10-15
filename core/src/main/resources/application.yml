@@ -205,6 +205,19 @@ trove:
     connect-timeout-ms: ${TROVE_SIMPLEFIN_CONNECT_TIMEOUT_MS:5000}
     read-timeout-ms: ${TROVE_SIMPLEFIN_READ_TIMEOUT_MS:30000}
     max-response-bytes: ${TROVE_SIMPLEFIN_MAX_RESPONSE_BYTES:8388608}
+    # When ScheduledSyncJob runs (C-01r) — and it does nothing unless an admin has turned on
+    # "scheduledSyncEnabled" in Settings. Once a day, at 09:17 UTC (05:17 in Toronto, 02:17 in
+    # Vancouver), so the day's data is in before anyone looks. Not more often, because:
+    #   - SimpleFIN Bridge "is intended to provide daily updates" and asks for "24 requests or fewer
+    #     per day"; going past the warning level disables the access token
+    #     (https://beta-bridge.simplefin.org/info/developers). Its 429 says "SimpleFIN data is only
+    #     refreshed once every 24 hours" (https://github.com/orgs/firefly-iii/discussions/12222).
+    #   - Every Trove account is its own GET /accounts on the shared token, so one run costs one
+    #     request per connected account. Daily keeps a household with 20 accounts inside the quota
+    #     and leaves room for the manual Sync button.
+    #   - An odd minute, because the bridge's guide asks for one: the top of the hour is busiest.
+    # Spring cron, six fields, always UTC. "-" disables the trigger outright.
+    scheduled-sync-cron: ${TROVE_SIMPLEFIN_SCHEDULED_SYNC_CRON:0 17 9 * * *}
 
   # Request-rate ceiling (§5.8, gap P2-5). The LIMITS are not here: they live in the
   # rate_limit_config table (V12) so an admin can retune one on a running install. Only the

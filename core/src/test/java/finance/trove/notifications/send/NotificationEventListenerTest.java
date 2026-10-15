@@ -342,6 +342,61 @@ class NotificationEventListenerTest {
         verify(notifications, never()).notify(any(), any(), any());
     }
 
+    // ------------------------------------------------- C-01r: scheduled sync, no nagging
+
+    @Test
+    @DisplayName("C-01r: a scheduled failure on a healthy account is keyed by the run, not the day")
+    void aScheduledFailureOnAHealthyAccountIsKeyedByTheRun() {
+        UUID owner = member("America/Toronto", null, true);
+        UUID run = UUID.randomUUID();
+        ArgumentCaptor<NotificationContent> content =
+            ArgumentCaptor.forClass(NotificationContent.class);
+
+        listener.onSyncCompleted(new SyncCompletedEvent(HOUSEHOLD, owner, ACCOUNT, run,
+            SyncCompletedEvent.Outcome.FAILURE, 0, 0, "expired",
+            SyncCompletedEvent.FailureAlert.ONCE));
+
+        verify(notifications).notify(eq(owner), eq(NotificationType.SYNC_FAILED),
+            content.capture());
+        assertThat(content.getValue().dedupKey())
+            .as("the day key would swallow the alert for an account that recovers and fails "
+                + "again on the same day")
+            .isEqualTo(ACCOUNT + ":" + run);
+    }
+
+    @Test
+    @DisplayName("C-01r: a scheduled failure on an account already failing tells nobody again")
+    void aScheduledFailureOnAFailingAccountIsSilent() {
+        UUID owner = member("America/Toronto", null, true);
+
+        listener.onSyncCompleted(new SyncCompletedEvent(HOUSEHOLD, owner, ACCOUNT,
+            UUID.randomUUID(), SyncCompletedEvent.Outcome.FAILURE, 0, 0, "expired",
+            SyncCompletedEvent.FailureAlert.NONE));
+
+        verify(notifications, never()).notify(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("C-01r: a scheduled run still honours the member's sync-alert preference")
+    void aScheduledFailureHonoursThePreference() {
+        UUID owner = member("America/Toronto", null, true);
+        rows.get(owner).setSyncFailureAlertEnabled(false);
+
+        listener.onSyncCompleted(new SyncCompletedEvent(HOUSEHOLD, owner, ACCOUNT,
+            UUID.randomUUID(), SyncCompletedEvent.Outcome.FAILURE, 0, 0, "expired",
+            SyncCompletedEvent.FailureAlert.ONCE));
+
+        verify(notifications, never()).notify(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("C-01r: the old eight-argument event is a manual run, alerted daily as before")
+    void theEightArgumentEventIsManual() {
+        assertThat(new SyncCompletedEvent(HOUSEHOLD, UUID.randomUUID(), ACCOUNT,
+            UUID.randomUUID(), SyncCompletedEvent.Outcome.FAILURE, 0, 0, "expired")
+            .failureAlert()).isEqualTo(SyncCompletedEvent.FailureAlert.DAILY);
+    }
+
     // ------------------------------------------------- collapse step 18: receipt.processed
 
     @Test
