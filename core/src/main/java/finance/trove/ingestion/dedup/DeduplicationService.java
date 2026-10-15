@@ -146,7 +146,7 @@ public class DeduplicationService {
             batch.markMatched(matched.getId());
             if (promotesToPosted(matched, incoming)) {
                 matched.markPosted(incoming.postedAt() != null ? incoming.postedAt()
-                    : Instants.now());
+                    : Instants.now(), incoming.amount());
                 return new Outcome(DeduplicationResult.UPDATED, matched);
             }
             return new Outcome(DeduplicationResult.SKIPPED, matched);
@@ -262,9 +262,10 @@ public class DeduplicationService {
     /**
      * Whether the one in-place change ingestion ever makes applies: a pending row that has posted.
      *
-     * <p>Nothing else is overwritten. A member may have corrected the merchant, added notes or
-     * pinned a category since the row was first seen, and a re-sync that reasserted the source's
-     * view of those fields would quietly undo their work on every run.
+     * <p>The posted amount replaces the pending one (B1-07): a pre-authorisation is not what the
+     * bank charged. Nothing else is overwritten. A member may have corrected the merchant, added
+     * notes or pinned a category since the row was first seen, and a re-sync that reasserted the
+     * source's view of those fields would quietly undo their work on every run.
      */
     private static boolean promotesToPosted(Transaction existing, RawTransaction incoming) {
         return existing.isPending() && !incoming.pending();
