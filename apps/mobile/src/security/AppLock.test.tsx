@@ -145,6 +145,37 @@ describe('locked state', () => {
     expect(queryByTestId('protected-content')).toBeNull();
   });
 
+  it('asks for the device passcode when no biometrics are enrolled (B5-04)', async () => {
+    (LocalAuthentication.isEnrolledAsync as jest.Mock).mockResolvedValue(false);
+    const { getByTestId } = await render(
+      <AppLock>
+        <Child />
+      </AppLock>
+    );
+    await fireEvent.press(getByTestId('app-lock-unlock-btn'));
+
+    await waitFor(() => expect(getByTestId('protected-content')).toBeTruthy());
+    expect(mockAuthenticate).toHaveBeenCalledWith(
+      expect.objectContaining({ disableDeviceFallback: false })
+    );
+  });
+
+  it('stays locked, and says why, when the device has no passcode at all (B5-04)', async () => {
+    (LocalAuthentication.isEnrolledAsync as jest.Mock).mockResolvedValue(false);
+    mockAuthenticate.mockResolvedValue({ success: false, error: 'not_enrolled' });
+    const { getByTestId, queryByTestId } = await render(
+      <AppLock>
+        <Child />
+      </AppLock>
+    );
+    await fireEvent.press(getByTestId('app-lock-unlock-btn'));
+
+    await waitFor(() => expect(getByTestId('app-lock-error')).toBeTruthy());
+    expect(getByTestId('app-lock-error').props.children).toMatch(/passcode/i);
+    expect(queryByTestId('protected-content')).toBeNull();
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
   it('reports an expired session when the server rejects the refresh', async () => {
     mockRefresh.mockRejectedValue(new Error('refresh rejected'));
 
