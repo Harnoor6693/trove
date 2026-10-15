@@ -2,6 +2,7 @@ package finance.trove.ingestion.dedup;
 
 import finance.trove.accounts.ConnectedAccount;
 import finance.trove.common.domain.CurrencyCode;
+import finance.trove.common.domain.Money;
 import finance.trove.common.plugin.RawTransaction;
 import finance.trove.common.plugin.TransactionType;
 import finance.trove.common.time.Instants;
@@ -337,6 +338,13 @@ public class DeduplicationService {
         }
         if (incoming.amount() == null) {
             throw new RawTransactionRejectedException("the source reported no amount");
+        }
+        if (!Money.fitsColumn(incoming.amount())) {
+            // B1-04: before anything rounds it. CurrencyCode.normalise on 1E9999999 is seconds
+            // of CPU, and the column could not hold the result anyway.
+            throw new RawTransactionRejectedException("the amount is too large, or has more than "
+                + Money.MAX_FRACTION_DIGITS + " decimal places; this server stores at most "
+                + Money.MAX_INTEGER_DIGITS + " digits before the decimal point");
         }
         if (incoming.type() == null) {
             throw new RawTransactionRejectedException("the source reported no transaction type; "
