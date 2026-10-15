@@ -65,15 +65,15 @@ class TaxExportIT extends LedgerSupport {
         String american = createAccount(member, MANUAL, "Export USD " + UUID.randomUUID(),
             "OTHER", "USD");
 
-        record(canadian, "125.5000", TAX_YEAR + "-01-01", "Office Depot",
+        record(canadian, "125.50", TAX_YEAR + "-01-01", "Office Depot",
             systemCategoryId(member, "business.office"), "Paper for the home office");
-        record(canadian, "31.2500", TAX_YEAR + "-12-31", HOSTILE_MERCHANT,
+        record(canadian, "31.25", TAX_YEAR + "-12-31", HOSTILE_MERCHANT,
             systemCategoryId(member, "food.grocery"), null);
-        record(american, "42.0000", TAX_YEAR + "-06-15", "Some Software Co",
+        record(american, "42.00", TAX_YEAR + "-06-15", "Some Software Co",
             systemCategoryId(member, "business.software"), null);
         // Outside the window on both sides: the export must not carry either of these.
-        record(canadian, "999.0000", (TAX_YEAR - 1) + "-12-31", "Too Early", null, null);
-        record(canadian, "888.0000", (TAX_YEAR + 1) + "-01-01", "Too Late", null, null);
+        record(canadian, "999.00", (TAX_YEAR - 1) + "-12-31", "Too Early", null, null);
+        record(canadian, "888.00", (TAX_YEAR + 1) + "-01-01", "Too Late", null, null);
     }
 
     private void record(String accountId, String amount, String date, String merchant,
