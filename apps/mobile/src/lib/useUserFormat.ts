@@ -39,6 +39,8 @@ export interface UserFormat extends UserFormatContext {
   number: (value: number, options?: Intl.NumberFormatOptions) => string;
   /** Format an ISO date (`2026-09-03`) or instant in the user's timezone. */
   date: (iso: string | null | undefined, style?: DateStyle) => string;
+  /** How long ago an instant was ("3 hours ago"), in the user's locale. */
+  relative: (iso: string | null | undefined, now?: number) => string;
 }
 
 export interface MoneyOptions {
@@ -49,6 +51,15 @@ export interface MoneyOptions {
   /** Always show a leading `+` on positive amounts. */
   signed?: boolean;
 }
+
+/** Largest unit first: an instant 26 hours old reads "yesterday", not "26 hours ago". */
+const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
+  ['year', 365 * 24 * 3600],
+  ['month', 30 * 24 * 3600],
+  ['day', 24 * 3600],
+  ['hour', 3600],
+  ['minute', 60],
+];
 
 export type DateStyle = 'short' | 'medium' | 'long' | 'monthYear' | 'dateTime';
 
@@ -150,7 +161,28 @@ export function createUserFormat(context: UserFormatContext): UserFormat {
     }).format(parsed);
   };
 
-  return { currency, locale, timeZone, money, number, date };
+  const relative: UserFormat['relative'] = (iso, now = Date.now()) => {
+    const at = typeof iso === 'string' ? Date.parse(iso) : Number.NaN;
+    if (Number.isNaN(at)) return UNKNOWN_VALUE;
+    const seconds = Math.round((at - now) / 1000);
+    if (Math.abs(seconds) < 60) return 'just now';
+    const [unit, size] =
+      RELATIVE_UNITS.find(([, length]) => Math.abs(seconds) >= length) ?? RELATIVE_UNITS[4];
+    const value = Math.round(seconds / size);
+    // Hermes ships Collator, DateTimeFormat and NumberFormat but not
+    // RelativeTimeFormat (hermes doc/IntlAPIs.md; facebook/hermes#1539), and
+    // this app adds no polyfill. Where the engine has it, it is used; where it
+    // does not, an English phrase of the same shape stands in.
+    if (typeof Intl.RelativeTimeFormat === 'function') {
+      return new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(value, unit);
+    }
+    if (unit === 'day' && value === -1) return 'yesterday';
+    const count = Math.abs(value);
+    const phrase = `${count} ${unit}${count === 1 ? '' : 's'}`;
+    return value < 0 ? `${phrase} ago` : `in ${phrase}`;
+  };
+
+  return { currency, locale, timeZone, money, number, date, relative };
 }
 
 /**

@@ -82,8 +82,41 @@ describe('AccountCard', () => {
   });
 
   it('carries an accessible label naming the account, type, currency and state', async () => {
-    await render(<AccountCard account={account()} />);
+    await render(<AccountCard account={account({ sourceKind: 'MANUAL', lastSyncedAt: null })} />);
     expect(screen.getByLabelText('Everyday Chequing, Chequing, CAD, Up to date')).toBeTruthy();
+  });
+
+  describe('freshness (C-01r)', () => {
+    beforeEach(() => {
+      jest.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-09-04T17:00:00Z'));
+    });
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('says how long ago a bank connection synced, with the exact time as its label', async () => {
+      await render(<AccountCard account={account()} />);
+      const synced = screen.getByTestId('account-synced-a1');
+      expect(synced.props.children).toBe('Synced 3 hours ago');
+      expect(synced.props.accessibilityLabel).toMatch(/^Last synced Sep 4, 2026, 10:00/);
+    });
+
+    it('reads the freshness and the exact time out as part of the card', async () => {
+      await render(<AccountCard account={account()} />);
+      expect(
+        screen.getByLabelText(
+          /^Everyday Chequing, Chequing, CAD, Up to date, synced 3 hours ago, Sep 4, 2026, 10:00/
+        )
+      ).toBeTruthy();
+    });
+
+    it('shows nothing new on an account that is not a bank connection', async () => {
+      await render(<AccountCard account={account({ sourceKind: 'CSV' })} />);
+      const synced = screen.getByTestId('account-synced-a1');
+      expect(synced.props.children).toMatch(/^Last synced Sep 4, 2026/);
+      expect(synced.props.accessibilityLabel).toBeUndefined();
+      expect(screen.getByLabelText('Everyday Chequing, Chequing, CAD, Up to date')).toBeTruthy();
+    });
   });
 
   it('calls back with the account id when pressed', async () => {

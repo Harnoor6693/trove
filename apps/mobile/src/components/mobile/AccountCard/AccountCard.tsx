@@ -3,7 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MnPill } from '@components/primitives/MnPill/MnPill';
 import { FontFamily, FontSize, Radius, Space } from '@design/tokens';
 import { useTheme } from '@design/useTheme';
-import { useUserFormat } from '@lib/useUserFormat';
+import { useUserFormat, type UserFormat } from '@lib/useUserFormat';
 import {
   ACCOUNT_SYNC_STATUS_LABEL,
   ACCOUNT_SYNC_STATUS_VARIANT,
@@ -33,6 +33,25 @@ import type { AccountResponse } from '@api/types';
  * currencies. The gap is reported in step 211's openIssues for the
  * orchestrator to weigh; it is not something a client fills in.
  */
+/**
+ * How fresh a bank connection is (C-01r): "Synced 3 hours ago" on screen, the
+ * exact time in the member's zone as the accessibility label. Only a SimpleFIN
+ * account — the kind the scheduled sync refreshes — gets the relative wording;
+ * every other kind keeps the line it always had and no extra label.
+ */
+export function syncFreshness(
+  account: Pick<AccountResponse, 'sourceKind' | 'lastSyncedAt'>,
+  format: UserFormat
+): { text: string; label?: string } {
+  if (account.lastSyncedAt === null) return { text: 'Never synced' };
+  const exact = format.date(account.lastSyncedAt, 'dateTime');
+  if (account.sourceKind !== 'SIMPLEFIN') return { text: `Last synced ${exact}` };
+  return {
+    text: `Synced ${format.relative(account.lastSyncedAt)}`,
+    label: `Last synced ${exact}`,
+  };
+}
+
 export interface AccountCardProps {
   account: AccountResponse;
   onPress?: (id: string) => void;
@@ -43,6 +62,7 @@ export function AccountCard({ account, onPress, testID }: AccountCardProps) {
   const theme = useTheme();
   const format = useUserFormat();
   const status = ACCOUNT_SYNC_STATUS_LABEL[account.syncStatus];
+  const synced = syncFreshness(account, format);
 
   return (
     <TouchableOpacity
@@ -52,7 +72,11 @@ export function AccountCard({ account, onPress, testID }: AccountCardProps) {
       accessibilityRole="button"
       accessibilityLabel={`${account.displayName}, ${
         ACCOUNT_TYPE_LABEL[account.accountType]
-      }, ${account.currency}, ${status}`}
+      }, ${account.currency}, ${status}${
+        synced.label === undefined
+          ? ''
+          : `, ${synced.text.toLowerCase()}, ${format.date(account.lastSyncedAt, 'dateTime')}`
+      }`}
       testID={testID ?? `account-row-${account.id}`}
     >
       <View style={styles.headline}>
@@ -77,10 +101,12 @@ export function AccountCard({ account, onPress, testID }: AccountCardProps) {
           .join(' · ')}
       </Text>
 
-      <Text style={[styles.meta, { color: theme.ink3 }]} testID={`account-synced-${account.id}`}>
-        {account.lastSyncedAt === null
-          ? 'Never synced'
-          : `Last synced ${format.date(account.lastSyncedAt, 'dateTime')}`}
+      <Text
+        style={[styles.meta, { color: theme.ink3 }]}
+        accessibilityLabel={synced.label}
+        testID={`account-synced-${account.id}`}
+      >
+        {synced.text}
       </Text>
 
       {account.errorMessage !== null && account.errorMessage !== '' ? (
