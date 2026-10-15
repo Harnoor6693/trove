@@ -203,13 +203,17 @@ export function endSessionOutsideInterceptor(reason: SessionEndReason): Promise<
 
 // --- the instance ----------------------------------------------------------
 
-export const api: AxiosInstance = axios.create({ timeout: 15_000 });
+const DEFAULT_TIMEOUT_MS = 15_000;
+/** A camera JPEG or a household export over weak cellular outlasts 15 s (B5-05). */
+const TRANSFER_TIMEOUT_MS = 120_000;
+
+export const api: AxiosInstance = axios.create({ timeout: DEFAULT_TIMEOUT_MS });
 
 /**
  * A bare instance for the refresh call itself. Using `api` would put the
  * refresh through the 401 interceptor that is currently running it.
  */
-const refreshClient: AxiosInstance = axios.create({ timeout: 15_000 });
+const refreshClient: AxiosInstance = axios.create({ timeout: DEFAULT_TIMEOUT_MS });
 
 function resolveBaseUrl(): string {
   const base = getBaseUrl();
@@ -219,6 +223,12 @@ function resolveBaseUrl(): string {
 
 api.interceptors.request.use((config) => {
   config.baseURL = resolveBaseUrl();
+  // Uploads and file downloads get a longer budget unless the caller set one.
+  const isTransfer =
+    config.data instanceof FormData ||
+    config.responseType === 'arraybuffer' ||
+    config.responseType === 'text';
+  if (isTransfer && config.timeout === DEFAULT_TIMEOUT_MS) config.timeout = TRANSFER_TIMEOUT_MS;
   const headers = AxiosHeaders.from(config.headers);
   // Mobile is bearer-mode, always and explicitly (§1.5). The header selects
   // the mode on `/v1/auth/login`, and on every other route it is what tells

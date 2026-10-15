@@ -171,6 +171,30 @@ describe('request interceptor', () => {
   });
 });
 
+describe('transfer timeout (B5-05)', () => {
+  const timeoutOf = () => seen[seen.length - 1].timeout;
+
+  it('keeps 15 seconds for ordinary JSON calls', async () => {
+    await client.api.get('/v1/auth/me');
+    expect(timeoutOf()).toBe(15_000);
+  });
+
+  it('allows a multipart upload at least a minute', async () => {
+    await client.api.post('/v1/receipts/upload', new FormData());
+    expect(timeoutOf()).toBeGreaterThanOrEqual(60_000);
+  });
+
+  it.each(['arraybuffer', 'text'] as const)('allows a %s download at least a minute', async (t) => {
+    await client.api.get('/v1/me/export/1/download', { responseType: t });
+    expect(timeoutOf()).toBeGreaterThanOrEqual(60_000);
+  });
+
+  it('lets a caller choose its own timeout', async () => {
+    await client.api.post('/v1/imports', new FormData(), { timeout: 5_000 });
+    expect(timeoutOf()).toBe(5_000);
+  });
+});
+
 describe('refresh on 401', () => {
   beforeEach(async () => {
     await client.setSession(
