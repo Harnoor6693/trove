@@ -136,7 +136,12 @@ public class TotpService {
 
     /**
      * The login-time and step-up check. Accepts either a live TOTP code or an unused recovery
-     * code, and consumes the latter.
+     * code, and spends whichever it accepted.
+     *
+     * <p>The spend is the repository's conditional update, not a save of the entity read here:
+     * that read is unlocked, so two requests carrying the same code both pass the match, and only
+     * the database can say which of them used it first. The entity is never modified, so nothing
+     * flushes its now-stale copy of the row over the one the update wrote.
      *
      * @return {@code true} on success; the caller decides what that authorises
      */
@@ -149,16 +154,14 @@ public class TotpService {
         TotpCredential credential = maybe.get();
         long step = matchStep(credential, code, now);
         if (step >= 0) {
-            credential.setLastUsedStep(step);
-            credentials.save(credential);
-            return true;
+            return credentials.claimStep(userId, step) == 1;
         }
-        if (code != null && credential.consumeRecoveryCode(hash(normaliseRecovery(code)))) {
-            credentials.save(credential);
-            LOG.warn("A recovery code was used; {} remain", credential.remainingRecoveryCodes());
+        if (code != null
+            && credentials.consumeRecoveryCode(userId, hash(normaliseRecovery(code))) == 1) {
+            int remaining = credential.remainingRecoveryCodes() - 1;
+            LOG.warn("A recovery code was used; {} remain", remaining);
             securityEvents.record(SecurityEventType.LOGIN_OK, userId,
-                Map.of("factor", "recovery-code",
-                    "remainingRecoveryCodes", credential.remainingRecoveryCodes()));
+                Map.of("factor", "recovery-code", "remainingRecoveryCodes", remaining));
             return true;
         }
         return false;
