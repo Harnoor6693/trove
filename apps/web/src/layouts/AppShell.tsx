@@ -49,10 +49,13 @@ export function AppShell() {
 
   return (
     <div className={styles.shell}>
+      <a href="#main-content" className={styles.skip}>
+        Skip to content
+      </a>
       {isDesktop && <QlSidebar items={NAV_ITEMS} />}
       {isTablet && <QlRail items={NAV_ITEMS} />}
 
-      <main className={styles.main}>
+      <main id="main-content" tabIndex={-1} className={styles.main}>
         <div className={styles.topBar}>
           {user && <span className={styles.who}>{user.displayName || user.email}</span>}
           <NavLink
