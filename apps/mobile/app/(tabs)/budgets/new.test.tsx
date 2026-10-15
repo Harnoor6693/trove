@@ -36,6 +36,17 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
+it('defaults the period start to the local calendar day, not the UTC one (B5-10)', async () => {
+  jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] });
+  jest.setSystemTime(new Date(2026, 9, 31, 0, 30));
+  try {
+    await renderScreen();
+    expect(screen.getByTestId('new-budget-month').props.value).toBe('2026-10-31');
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
 it('submits month/totalIncome and leaves currency/budgetType unset by default', async () => {
   mockCreate.mockResolvedValue(CREATED);
   await renderScreen();

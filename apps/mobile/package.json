@@ -123,6 +123,7 @@
     "testPathIgnorePatterns": [
       "/node_modules/",
       "<rootDir>/e2e/"
-    ]
+    ],
+    "globalSetup": "<rootDir>/src/test/globalSetup.js"
   }
 }
