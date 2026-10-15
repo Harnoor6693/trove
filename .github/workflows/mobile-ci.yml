@@ -196,7 +196,7 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_5
-          script: cd apps/mobile && npx detox test --configuration android.emu.debug --headless
+          script: cd apps/mobile && (npx detox test --configuration android.emu.debug --headless || { adb logcat -d -t 3000 AndroidRuntime:E ReactNativeJS:V DEBUG:V '*:F' | tail -200; exit 1; })
 
       - name: Upload Detox Android artifacts
         if: always()
