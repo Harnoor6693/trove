@@ -30,6 +30,8 @@ import finance.trove.receipts.receipt.ReceiptImage;
 import finance.trove.receipts.receipt.ReceiptRepository;
 import finance.trove.subscriptions.subscription.DetectedSubscription;
 import finance.trove.subscriptions.subscription.SubscriptionRepository;
+import finance.trove.taxexport.TaxLineMapping;
+import finance.trove.taxexport.TaxLineMappingRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
@@ -108,6 +110,7 @@ public class DataExportCollector {
     private final ReceiptRepository receipts;
     private final CoachConversationService coach;
     private final NotificationPreferenceRepository notificationPreferences;
+    private final TaxLineMappingRepository taxLines;
 
     @SuppressWarnings("checkstyle:ParameterNumber")
     public DataExportCollector(ConnectedAccountRepository accounts, CategoryRepository categories,
@@ -117,7 +120,8 @@ public class DataExportCollector {
                                NetWorthSnapshotRepository snapshots, AssetRepository assets,
                                LiabilityRepository liabilities, ReceiptRepository receipts,
                                CoachConversationService coach,
-                               NotificationPreferenceRepository notificationPreferences) {
+                               NotificationPreferenceRepository notificationPreferences,
+                               TaxLineMappingRepository taxLines) {
         this.accounts = accounts;
         this.categories = categories;
         this.merchantRules = merchantRules;
@@ -131,6 +135,7 @@ public class DataExportCollector {
         this.receipts = receipts;
         this.coach = coach;
         this.notificationPreferences = notificationPreferences;
+        this.taxLines = taxLines;
     }
 
     /**
@@ -165,6 +170,8 @@ public class DataExportCollector {
         datasets.put("receipts.json", map(receipts.findAllByHouseholdId(householdId),
             DataExportCollector::receipt));
         datasets.put("coach-conversations.json", coachConversations(userId));
+        datasets.put("tax-line-mappings.json",
+            map(taxLines.findAllByUserId(userId), DataExportCollector::taxLineMapping));
         datasets.put("notification-preferences.json", notificationPreferences(userId));
         return datasets;
     }
@@ -246,6 +253,19 @@ public class DataExportCollector {
         out.put("allocated", money(row.getAllocated(), row.getCurrency()));
         out.put("spent", money(row.getSpent(), row.getCurrency()));
         out.put("rolloverAmount", money(row.getRolloverAmount(), row.getCurrency()));
+        out.put("createdAt", text(row.getCreatedAt()));
+        out.put("updatedAt", text(row.getUpdatedAt()));
+        return out;
+    }
+
+    private static Map<String, Object> taxLineMapping(TaxLineMapping row) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("id", id(row.getId()));
+        out.put("jurisdiction", name(row.getJurisdiction()));
+        out.put("categoryId", id(row.getCategoryId()));
+        out.put("lineCode", row.getLineCode());
+        out.put("lineLabel", row.getLineLabel());
+        out.put("deductible", row.isDeductible());
         out.put("createdAt", text(row.getCreatedAt()));
         out.put("updatedAt", text(row.getUpdatedAt()));
         return out;

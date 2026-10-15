@@ -27,6 +27,7 @@ import finance.trove.categorisation.MatchType;
 import finance.trove.categorisation.MerchantCategoryMap;
 import finance.trove.categorisation.MerchantCategoryMapRepository;
 import finance.trove.common.domain.CurrencyCode;
+import finance.trove.common.domain.Jurisdiction;
 import finance.trove.common.domain.PagedResult;
 import finance.trove.common.plugin.SourceKind;
 import finance.trove.networth.Asset;
@@ -46,6 +47,8 @@ import finance.trove.subscriptions.detection.BillingCycle;
 import finance.trove.subscriptions.subscription.DetectedSubscription;
 import finance.trove.subscriptions.subscription.SubscriptionRepository;
 import finance.trove.subscriptions.subscription.SubscriptionSignal;
+import finance.trove.taxexport.TaxLineMapping;
+import finance.trove.taxexport.TaxLineMappingRepository;
 import java.lang.reflect.Constructor;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -98,9 +101,11 @@ class DataExportCollectorTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    private final TaxLineMappingRepository taxLines = mock(TaxLineMappingRepository.class);
+
     private final DataExportCollector collector = new DataExportCollector(accounts, categories,
         merchantRules, budgetPeriods, envelopes, goals, subscriptions, snapshots, assets,
-        liabilities, receipts, coach, preferences);
+        liabilities, receipts, coach, preferences, taxLines);
 
     /** A row in the state the database hands it back: no-argument constructor, fields set. */
     private static <T> T row(Class<T> type, Object... fields) {
@@ -192,6 +197,11 @@ class DataExportCollectorTest {
             2L, 0, DataExportCollector.MAX_COACH_MESSAGES));
         when(preferences.findByUserId(USER))
             .thenReturn(Optional.of(NotificationPreference.defaultsFor(USER)));
+        when(taxLines.findAllByUserId(USER)).thenReturn(List.of(
+            row(TaxLineMapping.class, "id", UUID.randomUUID(), "jurisdiction", Jurisdiction.CA,
+                "categoryId", UUID.randomUUID(), "userId", USER, "lineCode", "8810",
+                "lineLabel", "Office expenses", "deductible", true, "createdAt", NOW,
+                "updatedAt", NOW)));
 
         return objectMapper.valueToTree(collector.collect(USER, HOUSEHOLD));
     }
@@ -204,7 +214,7 @@ class DataExportCollectorTest {
         for (String entry : List.of("accounts.json", "categories.json", "merchant-rules.json",
             "budget-periods.json", "envelopes.json", "savings-goals.json", "subscriptions.json",
             "net-worth-snapshots.json", "assets.json", "liabilities.json", "receipts.json",
-            "coach-conversations.json")) {
+            "coach-conversations.json", "tax-line-mappings.json")) {
             assertThat(datasets.path(entry).size())
                 .as("%s must carry the row it was given", entry)
                 .isEqualTo(1);
