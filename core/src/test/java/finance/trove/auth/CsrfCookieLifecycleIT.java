@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import finance.trove.app.support.AuthFlowSupport;
 import finance.trove.app.support.Json;
+import finance.trove.auth.totp.TotpGenerator;
 import java.net.http.HttpResponse;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,11 +42,12 @@ class CsrfCookieLifecycleIT extends AuthFlowSupport {
     /** What the browser holds, in insertion order. */
     private final Map<String, String> jar = new LinkedHashMap<>();
 
+    private Session admin;
     private String email;
 
     @BeforeEach
     void member() {
-        Session admin = loginBootstrapAdmin();
+        admin = loginBootstrapAdmin();
         email = uniqueEmail("csrf-life");
         registerWithInvite(createInvite(admin, null), email, MEMBER_PASSWORD);
         jar.clear();
@@ -105,6 +108,81 @@ class CsrfCookieLifecycleIT extends AuthFlowSupport {
             .isEqualTo(403);
         assertThat(send("POST", "/v1/accounts", ACCOUNT, true).statusCode())
             .as("and the matching pair still works afterwards")
+            .isEqualTo(201);
+    }
+
+    @Test
+    @DisplayName("Signing in replaces the token: one from before sign-in no longer passes")
+    void signInReplacesTheToken() {
+        assertThat(send("GET", "/v1/status", null, false).statusCode()).isEqualTo(200);
+        String before = jar.get(XSRF);
+
+        HttpResponse<String> login = send("POST", "/v1/auth/login",
+            Json.object("email", email, "password", MEMBER_PASSWORD), true);
+
+        assertThat(login.statusCode()).as(login.body()).isEqualTo(200);
+        assertFreshToken(before);
+        assertThat(send("POST", "/v1/accounts", ACCOUNT, true, before).statusCode())
+            .as("a token learned or planted before sign-in must not carry over into the session "
+                + "(OWASP: a new CSRF token on authentication)")
+            .isEqualTo(403);
+        assertThat(send("POST", "/v1/accounts", ACCOUNT, true).statusCode()).isEqualTo(201);
+    }
+
+    @Test
+    @DisplayName("Registering signs the member in, so it replaces the token too")
+    void registrationReplacesTheToken() {
+        assertThat(send("GET", "/v1/status", null, false).statusCode()).isEqualTo(200);
+        String before = jar.get(XSRF);
+
+        HttpResponse<String> register = send("POST", "/v1/auth/register", Json.object(
+            "inviteToken", createInvite(admin, null), "email", uniqueEmail("csrf-reg"),
+            "password", MEMBER_PASSWORD, "displayName", "New Member", "currency", "CAD",
+            "country", "CA", "timezone", "America/Toronto"), true);
+
+        assertThat(register.statusCode()).as(register.body()).isEqualTo(201);
+        assertFreshToken(before);
+        assertThat(send("POST", "/v1/accounts", ACCOUNT, true, before).statusCode())
+            .isEqualTo(403);
+        assertThat(send("POST", "/v1/accounts", ACCOUNT, true).statusCode()).isEqualTo(201);
+    }
+
+    @Test
+    @DisplayName("Completing the TOTP step signs the member in, so it replaces the token")
+    void totpCompletionReplacesTheToken() {
+        String secret = enrolTotp();
+        assertThat(send("GET", "/v1/status", null, false).statusCode()).isEqualTo(200);
+        HttpResponse<String> login = send("POST", "/v1/auth/login",
+            Json.object("email", email, "password", MEMBER_PASSWORD), true);
+        String challenge = Json.data(login.body()).path("challengeToken").asString();
+        assertThat(challenge).as("a second factor is owed: %s", login.body()).isNotBlank();
+        String before = jar.get(XSRF);
+
+        HttpResponse<String> stepUp = send("POST", "/v1/auth/login/totp",
+            Json.object("challengeToken", challenge, "code", totpCode(secret, 1)), true);
+
+        assertThat(stepUp.statusCode()).as(stepUp.body()).isEqualTo(200);
+        assertFreshToken(before);
+        assertThat(send("POST", "/v1/accounts", ACCOUNT, true, before).statusCode())
+            .isEqualTo(403);
+        assertThat(send("POST", "/v1/accounts", ACCOUNT, true).statusCode()).isEqualTo(201);
+    }
+
+    @Test
+    @DisplayName("A refresh continues the session and keeps the token")
+    void refreshKeepsTheToken() {
+        logIn();
+        String token = jar.get(XSRF);
+
+        HttpResponse<String> refresh = send("POST", "/v1/auth/refresh", "{}", true);
+
+        assertThat(refresh.statusCode()).as(refresh.body()).isEqualTo(200);
+        assertThat(xsrfSetCookies(refresh))
+            .as("same refresh family, so the same session, not a sign-in. And the SPA replays "
+                + "the request that 401'd with the X-XSRF-TOKEN it was first sent with "
+                + "(client.ts), so a token replaced here would make every replayed write a 403")
+            .isEmpty();
+        assertThat(send("POST", "/v1/accounts", ACCOUNT, true, token).statusCode())
             .isEqualTo(201);
     }
 
@@ -182,6 +260,33 @@ class CsrfCookieLifecycleIT extends AuthFlowSupport {
                 jar.put(name, value);
             }
         }
+    }
+
+    /** Enrols the member in TOTP over bearer, as {@code TotpFlowIT} does; returns the secret. */
+    private String enrolTotp() {
+        String bearer = "Bearer " + loginBearer(email, MEMBER_PASSWORD).accessToken();
+        HttpResponse<String> setup = postJson(appUrl("/v1/auth/totp/setup"),
+            Json.object("password", MEMBER_PASSWORD), "Authorization", bearer);
+        assertThat(setup.statusCode()).as(setup.body()).isEqualTo(200);
+        String secret = Json.data(setup.body()).path("secret").asString();
+        HttpResponse<String> confirm = postJson(appUrl("/v1/auth/totp/confirm"),
+            Json.object("code", totpCode(secret, 0)), "Authorization", bearer);
+        assertThat(confirm.statusCode()).as(confirm.body()).isEqualTo(200);
+        return secret;
+    }
+
+    /** A code {@code offset} steps ahead: a step spent at enrolment is refused at login. */
+    private static String totpCode(String secret, int offset) {
+        TotpGenerator generator = new TotpGenerator();
+        return generator.codeAt(secret, generator.timeStep(Instant.now(), 30) + offset, 6);
+    }
+
+    private void assertFreshToken(String before) {
+        assertThat(jar.get(XSRF))
+            .as("the response that signs the browser in plants a new token, so the SPA can write "
+                + "straight away, with a value the page before sign-in never saw")
+            .isNotNull()
+            .isNotEqualTo(before);
     }
 
     private static List<String> xsrfSetCookies(HttpResponse<String> response) {

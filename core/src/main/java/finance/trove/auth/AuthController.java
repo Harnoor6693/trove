@@ -90,7 +90,7 @@ public class AuthController {
         Instant now = clock.now();
         LoginOutcome.Session session = auth.register(request, clientIp(httpRequest),
             userAgent(httpRequest), now);
-        writer.writeSession(httpResponse, mode, session, now);
+        writer.writeSignIn(httpRequest, httpResponse, mode, session, now);
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResponse.ok(writer.body(mode, session, auth.accessTokenSeconds())));
     }
@@ -114,7 +114,8 @@ public class AuthController {
         Instant now = clock.now();
         LoginOutcome outcome = auth.login(request.email(), request.password(),
             clientIp(httpRequest), userAgent(httpRequest), now);
-        return ResponseEntity.ok(ApiResponse.ok(render(outcome, mode, httpResponse, now)));
+        return ResponseEntity.ok(ApiResponse.ok(
+            render(outcome, mode, httpRequest, httpResponse, now)));
     }
 
     /**
@@ -144,7 +145,7 @@ public class AuthController {
         // The challenge has been spent; leaving the cookie in place would present it again at the
         // next login attempt, where it can only produce a confusing failure.
         AuthCookies.clearTotpChallengeCookie(httpResponse);
-        writer.writeSession(httpResponse, mode, session, now);
+        writer.writeSignIn(httpRequest, httpResponse, mode, session, now);
         return ResponseEntity.ok(
             ApiResponse.ok(writer.body(mode, session, auth.accessTokenSeconds())));
     }
@@ -180,6 +181,9 @@ public class AuthController {
         try {
             LoginOutcome.Session session = auth.refresh(presented, clientIp(httpRequest),
                 userAgent(httpRequest), now);
+            // writeSession, not writeSignIn: the same refresh family, so the same session, and
+            // the SPA replays the request that 401'd with the X-XSRF-TOKEN it first carried
+            // (apps/web/src/api/client.ts). A token replaced here would 403 every replayed write.
             writer.writeSession(httpResponse, mode, session, now);
             return ResponseEntity.ok(ApiResponse.ok(
                 writer.refreshBody(mode, session, auth.accessTokenSeconds())));
@@ -243,13 +247,13 @@ public class AuthController {
             .build();
     }
 
-    private LoginResponse render(LoginOutcome outcome, AuthMode mode, HttpServletResponse response,
-                                 Instant now) {
+    private LoginResponse render(LoginOutcome outcome, AuthMode mode, HttpServletRequest request,
+                                 HttpServletResponse response, Instant now) {
         return switch (outcome) {
             case LoginOutcome.TotpRequired challenge ->
                 LoginResponse.challenge(challenge.challengeToken());
             case LoginOutcome.Session session -> {
-                writer.writeSession(response, mode, session, now);
+                writer.writeSignIn(request, response, mode, session, now);
                 yield writer.body(mode, session, auth.accessTokenSeconds());
             }
         };

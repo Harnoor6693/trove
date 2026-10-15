@@ -4,9 +4,11 @@ import finance.trove.auth.dto.AuthUser;
 import finance.trove.auth.dto.LoginResponse;
 import finance.trove.auth.dto.RefreshResponse;
 import finance.trove.auth.jwt.AuthCookies;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.time.Duration;
 import java.time.Instant;
+import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.stereotype.Component;
 
 /**
@@ -25,6 +27,33 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class SessionResponseWriter {
+
+    private final CsrfTokenRepository csrfTokens;
+
+    public SessionResponseWriter(CsrfTokenRepository csrfTokens) {
+        this.csrfTokens = csrfTokens;
+    }
+
+    /**
+     * A browser or app has just signed in with a password, by registering, or by answering the
+     * TOTP step. The session as {@link #writeSession} writes it, and in cookie mode a new
+     * {@code XSRF-TOKEN}.
+     *
+     * <p>OWASP's CSRF guidance: a new token on authentication. Otherwise a token that was learned
+     * or planted before sign-in (on a shared machine, say) stays valid for the whole session. The
+     * value goes out on this response, through the chain's own repository, so the SPA's first
+     * write after signing in already has it. OIDC does not come through here: Spring's login
+     * filter already replaces the token there ({@code CsrfAuthenticationStrategy}), and doing it
+     * twice would put two {@code XSRF-TOKEN} cookies on one response. A refresh is not a sign-in
+     * and keeps the token, see {@code AuthController#refresh}.
+     */
+    public void writeSignIn(HttpServletRequest request, HttpServletResponse response,
+                            AuthMode mode, LoginOutcome.Session session, Instant now) {
+        writeSession(response, mode, session, now);
+        if (mode.isCookie()) {
+            csrfTokens.saveToken(csrfTokens.generateToken(request), request, response);
+        }
+    }
 
     /**
      * The cookie's max-age is the refresh token's lifetime, not the access token's.
