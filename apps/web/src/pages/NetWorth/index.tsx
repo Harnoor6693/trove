@@ -125,9 +125,8 @@ export default function NetWorth() {
         <div>
           <h1 className={styles.heading}>Net worth</h1>
           <p className={styles.lede}>
-            Assets, liabilities and the series below come from snapshots your household has
-            recorded — never a client-side rollup. A household holding more than one currency
-            never has them added together; there is no exchange rate in this product.
+            Everything you own minus everything you owe, from the snapshots you have taken. Each
+            currency is shown on its own; Trove never converts between them.
           </p>
         </div>
         <div className={styles.headerActions}>

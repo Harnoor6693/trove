@@ -621,8 +621,7 @@ export default function Budgets() {
         <div>
           <h1 className={styles.heading}>Budgets</h1>
           <p className={styles.lede}>
-            Envelope allocations and spend are computed server-side; nothing here is estimated in
-            the browser.
+            What you have planned against what you have spent this month, envelope by envelope.
           </p>
         </div>
         <div className={styles.headerActions}>

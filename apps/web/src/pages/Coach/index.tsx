@@ -310,8 +310,7 @@ export default function Coach() {
               Trove has no AI of its own and never sends your ledger anywhere you have not named.
               Point it at an OpenAI-compatible endpoint you control &mdash; a model on your own
               machine is the intended setup &mdash; choose a chat model, and turn it on. Until then
-              the coach cannot answer, and nothing on this page is fabricated to look as though it
-              could.
+              the coach cannot answer questions.
             </p>
           </EmptyState>
         </QlCard>
