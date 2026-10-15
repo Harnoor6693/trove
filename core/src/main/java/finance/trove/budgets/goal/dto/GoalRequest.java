@@ -2,6 +2,7 @@ package finance.trove.budgets.goal.dto;
 
 import finance.trove.common.domain.CurrencyCode;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -20,6 +21,7 @@ import java.time.LocalDate;
  */
 public record GoalRequest(@NotBlank @Size(max = 200) String name,
                           @NotNull @DecimalMin(value = "0.00", inclusive = true)
+                          @Digits(integer = 15, fraction = 4)
                           BigDecimal targetAmount,
                           CurrencyCode currency, LocalDate deadline) {
 }

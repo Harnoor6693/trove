@@ -2,6 +2,7 @@ package finance.trove.networth.dto;
 
 import finance.trove.networth.AssetType;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -20,5 +21,6 @@ import java.util.UUID;
 public record AssetUpdateRequest(@NotBlank @Size(max = 200) String name,
                                  @NotNull AssetType assetType,
                                  @NotNull @DecimalMin(value = "0.00", inclusive = true)
+                                 @Digits(integer = 15, fraction = 4)
                                  BigDecimal value, UUID accountId) {
 }

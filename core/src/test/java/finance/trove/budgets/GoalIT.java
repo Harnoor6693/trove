@@ -147,4 +147,20 @@ class GoalIT extends BudgetTestSupport {
         assertThat(response.statusCode()).isEqualTo(400);
         assertThat(Json.errorCode(response.body())).isEqualTo("validation-error");
     }
+
+    @Test
+    @DisplayName("B2-13: a target amount beyond the money format (5 decimals) is refused")
+    void anOverPreciseTargetIsRefused() {
+        Session member = freshHousehold("goal-precision");
+
+        HttpResponse<String> response = withoutRequestValidation(
+            "sending a MoneyAmount the schema pattern forbids, to prove the server refuses it too",
+            () -> postJson(appUrl("/v1/goals"),
+                Json.object("name", "Holiday", "targetAmount", "19.99999", "currency", "CAD",
+                    "deadline", null),
+                "Authorization", "Bearer " + member.accessToken()));
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(Json.errorCode(response.body())).isEqualTo("validation-error");
+    }
 }
