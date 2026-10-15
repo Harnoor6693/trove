@@ -245,6 +245,28 @@ class DeduplicationServiceTest {
     }
 
     @Test
+    @DisplayName("B1-04: an exponent bomb is refused at the gate, in milliseconds, before normalise")
+    void anAmountTheColumnCannotHoldIsRejectedCheaply() {
+        RawTransaction bomb = new RawTransaction("bank-1", "ext", new BigDecimal("1E9999999"),
+            "CAD", "desc", "merchant", DAY, null, TransactionType.DEBIT, false, null);
+        RawTransaction fifthDecimal = new RawTransaction("bank-2", "ext",
+            new BigDecimal("1.23456"), "CAD", "desc", "merchant", DAY, null,
+            TransactionType.DEBIT, false, null);
+
+        long started = System.nanoTime();
+        assertThatThrownBy(() -> service.deduplicate(account, USER, bomb, DedupBatch.of(bomb)))
+            .isInstanceOf(RawTransactionRejectedException.class)
+            .hasMessageContaining("amount");
+        assertThatThrownBy(() -> service.classify(account, bomb, DedupBatch.of(bomb)))
+            .isInstanceOf(RawTransactionRejectedException.class);
+        assertThat(System.nanoTime() - started).isLessThan(100_000_000L);
+        assertThatThrownBy(
+            () -> service.deduplicate(account, USER, fifthDecimal, DedupBatch.of(fifthDecimal)))
+            .isInstanceOf(RawTransactionRejectedException.class);
+        verify(transactions, never()).save(any(Transaction.class));
+    }
+
+    @Test
     @DisplayName("A row with no date or no amount is refused BEFORE anything is written")
     void anIncompleteRowIsRejectedBeforeAnyWrite() {
         RawTransaction noDate = new RawTransaction("bank-1", "ext", new BigDecimal("1.00"), "CAD",

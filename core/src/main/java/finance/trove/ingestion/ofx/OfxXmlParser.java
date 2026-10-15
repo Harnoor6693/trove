@@ -1,6 +1,7 @@
 package finance.trove.ingestion.ofx;
 
 import finance.trove.common.plugin.BankSourceConnectionException;
+import finance.trove.ingestion.Amounts;
 import finance.trove.ingestion.ofx.dto.OfxAccount;
 import finance.trove.ingestion.ofx.dto.OfxDocument;
 import finance.trove.ingestion.ofx.dto.OfxTransaction;
@@ -81,12 +82,10 @@ public class OfxXmlParser {
         if (fitId == null || amount == null) {
             return null;
         }
-        BigDecimal parsedAmount;
-        try {
-            parsedAmount = new BigDecimal(amount.trim());
-        } catch (NumberFormatException e) {
-            // swallow-ok: one unreadable amount skips one transaction. The index identifies it for
-            // an operator; nothing about the row's content is logged.
+        BigDecimal parsedAmount = Amounts.parse(amount);
+        if (parsedAmount == null) {
+            // One unreadable amount skips one transaction. The index identifies it for an
+            // operator; nothing about the row's content is logged.
             LOG.warn("Skipping OFX transaction {}: its TRNAMT is not a number", index);
             return null;
         }

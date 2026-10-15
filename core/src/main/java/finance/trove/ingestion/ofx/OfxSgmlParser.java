@@ -1,6 +1,7 @@
 package finance.trove.ingestion.ofx;
 
 import finance.trove.common.plugin.BankSourceConnectionException;
+import finance.trove.ingestion.Amounts;
 import finance.trove.ingestion.ofx.dto.OfxAccount;
 import finance.trove.ingestion.ofx.dto.OfxDocument;
 import finance.trove.ingestion.ofx.dto.OfxTransaction;
@@ -175,14 +176,9 @@ public class OfxSgmlParser {
             extractTagValue(block, "CHECKNUM"), extractTagValue(block, "CURSYM"));
     }
 
+    /** Through {@link Amounts#parse}: an exponent such as {@code -1E9999999} is not an amount. */
     private static BigDecimal amount(String raw) {
-        try {
-            return new BigDecimal(raw.trim());
-        } catch (NumberFormatException e) {
-            // swallow-ok: one unreadable TRNAMT skips one transaction rather than abandoning a
-            // whole statement, which is the pre-collapse behaviour and the right one.
-            return null;
-        }
+        return Amounts.parse(raw);
     }
 
     /** OFX dates are {@code yyyyMMdd} with an optional time and zone suffix that is ignored. */

@@ -93,6 +93,21 @@ class OfxSourceTest {
     }
 
     @Test
+    @DisplayName("B1-04: an exponent bomb in TRNAMT costs nothing and never becomes an amount")
+    void anExponentBombNeverBecomesAnAmount() {
+        long started = System.nanoTime();
+        ParsedUpload parsed = read("bank-sgml-amount-bomb.ofx");
+
+        assertThat(System.nanoTime() - started).isLessThan(1_000_000_000L);
+        assertThat(parsed.rows().get(0).row().amount()).isEqualByComparingTo("42.50");
+        assertThat(parsed.rows())
+            .extracting(row -> row.row().amount())
+            .filteredOn(java.util.Objects::nonNull)
+            .as("1E9999999 is a ten-million-digit number the moment anything rounds it")
+            .allMatch(finance.trove.common.domain.Money::fitsColumn);
+    }
+
+    @Test
     @DisplayName("the source serves OFX accounts")
     void servesOfx() {
         assertThat(source.sourceKind()).isEqualTo(SourceKind.OFX);
