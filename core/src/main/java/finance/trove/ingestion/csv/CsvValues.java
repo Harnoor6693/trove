@@ -1,5 +1,6 @@
 package finance.trove.ingestion.csv;
 
+import finance.trove.ingestion.Amounts;
 import finance.trove.ingestion.DateFormatCandidate;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -11,6 +12,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Reading the two cell types a CSV export gets wrong in interesting ways: money and dates.
@@ -19,9 +22,10 @@ import java.util.Set;
  * American bank export actually contains.
  *
  * <h2>Money</h2>
- * Thousands separators ({@code 1,234.56}), a currency symbol ({@code $1,234.56}), a
- * non-breaking space between the symbol and the digits, an accounting negative in parentheses
- * ({@code (42.00)}) and a trailing minus ({@code 42.00-}). Everything is read into a
+ * Thousands separators ({@code 1,234.56}), a decimal comma ({@code 1 234,56}), a currency symbol
+ * or code ({@code $1,234.56}, {@code 12.34 CAD}), a non-breaking space between the symbol and the
+ * digits, an accounting negative in parentheses ({@code (42.00)}), a trailing minus
+ * ({@code 42.00-}) and a card statement's {@code CR}/{@code DR}. Everything is read into a
  * {@link BigDecimal}: §9 risk 6 makes a binary float in the ledger an architecture violation, and
  * the reason is that IEEE-754 cannot represent {@code 0.10} at all.
  *
@@ -84,12 +88,30 @@ final class CsvValues {
         new String[] {DAY_FIRST_SLASH_UNPADDED, MONTH_FIRST_SLASH_UNPADDED},
         new String[] {DAY_FIRST_DASH_UNPADDED, MONTH_FIRST_DASH_UNPADDED});
 
+    /** {@code 45.00 DR}: the amount, then a card statement's direction marker. */
+    private static final Pattern CREDIT_DEBIT_SUFFIX =
+        Pattern.compile("(.*[\\d)])\\s*(CR|DR)", Pattern.CASE_INSENSITIVE);
+
+    /** A three-letter code before or after the number, or the letters of {@code US$}/{@code C$}. */
+    private static final Pattern CURRENCY_CODE =
+        Pattern.compile("^[A-Za-z]{3}(?![A-Za-z])|(?<![A-Za-z])[A-Za-z]{3}$|^[A-Za-z]{1,2}(?=\\$)");
+
     private CsvValues() {
         throw new UnsupportedOperationException("Utility class");
     }
 
     /**
      * Reads one money cell.
+     *
+     * <p>B1-01: the decimal separator is decided by one deterministic rule, because a Quebec export
+     * writes {@code 12,50} and reading that as {@code 1250} imports every amount a hundred times
+     * too large. When a cell has both {@code .} and {@code ,}, the LAST one is the decimal point
+     * ({@code 1,234.56}, {@code 1.234,56}). When it has only commas, the last comma is the decimal
+     * point if exactly one or two digits follow it ({@code 12,50}, {@code 12,5}), and every comma
+     * is a thousands separator otherwise ({@code 1,234}). A trailing {@code CR} or {@code DR} is
+     * the sign. Letters are a currency code ({@code CAD 12.34}, {@code US$12.34}) or the cell is not
+     * an amount: {@code 1.5e3} used to read as {@code 1.53}. Whatever is left goes through
+     * {@link Amounts#parse}, the guard every importer shares.
      *
      * @return the value, or {@code null} when the cell is blank or is not a number at all
      */
@@ -98,10 +120,18 @@ final class CsvValues {
             return null;
         }
         String text = cell.trim();
+        Matcher suffix = CREDIT_DEBIT_SUFFIX.matcher(text);
+        Boolean credit = null;
+        if (suffix.matches()) {
+            credit = "CR".equalsIgnoreCase(suffix.group(2));
+            text = suffix.group(1).trim();
+        }
+        text = CURRENCY_CODE.matcher(text).replaceFirst("").trim();
         if (text.isEmpty()) {
             return null;
         }
         boolean negative = false;
+        boolean signed = false;
         if (text.startsWith("(") && text.endsWith(")")) {
             negative = true;
             text = text.substring(1, text.length() - 1).trim();
@@ -114,37 +144,49 @@ final class CsvValues {
             negative = true;
             text = text.substring(1).trim();
         } else if (text.startsWith("+")) {
+            signed = true;
             text = text.substring(1).trim();
         }
-        StringBuilder digits = new StringBuilder(text.length());
+        if (credit != null) {
+            if (negative || signed) {
+                // "-45.00 CR" says two things about the direction; neither is guessed.
+                return null;
+            }
+            negative = !credit;
+        }
+        StringBuilder number = new StringBuilder(text.length());
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
-            if (c >= '0' && c <= '9') {
-                digits.append(c);
-            } else if (c == '.') {
-                digits.append(c);
-            } else if (c == ',' || c == ' ' || c == ' ' || c == ' ' || c == '\'') {
-                // A thousands separator, or the space some exports put after the currency symbol.
-                continue;
-            } else if (c == '$' || c == '€' || c == '£' || Character.isLetter(c)) {
-                // A currency symbol or a trailing "CAD". Ignored: the row's currency comes from
-                // the mapped currency column or from the account, never from a symbol (F4).
+            if (c >= '0' && c <= '9' || c == '.' || c == ',') {
+                number.append(c);
+            } else if (c == ' ' || c == '\u00A0' || c == '\u202F' || c == '\''
+                || c == '$' || c == '€' || c == '£') {
+                // A grouping space or apostrophe, or a currency symbol. The row's currency comes
+                // from the mapped currency column or from the account, never a symbol (F4).
                 continue;
             } else {
                 return null;
             }
         }
-        if (digits.isEmpty() || ".".contentEquals(digits)) {
-            return null;
+        BigDecimal value = Amounts.parse(withDecimalPoint(number.toString()));
+        return value == null || !negative ? value : value.negate();
+    }
+
+    /** {@code digits} with {@code .} as its decimal point and no grouping; garbage stays garbage. */
+    private static String withDecimalPoint(String digits) {
+        int dot = digits.lastIndexOf('.');
+        int comma = digits.lastIndexOf(',');
+        int fraction = digits.length() - comma - 1;
+        if (comma <= dot || dot < 0 && (fraction < 1 || fraction > 2)) {
+            // 1234, 1,234.56 and 1,234: no comma at all, or every comma groups thousands.
+            return digits.replace(",", "");
         }
-        try {
-            BigDecimal value = new BigDecimal(digits.toString());
-            return negative ? value.negate() : value;
-        } catch (NumberFormatException e) {
-            // swallow-ok: a cell that is not a number is a row the preview shows with its reason,
-            // not an exception that abandons the rest of the file.
-            return null;
+        // 1.234,56 and 12,50: the last comma is the decimal point, dots before it group thousands.
+        String whole = digits.substring(0, comma);
+        if (dot >= 0 && whole.indexOf(',') >= 0) {
+            return digits; // 1.234,567,89: no reading of this is a number
         }
+        return whole.replace(".", "").replace(",", "") + "." + digits.substring(comma + 1);
     }
 
     /** Parses {@code cell} under {@code pattern}, or {@code null} if it does not fit. */
