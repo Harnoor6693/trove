@@ -115,6 +115,12 @@ jobs:
           echo "Selecting $xcode"
           sudo xcode-select -s "$xcode"
 
+      - name: Install applesimutils
+        # Detox drives the iOS simulator through it; the runner image does not ship it.
+        run: |
+          brew tap wix/brew
+          brew install applesimutils
+
       - name: Build Detox framework cache
         # The cache key includes the Xcode version, and npm ci's postinstall ran under the
         # runner's default Xcode, so rebuild it for the one just selected.
