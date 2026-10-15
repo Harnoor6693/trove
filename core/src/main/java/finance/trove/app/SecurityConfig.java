@@ -49,6 +49,7 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
+import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
@@ -235,9 +236,6 @@ public class SecurityConfig {
                                            ObjectProvider<SecurityEventRecorder> events)
         throws Exception {
 
-        CookieCsrfTokenRepository csrfRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
-        csrfRepository.setCookiePath(AuthCookies.PATH);
-
         // STATELESS, set as a shared object rather than through sessionManagement(): that
         // setter also switches SessionManagementFilter on, and with no security-context repository
         // to find a principal in, the filter takes every JWT-authenticated request for a fresh
@@ -245,15 +243,16 @@ public class SecurityConfig {
         // SPA's next write then went out with no token and was refused (D1-01). The shared object
         // is where SessionManagementConfigurer reads the policy from when its own is unset, and
         // the setter cannot be combined with requireExplicitAuthenticationStrategy(true): Spring
-        // rejects the pair. A login filter (OIDC) still runs the strategy itself, so the token is
-        // still replaced on a real sign-in. CsrfCookieLifecycleIT holds that the cookie survives
-        // and that no response creates an HTTP session.
+        // rejects the pair. A sign-in still replaces the token: the OIDC login filter runs the
+        // strategy itself, and password, registration and TOTP sign-ins call
+        // SessionResponseWriter#writeSignIn. CsrfCookieLifecycleIT holds all of it: the cookie
+        // survives writes, a sign-in replaces it, and no response creates an HTTP session.
         http.setSharedObject(SessionCreationPolicy.class, SessionCreationPolicy.STATELESS);
 
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf
-                .csrfTokenRepository(csrfRepository)
+                .csrfTokenRepository(csrfTokenRepository())
                 .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
                 .requireCsrfProtectionMatcher(csrfProtected()))
             .formLogin(AbstractHttpConfigurer::disable)
@@ -421,6 +420,18 @@ public class SecurityConfig {
             header.substring("Bearer ".length()).strip()
                 .getBytes(java.nio.charset.StandardCharsets.UTF_8),
             properties.token().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    /**
+     * The one CSRF token store: the chain checks against it, and
+     * {@code SessionResponseWriter#writeSignIn} replaces the token in it when a browser signs in.
+     * A bean so both use the same cookie name and path.
+     */
+    @Bean
+    public CsrfTokenRepository csrfTokenRepository() {
+        CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+        repository.setCookiePath(AuthCookies.PATH);
+        return repository;
     }
 
     /**
