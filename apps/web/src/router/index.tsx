@@ -10,32 +10,33 @@
  * `path: '*'` catch-all, so a mistyped URL renders a branded 404 instead of React
  * Router's raw developer overlay.
  */
-import { lazy, Suspense } from 'react'
+import { Suspense } from 'react'
 import { createBrowserRouter } from 'react-router-dom'
 import { AuthGuard } from './AuthGuard'
 import { RouteError } from './RouteError'
 import { AppShell } from '@/layouts/AppShell'
-
-const LoginPage = lazy(() => import('@pages/Login'))
-const RegisterPage = lazy(() => import('@pages/Register'))
-const InvitePage = lazy(() => import('@pages/Invite'))
-const ResetPasswordPage = lazy(() => import('@pages/ResetPassword'))
-const OnboardingPage = lazy(() => import('@pages/Onboarding'))
-const TodayPage = lazy(() => import('@pages/Today'))
-const TransactionsPage = lazy(() => import('@pages/Transactions'))
-const AccountsPage = lazy(() => import('@pages/Accounts'))
-const BudgetsPage = lazy(() => import('@pages/Budgets'))
-const CategoriesPage = lazy(() => import('@pages/Budgets/Categories'))
-const RulesPage = lazy(() => import('@pages/Budgets/Rules'))
-const GoalsPage = lazy(() => import('@pages/Budgets/Goals'))
-const NetWorthPage = lazy(() => import('@pages/NetWorth'))
-const SubscriptionsPage = lazy(() => import('@pages/Subscriptions'))
-const ReceiptsPage = lazy(() => import('@pages/Receipts'))
-const CoachPage = lazy(() => import('@pages/Coach'))
-const TaxExportPage = lazy(() => import('@pages/TaxExport'))
-const NotificationsPage = lazy(() => import('@pages/Notifications'))
-const SettingsPage = lazy(() => import('@pages/Settings'))
-const NotFoundPage = lazy(() => import('@pages/NotFound'))
+import {
+  LoginPage,
+  RegisterPage,
+  InvitePage,
+  ResetPasswordPage,
+  OnboardingPage,
+  TodayPage,
+  TransactionsPage,
+  AccountsPage,
+  BudgetsPage,
+  CategoriesPage,
+  RulesPage,
+  GoalsPage,
+  NetWorthPage,
+  SubscriptionsPage,
+  ReceiptsPage,
+  CoachPage,
+  TaxExportPage,
+  NotificationsPage,
+  SettingsPage,
+  NotFoundPage,
+} from './pages'
 
 const withSuspense = (element: React.ReactNode) => (
   <Suspense fallback={<div role="status">Loading…</div>}>{element}</Suspense>
