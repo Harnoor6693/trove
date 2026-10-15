@@ -16,7 +16,9 @@ import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Manual entry, enrichment and deletion of the household's transactions
@@ -36,11 +38,14 @@ public class TransactionService {
     private final TransactionCategoriser categoriser;
     private final ApplicationEventPublisher events;
     private final UserClock clock;
+    private final TransactionTemplate writeTransaction;
 
     public TransactionService(TransactionRepository transactions,
                               CategoryOverrideRepository overrides, CategoryRepository categories,
                               AccountService accounts, TransactionCategoriser categoriser,
-                              ApplicationEventPublisher events, UserClock clock) {
+                              ApplicationEventPublisher events, UserClock clock,
+                              PlatformTransactionManager transactionManager) {
+        this.writeTransaction = new TransactionTemplate(transactionManager);
         this.transactions = transactions;
         this.overrides = overrides;
         this.categories = categories;
@@ -63,7 +68,6 @@ public class TransactionService {
      * unless {@code categoryId} was given, which pins it: a member who chose a category at entry
      * time has already made the decision the pipeline would be guessing at.
      */
-    @Transactional
     public Transaction createManual(UUID householdId, UUID userId,
                                     ManualTransactionRequest request) {
         ConnectedAccount account = accounts.get(householdId, request.accountId());
@@ -92,12 +96,16 @@ public class TransactionService {
         }
         transaction.setCategoryId(categoryId);
 
-        Transaction saved = transactions.save(transaction);
-        if (request.categoryId() != null) {
-            pin(householdId, userId, saved.getId(), categoryId);
-        }
-        publishCategorised(householdId, userId, saved, null, categoryId);
-        return saved;
+        // Only the write is transactional (B1-12): the categorisation above may call the AI
+        // model, which must not hold a database connection while it thinks.
+        return writeTransaction.execute(status -> {
+            Transaction saved = transactions.save(transaction);
+            if (request.categoryId() != null) {
+                pin(householdId, userId, saved.getId(), categoryId);
+            }
+            publishCategorised(householdId, userId, saved, null, categoryId);
+            return saved;
+        });
     }
 
     /**
