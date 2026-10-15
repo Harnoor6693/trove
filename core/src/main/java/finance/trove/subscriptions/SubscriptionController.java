@@ -137,7 +137,8 @@ public class SubscriptionController {
     }
 
     private List<SubscriptionResponse> active(TroveUserDetails principal) {
-        return subscriptions.listActive(principal.getHouseholdId()).stream()
+        return subscriptions.listActive(principal.getHouseholdId(), principal.getUserId())
+            .stream()
             .map(SubscriptionResponse::of).toList();
     }
 }

@@ -222,6 +222,24 @@ class SubscriptionIT extends SubscriptionSupport {
     }
 
     @Test
+    @DisplayName("B2-09: a subscription that stopped charging leaves the list and the run rate")
+    void aStoppedSubscriptionLeavesTheListAndTheTotals() {
+        String merchant = uniqueMerchant("STOPPED");
+        int activeBefore = summary(admin).path("activeCount").asInt();
+        // Last charged 200 days ago: the next one was due about 170 days back, six cycles missed.
+        seedMonthlyCharges(admin, accountId, merchant, "3.50", 3, 200);
+
+        assertThat(scan(admin).stream().map(row -> row.path("merchantName").asString()).toList())
+            .doesNotContain(merchant);
+        assertThat(listSubscriptions(admin).stream()
+            .map(row -> row.path("merchantName").asString()).toList())
+            .doesNotContain(merchant);
+        assertThat(summary(admin).path("activeCount").asInt())
+            .as("the run rate counts only subscriptions that are still charging")
+            .isEqualTo(activeBefore);
+    }
+
+    @Test
     @DisplayName("Occasional spending at one merchant is not a subscription")
     void variableSpendingIsNotDetected() {
         String merchant = uniqueMerchant("CORNER SHOP");

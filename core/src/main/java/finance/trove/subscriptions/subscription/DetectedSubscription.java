@@ -106,6 +106,9 @@ public class DetectedSubscription {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    /** How many cycles a charge may be missed by before the subscription counts as stopped. */
+    public static final int STOPPED_AFTER_MISSED_CYCLES = 3;
+
     protected DetectedSubscription() {
         // JPA
     }
@@ -171,6 +174,19 @@ public class DetectedSubscription {
 
     public LocalDate getLastSeenDate() {
         return lastSeenDate;
+    }
+
+    /**
+     * Whether charges have stopped: the next charge is overdue by more than
+     * {@value #STOPPED_AFTER_MISSED_CYCLES} whole billing cycles. Such a row is no longer
+     * counted as an active subscription; it returns by itself if charges resume.
+     */
+    public boolean hasStopped(LocalDate today) {
+        LocalDate limit = nextChargeDate;
+        for (int i = 0; i < STOPPED_AFTER_MISSED_CYCLES; i++) {
+            limit = billingCycle.advance(limit);
+        }
+        return today.isAfter(limit);
     }
 
     /** Soft-deleted by {@code DELETE /v1/subscriptions/{id}}; the row survives and stays readable. */
