@@ -2,8 +2,12 @@
  * Categories — the list query (used all over the app: Transactions, Today,
  * envelopes) and the household-category mutations (§202).
  */
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { createCategory, deleteCategory, listCategories, updateCategory } from '@api/categories'
+import { budgetsKey } from './useBudgetPeriods'
+import { categoryRulesKey } from './useCategoryRules'
+import { taxExportKey } from './useTaxExport'
+import { invalidateLedger } from './useTransactions'
 import type { ApiError } from '@api/client'
 import type { CategoryRequest, CategoryResponse } from '@api/types'
 
@@ -17,8 +21,13 @@ export function useCategories() {
   })
 }
 
-function invalidateCategories(qc: ReturnType<typeof useQueryClient>) {
+/** Category names are shown on envelopes, ledger rows, rules and tax lines, so all of them refresh. */
+export function invalidateCategories(qc: QueryClient) {
   void qc.invalidateQueries({ queryKey: categoriesKey })
+  void qc.invalidateQueries({ queryKey: budgetsKey })
+  void qc.invalidateQueries({ queryKey: categoryRulesKey })
+  void qc.invalidateQueries({ queryKey: taxExportKey })
+  invalidateLedger(qc)
 }
 
 export function useCreateCategoryMutation() {
