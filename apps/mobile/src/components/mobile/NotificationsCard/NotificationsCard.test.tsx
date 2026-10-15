@@ -91,6 +91,20 @@ it('saves preferences, clearing the email address with an explicit null when lef
   );
 });
 
+it('leaves the threshold out of the request when the field is blank (B5-14)', async () => {
+  mockUnread.mockResolvedValue({ unread: 0 });
+  mockPreferences.mockResolvedValue(PREFERENCES);
+  mockUpdate.mockResolvedValue(PREFERENCES);
+  await renderCard();
+  await waitFor(() => expect(screen.getByTestId('settings-notifications-save')).toBeTruthy());
+
+  await fireEvent.changeText(screen.getByTestId('settings-notifications-threshold'), '');
+  await fireEvent.press(screen.getByTestId('settings-notifications-save'));
+
+  await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
+  expect(mockUpdate.mock.calls[0]![0]).not.toHaveProperty('budgetAlertThresholdPercent');
+});
+
 it('does not render the form before the preferences row has loaded', async () => {
   mockUnread.mockResolvedValue({ unread: 0 });
   mockPreferences.mockImplementation(() => new Promise(() => undefined));
