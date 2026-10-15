@@ -173,6 +173,11 @@ public class TaxExportGenerationService {
             windowStart(run.getTaxYear()), windowEnd(run.getTaxYear()));
         List<ExportRow> rows = new ArrayList<>(ledger.size());
         for (Transaction transaction : ledger) {
+            if (transaction.isPending()) {
+                // A pending charge can change amount or vanish when the posted row arrives, so
+                // it does not belong in a figure copied into a return (B2-14).
+                continue;
+            }
             TaxLine line = TaxLineMappingService.lineFor(resolved, transaction.getCategoryId());
             rows.add(new ExportRow(
                 transaction.getDate(),

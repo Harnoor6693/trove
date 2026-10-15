@@ -187,7 +187,7 @@ class TaxExportIT extends LedgerSupport {
         String runId = startRun("CSV").path("id").asString();
         awaitCompletion(runId);
 
-        String csv = new String(storedBytes(runId), StandardCharsets.UTF_8);
+        String csv = new String(storedBytes(runId), StandardCharsets.UTF_8).replaceFirst("^\uFEFF", "");
 
         // Parsed rather than searched as text: the merchant contains quotes and commas, so
         // commons-csv legitimately wraps the cell and doubles the inner quotes. Comparing raw
@@ -220,7 +220,7 @@ class TaxExportIT extends LedgerSupport {
 
         String runId = startRun("CSV").path("id").asString();
         awaitCompletion(runId);
-        String csv = new String(storedBytes(runId), StandardCharsets.UTF_8);
+        String csv = new String(storedBytes(runId), StandardCharsets.UTF_8).replaceFirst("^\uFEFF", "");
 
         assertThat(csv)
             .as("the receiptId column is populated for a transaction that has one")
@@ -266,7 +266,7 @@ class TaxExportIT extends LedgerSupport {
     void neitherFormatLeaksAComputedNumber() {
         String csvRun = startRun("CSV").path("id").asString();
         awaitCompletion(csvRun);
-        String csv = new String(storedBytes(csvRun), StandardCharsets.UTF_8)
+        String csv = new String(storedBytes(csvRun), StandardCharsets.UTF_8).replaceFirst("^\uFEFF", "")
             .toLowerCase(Locale.ROOT);
 
         String pdfRun = startRun("PDF").path("id").asString();

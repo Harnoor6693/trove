@@ -77,9 +77,14 @@ public class CsvExportBuilder {
     /** The scale every ledger amount is stored and summed at, from {@code NUMERIC(19,4)}. */
     private static final int LEDGER_SCALE = 4;
 
+    private static final byte[] UTF8_BOM = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
+
     /** Builds the whole document. Never returns null. */
     public byte[] build(List<ExportRow> rows) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
+        // UTF-8 byte order mark: without it Excel on Windows reads the file as Latin-1 and
+        // mangles accented merchants (B2-14).
+        out.writeBytes(UTF8_BOM);
         try (OutputStreamWriter writer = new OutputStreamWriter(out, StandardCharsets.UTF_8);
              CSVPrinter printer = new CSVPrinter(writer,
                  CSVFormat.DEFAULT.builder().setHeader(HEADERS.toArray(String[]::new)).get())) {

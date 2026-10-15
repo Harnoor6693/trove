@@ -229,7 +229,7 @@ class DataExportArchiveBuilderTest {
 
     private static List<CSVRecord> parse(byte[] content) {
         try (CSVParser parser = CSVParser.parse(
-            new StringReader(new String(content, StandardCharsets.UTF_8)), CSVFormat.DEFAULT)) {
+            new StringReader(new String(content, StandardCharsets.UTF_8).replaceFirst("^\uFEFF", "")), CSVFormat.DEFAULT)) {
             return parser.getRecords();
         } catch (IOException e) {
             throw new UncheckedIOException(e);

@@ -198,7 +198,8 @@ class DataExportIT extends LedgerSupport {
                 .isEqualTo(entries.get(name).length);
         }
 
-        String csv = new String(entries.get("transactions.csv"), StandardCharsets.UTF_8);
+        String csv = new String(entries.get("transactions.csv"), StandardCharsets.UTF_8)
+            .replaceFirst("^\uFEFF", "");
         assertThat(csv.lines().findFirst().orElse(""))
             .as("the transactions file is CsvExportBuilder's, with the column list step 15 fixed")
             .isEqualTo("date,merchant,description,notes,amount,currency,category,taxLineCode,"
