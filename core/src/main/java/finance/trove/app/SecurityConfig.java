@@ -238,6 +238,18 @@ public class SecurityConfig {
         CookieCsrfTokenRepository csrfRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
         csrfRepository.setCookiePath(AuthCookies.PATH);
 
+        // STATELESS, set as a shared object rather than through sessionManagement(): that
+        // setter also switches SessionManagementFilter on, and with no security-context repository
+        // to find a principal in, the filter takes every JWT-authenticated request for a fresh
+        // login and runs CsrfAuthenticationStrategy, which deletes the XSRF-TOKEN cookie. The
+        // SPA's next write then went out with no token and was refused (D1-01). The shared object
+        // is where SessionManagementConfigurer reads the policy from when its own is unset, and
+        // the setter cannot be combined with requireExplicitAuthenticationStrategy(true): Spring
+        // rejects the pair. A login filter (OIDC) still runs the strategy itself, so the token is
+        // still replaced on a real sign-in. CsrfCookieLifecycleIT holds that the cookie survives
+        // and that no response creates an HTTP session.
+        http.setSharedObject(SessionCreationPolicy.class, SessionCreationPolicy.STATELESS);
+
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf
@@ -247,7 +259,6 @@ public class SecurityConfig {
             .formLogin(AbstractHttpConfigurer::disable)
             .httpBasic(AbstractHttpConfigurer::disable)
             .logout(AbstractHttpConfigurer::disable)
-            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint(authenticationEntryPoint)
                 .accessDeniedHandler(accessDeniedHandler))
