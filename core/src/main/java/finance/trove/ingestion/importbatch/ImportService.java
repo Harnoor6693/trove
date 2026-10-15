@@ -248,11 +248,16 @@ public class ImportService {
         for (UUID householdId : batches.findHouseholdIdsWithPreviewsBefore(cutoff)) {
             for (ImportBatch batch : batches.findAllByHouseholdIdAndStatusAndCreatedAtBefore(
                 householdId, ImportBatchStatus.PREVIEW, cutoff)) {
+                // The row first, and only while it is still a PREVIEW: a commit that recorded
+                // itself since keeps both its row and the file its undo needs (B1-16).
+                if (batches.deletePreview(batch.getId(), householdId) == 0) {
+                    continue;
+                }
+                removed++;
                 ImportMapping mapping = batch.getMappingJson();
                 if (mapping != null && mapping.storageKey() != null) {
                     storage.delete(mapping.storageKey());
                 }
-                removed += (int) batches.deleteByIdAndHouseholdId(batch.getId(), householdId);
             }
         }
         if (removed > 0) {
