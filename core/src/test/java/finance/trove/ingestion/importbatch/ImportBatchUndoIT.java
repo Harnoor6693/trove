@@ -80,6 +80,28 @@ class ImportBatchUndoIT extends ImportSupport {
     }
 
     @Test
+    @DisplayName("B1-08: undoing a batch frees the partner of an imported transfer leg")
+    void undoFreesTheTransferPartner() {
+        String batchId = commitFile(FIRST_FILE);
+        String imported = rowsOf(batchId).get(0).path("id").asString();
+        String other = createAccount(admin, "MANUAL", "Partner " + UUID.randomUUID(), "OTHER",
+            "CAD");
+        String partner = createManualTransaction(admin, other, "11.00", "2026-08-01", "CREDIT",
+            "Partner leg").path("id").asString();
+        String group = UUID.randomUUID().toString();
+        for (String id : new String[] {imported, partner}) {
+            assertThat(patchJson(appUrl("/v1/transactions/" + id),
+                Json.object("transferGroupId", group),
+                "Authorization", "Bearer " + admin.accessToken()).statusCode()).isEqualTo(200);
+        }
+
+        assertThat(undo(admin, batchId).statusCode()).isEqualTo(200);
+
+        assertThat(getTransaction(admin, partner).path("transferGroupId").isNull())
+            .as("the surviving leg would otherwise stay hidden from every total").isTrue();
+    }
+
+    @Test
     @DisplayName("A second undo is 409, and a batch that was never committed cannot be undone")
     void undoIsRefusedWhenThereIsNothingToUndo() {
         String batchId = commitFile(FIRST_FILE);

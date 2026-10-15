@@ -130,6 +130,9 @@ public class TransactionService {
             transaction.setTags(patch.tags());
         }
         if (patch.hasTransferGroupId()) {
+            if (patch.transferGroupId() == null) {
+                freePartners(householdId, userId, transaction);
+            }
             transaction.setTransferGroupId(patch.transferGroupId());
             // Linking or unlinking moves the row in or out of every spend aggregate (B2-04).
             ledgerChanged = !java.util.Objects.equals(transaction.getTransferGroupId(),
@@ -186,10 +189,31 @@ public class TransactionService {
                 + "came from its account's source and would return on the next sync; disconnect "
                 + "the account instead.");
         }
+        freePartners(householdId, transaction.getUserId(), transaction);
         transactions.deleteByIdAndHouseholdId(transactionId, householdId);
         // The envelope still counts the row until it is recomputed (B2-04).
         publishCategorised(householdId, transaction.getUserId(), transaction,
             transaction.getCategoryId(), transaction.getCategoryId());
+    }
+
+    /**
+     * Frees the other legs of this row's transfer group (B1-08): without its pair a leg is not a
+     * transfer, and left linked it would vanish from spending, income and every envelope.
+     */
+    private void freePartners(UUID householdId, UUID userId, Transaction transaction) {
+        UUID group = transaction.getTransferGroupId();
+        if (group == null) {
+            return;
+        }
+        for (Transaction partner : transactions.findAllByHouseholdIdAndTransferGroupId(
+            householdId, group)) {
+            if (!partner.getId().equals(transaction.getId())) {
+                partner.setTransferGroupId(null);
+                transactions.save(partner);
+                publishCategorised(householdId, userId, partner, partner.getCategoryId(),
+                    partner.getCategoryId());
+            }
+        }
     }
 
     /** The scoped lookup every by-id route funnels through; empty is 404, never 403. */

@@ -77,6 +77,9 @@ public class ImportUndoService {
             if (!isUntouched(householdId, row)) {
                 continue;
             }
+            if (row.getTransferGroupId() != null) {
+                transactions.clearTransferGroups(householdId, List.of(row.getTransferGroupId()));
+            }
             removed += (int) transactions.deleteByIdAndHouseholdId(row.getId(), householdId);
         }
         batch.markUndone();

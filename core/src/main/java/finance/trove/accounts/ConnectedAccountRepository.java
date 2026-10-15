@@ -91,4 +91,16 @@ public interface ConnectedAccountRepository extends UserScopedRepository<Connect
     int releaseClaim(@Param("id") UUID id, @Param("householdId") UUID householdId,
                      @Param("status") String status, @Param("errorMessage") String errorMessage,
                      @Param("lastSyncedAt") boolean lastSyncedAt);
+
+    /**
+     * Frees the legs on OTHER accounts that are paired with a leg of this one (B1-08). Run before
+     * the account is deleted: its rows cascade away, and a surviving partner with a transfer group
+     * of one would be hidden from spending and income for good.
+     */
+    @Modifying
+    @Query(value = "UPDATE transaction SET transfer_group_id = NULL WHERE household_id = :h "
+        + "AND account_id <> :id AND transfer_group_id IN (SELECT transfer_group_id FROM "
+        + "transaction WHERE household_id = :h AND account_id = :id "
+        + "AND transfer_group_id IS NOT NULL)", nativeQuery = true)
+    int freeTransferPartners(@Param("id") UUID id, @Param("h") UUID householdId);
 }
