@@ -80,6 +80,12 @@ updates:
       # which Babel 8 removed (all 128 test suites fail to run).
       - dependency-name: "@babel/core"
         update-types: ["version-update:semver-major"]
+      # Blocked: victory-native 41+ is "Victory Native XL", a rewrite on
+      # @shopify/react-native-skia (new native module). Ported and tested
+      # on a branch; Jest passes but Detox on Android breaks (app never
+      # goes idle / disconnects), so hold until that is root-caused.
+      - dependency-name: "victory-native"
+        update-types: ["version-update:semver-major"]
       # Native runtime bumps are SDK-pinned via Expo — bump manually with prebuild.
       # react must equal the renderer react-native ships, and the native modules
       # must match the SDK's native build, so these move only with
