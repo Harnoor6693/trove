@@ -117,7 +117,7 @@ public class BudgetPeriodService {
             // Only once the period has envelopes. One that has none has allocated nothing, and
             // refusing to change its income before its first envelope exists would make
             // ZERO_BASED unusable rather than strict.
-            requireZeroBasedInvariant(period, envelopes.sumAllocatedByPeriodId(periodId));
+            requireZeroBasedInvariant(period, envelopes.sumAllocatedByPeriodId(periodId, period.getCurrency()));
         }
         return periods.save(period);
     }

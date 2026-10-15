@@ -149,6 +149,26 @@ class EnvelopeIT extends BudgetTestSupport {
     }
 
     @Test
+    @DisplayName("ZERO_BASED: a foreign-currency envelope cannot help balance the period (B2-06)")
+    void zeroBasedIsCheckedPerCurrency() {
+        Session member = freshHousehold("envelope-zerobased-ccy");
+        String periodId = createPeriod(member, "2026-09-01", "1000.00", "CAD", "ZERO_BASED")
+            .path("id").asString();
+        String groceries = systemCategoryId(member, GROCERIES_SLUG);
+        String restaurants = systemCategoryId(member, RESTAURANTS_SLUG);
+
+        // USD 1000 numerically equals the CAD 1000 income, but currencies are never blended.
+        HttpResponse<String> mixed = postJson(appUrl("/v1/budgets/" + periodId + "/envelopes"),
+            Json.object("categoryId", restaurants, "allocated", "1000.00", "currency", "USD"),
+            "Authorization", "Bearer " + member.accessToken());
+        assertThat(mixed.statusCode())
+            .as("a USD envelope in a CAD ZERO_BASED period is refused: %s", mixed.body())
+            .isEqualTo(400);
+
+        createEnvelope(member, periodId, groceries, "1000.00", "CAD");
+    }
+
+    @Test
     @DisplayName("PUT replaces the allocation; category, currency and spent are not writable")
     void updateReplacesTheAllocationOnly() {
         Session member = freshHousehold("envelope-update");
