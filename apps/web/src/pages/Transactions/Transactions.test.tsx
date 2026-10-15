@@ -295,7 +295,10 @@ describe('Transactions — transfers are a patch, not a route', () => {
     await user.click(screen.getByRole('button', { name: /details for corner market/i }))
     const detail = await screen.findByTestId('transaction-detail')
 
-    await user.selectOptions(within(detail).getByLabelText(/other side of it/i), 'txn-2')
+    // The picker is disabled until its candidate query lands; wait for it.
+    const picker = within(detail).getByLabelText(/other side of it/i)
+    await waitFor(() => expect(picker).toBeEnabled())
+    await user.selectOptions(picker, 'txn-2')
     await user.click(within(detail).getByRole('button', { name: /mark these two as a transfer/i }))
 
     await waitFor(() => {

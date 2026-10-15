@@ -30,7 +30,7 @@ if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {}
 }
 
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 beforeEach(() => {
   localStorage.clear()
   // Assigning '' does not clear a cookie — each one has to be expired by name,
