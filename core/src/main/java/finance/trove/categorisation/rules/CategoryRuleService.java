@@ -62,9 +62,21 @@ public class CategoryRuleService {
     public MerchantCategoryMap create(UUID householdId, UUID userId, CategoryRuleRequest request) {
         String normalised = normalisedOrThrow(request.merchant());
         validateCategory(householdId, request.categoryId());
-        if (mappings.findByHouseholdIdAndNormalisedMerchant(householdId, normalised).isPresent()) {
+        Optional<MerchantCategoryMap> existing =
+            mappings.findByHouseholdIdAndNormalisedMerchant(householdId, normalised);
+        if (existing.isPresent() && existing.get().getSource() != MappingSource.AI) {
             throw new ConflictException(
                 "A rule for this merchant already exists in this household; update it instead");
+        }
+        if (existing.isPresent()) {
+            // A rule is the member's decision and replaces a machine guess in place (B1-06).
+            MerchantCategoryMap guess = existing.get();
+            guess.setMatchType(request.matchType());
+            guess.setCategoryId(request.categoryId());
+            guess.setConfidence(confidenceOrDefault(request.confidence()));
+            guess.setSource(MappingSource.RULE);
+            guess.setPriority(nextPriority(householdId));
+            return mappings.save(guess);
         }
         MerchantCategoryMap rule = new MerchantCategoryMap(householdId, normalised,
             request.matchType(), request.categoryId(), confidenceOrDefault(request.confidence()),

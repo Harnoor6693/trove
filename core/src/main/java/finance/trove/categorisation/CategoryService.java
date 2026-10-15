@@ -76,10 +76,13 @@ public class CategoryService {
     @Transactional
     public void delete(UUID householdId, UUID id) {
         ownHouseholdCategory(householdId, id);
-        if (mappings.existsByHouseholdIdAndCategoryId(householdId, id)) {
+        if (mappings.existsByHouseholdIdAndCategoryIdAndSourceNot(householdId, id,
+            MappingSource.AI)) {
             throw new ConflictException(
                 "This category is in use by one or more merchant rules and cannot be deleted");
         }
+        // An AI guess is not the member's decision; it must not hold a category hostage (B1-06).
+        mappings.deleteByHouseholdIdAndCategoryIdAndSource(householdId, id, MappingSource.AI);
         categories.deleteByIdAndHouseholdId(id, householdId);
     }
 
