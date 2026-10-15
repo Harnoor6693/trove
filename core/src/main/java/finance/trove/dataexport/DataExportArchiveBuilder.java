@@ -79,7 +79,7 @@ public class DataExportArchiveBuilder {
     /** Builds the whole archive. Never returns null. */
     public byte[] build(ArchiveRequest request) {
         Map<String, byte[]> entries = new LinkedHashMap<>();
-        entries.put(TRANSACTIONS_ENTRY, csvBuilder.build(request.transactions()));
+        entries.put(TRANSACTIONS_ENTRY, csvBuilder.buildLedger(request.transactions()));
         for (Map.Entry<String, Object> dataset : request.datasets().entrySet()) {
             entries.put(dataset.getKey(), json(dataset.getValue()));
         }
@@ -134,10 +134,9 @@ public class DataExportArchiveBuilder {
         manifest.put("amounts",
             "Every amount is a decimal string at the ledger's four-decimal scale and carries its "
                 + "own currency. Nothing is converted and no total is blended across currencies. "
-                + "The only computed figures in this archive are the plain per-currency sums in "
-                + "the totals section the shared builder appends under the last row of "
-                + TRANSACTIONS_ENTRY + ": one row per tax line per currency, added and nothing "
-                + "else.");
+                + "No figure in this archive is computed. " + TRANSACTIONS_ENTRY + " holds every "
+                + "transaction, transfer legs and pending ones included, with its type, account "
+                + "and transfer group.");
         // Every entry except this one. The manifest cannot state its own size without changing
         // it, and a self-referential count that is wrong the moment it is written is worse than
         // an absence a reader can see.

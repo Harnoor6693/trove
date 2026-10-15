@@ -72,7 +72,7 @@ class DataExportGenerationServiceTest {
         when(status.transition(runId, userId, DataExportStatus.GENERATING, null)).thenReturn(true);
         when(users.findByIdAndHouseholdId(userId, householdId)).thenReturn(Optional.empty());
         when(categories.findAllVisible(householdId)).thenReturn(List.of());
-        when(transactions.findSpendableInRange(eq(householdId), any(), any()))
+        when(transactions.findAllInRange(eq(householdId), any(), any()))
             .thenReturn(List.of());
         when(collector.collect(userId, householdId)).thenReturn(Map.of());
         when(archives.build(any())).thenReturn(new byte[] {1, 2, 3});

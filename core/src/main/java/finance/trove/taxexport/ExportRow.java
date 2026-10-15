@@ -35,10 +35,13 @@ import java.util.UUID;
  *
  * @param type the transaction's direction. {@code amount} is always positive, so without this a
  *     paycheque and a purchase look the same (B2-01)
+ * @param accountId the account, transferGroupId the pairing id and pending the pending flag: written
+ *     only by the full data export ({@link CsvExportBuilder#buildLedger}), never by the tax export
  * @param receiptId the attached receipt's id, or null — no URL, no key, no figure
  */
 public record ExportRow(LocalDate date, String merchant, String description, String notes,
                         BigDecimal amount, CurrencyCode currency, String category,
                         String taxLineCode, String taxLineLabel, UUID receiptId,
-                        TransactionType type) {
+                        TransactionType type, UUID accountId, UUID transferGroupId,
+                        boolean pending) {
 }

@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -47,7 +48,7 @@ class DataExportArchiveBuilderTest {
 
     private static ExportRow row(String merchant, String amount, CurrencyCode currency) {
         return new ExportRow(LocalDate.of(2025, 3, 4), merchant, "a description", "private notes",
-            new BigDecimal(amount), currency, "groceries", "8523", "Meals", null, TransactionType.DEBIT);
+            new BigDecimal(amount), currency, "groceries", "8523", "Meals", null, TransactionType.DEBIT, null, null, false);
     }
 
     private byte[] archive(List<ExportRow> transactions, Map<String, Object> datasets) {
@@ -152,10 +153,9 @@ class DataExportArchiveBuilderTest {
             .as("owner decision 2 and risk 15: no blended total, ever")
             .contains("carries its own currency")
             .contains("no total is blended")
-            .as("and it must not claim NOTHING is computed: the shared builder appends a "
-                + "per-currency totals section under the transactions, and a member who trusted "
-                + "the stronger sentence would not expect it")
-            .contains("totals section")
+            .as("the full ledger file carries no totals section, so nothing in it is computed "
+                + "and it stays rectangular for an importer (B2-03)")
+            .contains("No figure in this archive is computed")
             .contains("transactions.csv");
         assertThat(manifest.path("ledgerScope").asString())
             .as("\"my export\" containing a household mate's spending surprises anybody who was "
@@ -173,7 +173,9 @@ class DataExportArchiveBuilderTest {
         assertThat(records.get(0).toList())
             .as("collapse step 18 reuses the column list and must never widen it: a second "
                 + "header set means a second copy of the escaping to get wrong")
-            .containsExactlyElementsOf(CsvExportBuilder.HEADERS);
+            .containsExactlyElementsOf(
+                Stream.concat(CsvExportBuilder.HEADERS.stream(),
+                    CsvExportBuilder.LEDGER_HEADERS.stream()).toList());
     }
 
     @Test

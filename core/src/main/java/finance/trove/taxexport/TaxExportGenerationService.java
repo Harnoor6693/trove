@@ -195,7 +195,8 @@ public class TaxExportGenerationService {
                 // GST/PST/HST split stays on the receipt and is never exported (§2.9, open
                 // question 1), which TaxExportIT holds by grepping the generated files.
                 transaction.getReceiptId(),
-                transaction.getType()));
+                transaction.getType(), transaction.getAccountId(),
+                transaction.getTransferGroupId(), transaction.isPending()));
         }
         return rows;
     }
