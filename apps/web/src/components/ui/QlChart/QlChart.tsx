@@ -22,8 +22,8 @@ const TOOLTIP_STYLE = {
   borderRadius: 8, fontSize: 12, fontFamily: 'Inter',
 };
 
-const AXIS_TICK = { fontSize: 11, fill: '#8c8578', fontFamily: 'Inter' };
-const Y_TICK    = { fontSize: 11, fill: '#8c8578', fontFamily: 'JetBrains Mono, monospace' };
+const AXIS_TICK = { fontSize: 11, fill: '#6b6558', fontFamily: 'Inter' };
+const Y_TICK    = { fontSize: 11, fill: '#6b6558', fontFamily: 'JetBrains Mono, monospace' };
 
 export function QlChart({ variant = 'area', data, color = '#4a6b4f', height = 200, showAxes = true, showGrid = false }: QlChartProps) {
   if (variant === 'spark') {
