@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+import { normaliseServerUrl } from '@api/serverUrl';
 import { ANDROID_CLEARTEXT_HOSTS, networkSecurityConfigXml } from './app.config';
 
 describe('Android network security config (B5-03)', () => {
@@ -16,6 +18,38 @@ describe('Android network security config (B5-03)', () => {
     expect(permitted.sort()).toEqual([...ANDROID_CLEARTEXT_HOSTS].sort());
     expect(permitted).toContain('local');
     expect(permitted).not.toContain('*');
+  });
+
+  it('keeps the hosts Detox and Metro use on the emulator', () => {
+    // A network security config overrides the debug manifest's
+    // `usesCleartextTraffic`, so these must stay listed: the in-app Detox
+    // client dials ws://localhost:<port> (adb reverse), and Metro and the e2e
+    // server are reached at http://10.0.2.2.
+    expect(ANDROID_CLEARTEXT_HOSTS).toEqual(expect.arrayContaining(['localhost', '10.0.2.2']));
+  });
+});
+
+describe('the connect-screen validator matches the Android config (B5-03)', () => {
+  const setOs = (os: 'ios' | 'android') => {
+    Object.defineProperty(Platform, 'OS', { value: os, configurable: true });
+  };
+  afterEach(() => setOs('ios'));
+
+  it.each(ANDROID_CLEARTEXT_HOSTS.map((h) => (h === 'local' ? 'nas.local' : h)))(
+    'accepts http://%s only after the opt-in',
+    (host) => {
+      setOs('android');
+      expect(normaliseServerUrl(`http://${host}:8080`, true).ok).toBe(true);
+      expect(normaliseServerUrl(`http://${host}:8080`, false).ok).toBe(false);
+    }
+  );
+
+  it('refuses an http LAN address the config does not list', () => {
+    setOs('android');
+    expect(normaliseServerUrl('http://192.168.1.9:8080', true)).toMatchObject({
+      ok: false,
+      code: 'INSECURE_HOST_BLOCKED',
+    });
   });
 });
 
