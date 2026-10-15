@@ -157,15 +157,19 @@ public class PasswordResetService {
      */
     @Transactional
     public void redeem(String rawToken, String newPassword, Instant now) {
-        Optional<PasswordResetToken> maybe = tokens.findByTokenHash(hash(rawToken));
+        // Locked: a concurrent redeem of the same link waits here and then finds it consumed.
+        Optional<PasswordResetToken> maybe = tokens.findByTokenHashForUpdate(hash(rawToken));
         PasswordResetToken token = maybe.filter(t -> t.isUsableAt(now))
             .orElseThrow(PasswordResetService::invalidLink);
 
         // Loaded without a household filter, and this is the one place that is correct: the
         // caller is anonymous by design, so there is no principal to take a household from, and
         // the household is a property OF the user row rather than an input to finding it. The
-        // token's uniqueness is the authorisation.
+        // token's uniqueness is the authorisation. A member deactivated or deleted after the link
+        // was minted is refused like an unknown link: their account cannot sign in, and a reset
+        // must not quietly rewrite its password during the deletion grace.
         User user = users.findAccount(token.getUserId())
+            .filter(User::isActive)
             .orElseThrow(PasswordResetService::invalidLink);
 
         // Policy first: if the new password is refused, the link must survive so the member can
