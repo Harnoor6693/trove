@@ -52,11 +52,15 @@ public class SubscriptionService {
         this.properties = properties;
     }
 
-    /** The household's active subscriptions, alphabetically. */
+    /**
+     * The household's active subscriptions, alphabetically: not dismissed, and still charging
+     * (see {@link DetectedSubscription#hasStopped}) by the caller's own today.
+     */
     @Transactional(readOnly = true)
-    public List<DetectedSubscription> listActive(UUID householdId) {
+    public List<DetectedSubscription> listActive(UUID householdId, UUID userId) {
+        LocalDate today = clock.today(userId);
         return subscriptions.findAllByHouseholdIdAndCancelledFalseOrderByMerchantNameAsc(
-            householdId);
+            householdId).stream().filter(subscription -> !subscription.hasStopped(today)).toList();
     }
 
     /**
@@ -97,7 +101,7 @@ public class SubscriptionService {
      */
     @Transactional(readOnly = true)
     public SubscriptionSummaryResponse summary(UUID householdId, UUID userId) {
-        List<DetectedSubscription> active = listActive(householdId);
+        List<DetectedSubscription> active = listActive(householdId, userId);
         CurrencyCode currency = users.findByIdAndHouseholdId(userId, householdId)
             .map(User::getCurrency)
             .orElseThrow(() -> ResourceNotFoundException.of("User", userId));
