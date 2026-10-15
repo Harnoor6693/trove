@@ -59,16 +59,29 @@ public final class TroveJsonModule extends SimpleModule {
             JsonToken token = parser.currentToken();
             if ((token == JsonToken.VALUE_STRING || token != null && token.isNumeric())
                 && parser.getStringLength() > MAX_CHARS) {
-                throw InvalidFormatException.from(parser, "A number is at most " + MAX_CHARS
-                    + " characters long.", null, BigDecimal.class);
+                throw new AmountOutOfRangeException(parser, "is longer than the "
+                    + MAX_CHARS + " characters any amount needs");
             }
             BigDecimal value = super.deserialize(parser, context);
             if (value != null && !Money.fitsColumn(value)) {
-                throw InvalidFormatException.from(parser, "An amount has at most "
+                throw new AmountOutOfRangeException(parser, "has at most "
                     + Money.MAX_INTEGER_DIGITS + " digits before the decimal point and "
-                    + Money.MAX_FRACTION_DIGITS + " after it.", null, BigDecimal.class);
+                    + Money.MAX_FRACTION_DIGITS + " after it");
             }
             return value;
+        }
+    }
+
+    /**
+     * A well-formed number this server cannot store. Its message names the rule and never the
+     * value, so {@code GlobalExceptionHandler} can answer it as a field error on the property.
+     */
+    public static final class AmountOutOfRangeException extends InvalidFormatException {
+
+        private static final long serialVersionUID = 1L;
+
+        AmountOutOfRangeException(JsonParser parser, String rule) {
+            super(parser, rule, null, BigDecimal.class);
         }
     }
 
