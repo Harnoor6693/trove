@@ -315,6 +315,27 @@ describe('reuse detection', () => {
     expect(await client.hydrateSession()).toBeNull();
   });
 
+  it('keeps the session when the refresh fails on a network error (B5-01)', async () => {
+    handler = (config) => {
+      throw new AxiosError('Network Error', AxiosError.ERR_NETWORK, config);
+    };
+    const ended: string[] = [];
+    client.onSessionEnded((reason) => ended.push(reason));
+    await expect(client.refreshAccessToken()).rejects.toBeDefined();
+    expect(ended).toEqual([]);
+    expect(client.getRefreshToken()).toBe('stale-token');
+    expect(await client.hydrateSession()).not.toBeNull();
+  });
+
+  it('keeps the session when the refresh endpoint answers 503 (B5-01)', async () => {
+    handler = () => ({ status: 503 });
+    const ended: string[] = [];
+    client.onSessionEnded((reason) => ended.push(reason));
+    await expect(client.refreshAccessToken()).rejects.toBeDefined();
+    expect(ended).toEqual([]);
+    expect(client.getRefreshToken()).toBe('stale-token');
+  });
+
   it('does not retry the original request after a rejected refresh', async () => {
     handler = () => ({ status: 401 });
     await expect(client.api.get('/v1/auth/me')).rejects.toBeDefined();
