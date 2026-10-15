@@ -269,11 +269,15 @@ export function refreshAccessToken(): Promise<string> {
       await setSession(pair, user);
       return pair.accessToken;
     } catch (err) {
-      // A rejected refresh is terminal: the token was stale, already rotated,
-      // or its family was revoked by the server's reuse detection. There is no
-      // second attempt that could succeed.
+      // Only a definitive refusal is terminal: the token was stale, already
+      // rotated, or its family was revoked by the server's reuse detection.
+      // A network error, timeout or 5xx says nothing about the token, so the
+      // stored session is kept and the caller can simply retry (B5-01).
       logError('AUTH_REFRESH_FAILED', err);
-      await endSession('REFRESH_REJECTED');
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+      if (status === 400 || status === 401 || status === 403) {
+        await endSession('REFRESH_REJECTED');
+      }
       throw err;
     } finally {
       refreshInFlight = null;
