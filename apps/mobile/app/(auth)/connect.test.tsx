@@ -118,6 +118,25 @@ describe('ConnectScreen', () => {
     expect(queryByText(/trust anyway|ignore/i)).toBeNull();
   });
 
+  it('says so, and does not leave a rejected promise, when the device cannot save the server (B5-15)', async () => {
+    const original = useAuthStore.getState().connectServer;
+    useAuthStore.setState({
+      connectServer: jest.fn().mockRejectedValue(new Error('keychain is full')),
+    });
+    try {
+      const { getByTestId } = await render(<ConnectScreen />);
+      await fireEvent.changeText(getByTestId('connect-url-input'), 'https://trove.example.com');
+      await fireEvent.press(getByTestId('connect-submit-btn'));
+
+      await waitFor(() =>
+        expect(getByTestId('connect-error-text').props.children).toMatch(/save/i)
+      );
+      expect(mockReplace).not.toHaveBeenCalled();
+    } finally {
+      useAuthStore.setState({ connectServer: original });
+    }
+  });
+
   it('rejects an empty address', async () => {
     const { getByTestId } = await render(<ConnectScreen />);
     await fireEvent.press(getByTestId('connect-submit-btn'));
