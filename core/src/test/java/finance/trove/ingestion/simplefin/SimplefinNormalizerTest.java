@@ -52,11 +52,11 @@ class SimplefinNormalizerTest {
     void aRefundIsNotIncome() {
         Instant day = Instant.parse("2026-09-01T10:00:00Z");
 
-        assertThat(normalizer.normalize(ACCOUNT, new SimplefinTransaction("r",
-            new BigDecimal("19.99"), "AMAZON.CA REFUND", day, day)).type())
+        assertThat(normalizer.normalize(ACCOUNT, new SimplefinTransaction("r", "19.99",
+            "AMAZON.CA REFUND", day, day, null)).type())
             .isEqualTo(TransactionType.REFUND);
-        assertThat(normalizer.normalize(ACCOUNT, new SimplefinTransaction("p",
-            new BigDecimal("19.99"), "E-TRANSFER FROM SAM", day, day)).type())
+        assertThat(normalizer.normalize(ACCOUNT, new SimplefinTransaction("p", "19.99",
+            "E-TRANSFER FROM SAM", day, day, null)).type())
             .isEqualTo(TransactionType.CREDIT);
     }
 
@@ -106,6 +106,7 @@ class SimplefinNormalizerTest {
 
     private static SimplefinTransaction transaction(String id, BigDecimal amount,
                                                     Instant transacted, Instant posted) {
-        return new SimplefinTransaction(id, amount, "A DESCRIPTION", transacted, posted);
+        return new SimplefinTransaction(id, amount == null ? null : amount.toPlainString(),
+            "A DESCRIPTION", transacted, posted, null);
     }
 }
