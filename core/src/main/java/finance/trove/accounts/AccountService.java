@@ -206,6 +206,7 @@ public class AccountService {
      */
     @Transactional
     public void delete(UUID householdId, UUID accountId) {
+        accounts.freeTransferPartners(accountId, householdId);
         if (accounts.deleteByIdAndHouseholdId(accountId, householdId) == 0) {
             throw ResourceNotFoundException.of("Account", accountId);
         }

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import finance.trove.common.repository.UserScopedRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -108,4 +109,17 @@ public interface TransactionRepository extends UserScopedRepository<Transaction,
      */
     List<Transaction> findAllByHouseholdIdAndImportBatchIdOrderByCreatedAtAsc(UUID householdId,
                                                                               UUID importBatchId);
+
+    /** The other legs of a transfer group, household-scoped. */
+    List<Transaction> findAllByHouseholdIdAndTransferGroupId(UUID householdId, UUID transferGroupId);
+
+    /**
+     * Frees every row of these transfer groups (B1-08). A group of one leg is a lie that hides
+     * the survivor from spending and income, so whoever removes or unlinks a leg frees the rest.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update Transaction t set t.transferGroupId = null where t.householdId = :householdId "
+        + "and t.transferGroupId in :groups")
+    int clearTransferGroups(@Param("householdId") UUID householdId,
+                            @Param("groups") Collection<UUID> groups);
 }
