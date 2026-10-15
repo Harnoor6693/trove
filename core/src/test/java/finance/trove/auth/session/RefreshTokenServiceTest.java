@@ -192,6 +192,29 @@ class RefreshTokenServiceTest {
     }
 
     @Test
+    @DisplayName("After a restart, a racing tab inside the grace window is refused, not a theft")
+    void aRestartInsideTheGraceWindowDoesNotBurnTheFamily() {
+        RefreshResult first = service.issue(userId, null, null, NOW);
+        RefreshResult tabOne = service.rotate(first.token().value(), null, null,
+            NOW.plusSeconds(1));
+        RefreshTokenService restarted = new RefreshTokenService(tokens, issuer, verifier,
+            jwtProperties, refreshProperties, securityEvents, new SessionRevoker(tokens));
+
+        assertThatThrownBy(() ->
+            restarted.rotate(first.token().value(), null, null, NOW.plusSeconds(2)))
+            .as("the successor lived only in the old process's memory, so it cannot be handed "
+                + "back; refusing is all that is left")
+            .isInstanceOf(UnauthorizedException.class)
+            .hasMessage("Invalid or expired session");
+        assertThat(store.get(RefreshTokenService.hash(tabOne.token().value())).isRevoked())
+            .as("B3-13: a deploy inside the window used to read as token theft and sign the "
+                + "member out of every device in the family; tab one's successor keeps working")
+            .isFalse();
+        verify(securityEvents, never())
+            .record(eq(SecurityEventType.REFRESH_REUSE_DETECTED), any(), any());
+    }
+
+    @Test
     @DisplayName("Replaying a rotated token after the grace window burns the whole family")
     void reuseOutsideTheGraceWindowRevokesTheFamily() {
         RefreshResult first = service.issue(userId, null, null, NOW);
