@@ -87,6 +87,12 @@ public class RolloverService {
 
         List<Envelope> sourceEnvelopes = envelopes
             .findAllByHouseholdIdAndPeriodIdOrderByCreatedAtAsc(householdId, source.getId());
+        // The carry is the closed month's real remainder, so refresh each envelope's stored
+        // `spent` from the ledger before reading it rather than trusting the last write.
+        for (Envelope from : sourceEnvelopes) {
+            spend.recalculate(householdId, source.getUserId(), from.getCategoryId(),
+                source.month());
+        }
         Optional<BudgetPeriod> existingTarget =
             periods.findByHouseholdIdAndMonth(householdId, targetMonth.atDay(1));
 
