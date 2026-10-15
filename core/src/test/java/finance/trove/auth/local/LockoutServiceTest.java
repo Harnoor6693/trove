@@ -14,6 +14,9 @@ import finance.trove.app.audit.SecurityEventRecorder;
 import finance.trove.app.audit.SecurityEventType;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,9 +28,10 @@ import org.mockito.quality.Strictness;
 import org.springframework.dao.QueryTimeoutException;
 
 /**
- * Readiness gap P2-5, both halves.
+ * Readiness gap P2-5, both halves, and B3-05's policy.
  *
- * <p>The account half locks one address after repeated failures. The network half — the one an
+ * <p>The account half throttles one address for one account after repeated failures, and every
+ * address the account has not been signed in from once the account passes its hourly ceiling. The network half — the one an
  * account lock cannot cover — refuses an address that has been guessing across many accounts,
  * which is what credential stuffing actually looks like: one guess each against a thousand
  * addresses, tripping no per-account counter anywhere.
@@ -50,7 +54,7 @@ class LockoutServiceTest {
 
     private final LockoutProperties properties = new LockoutProperties(
         5, Duration.ofMinutes(15), Duration.ofSeconds(30), Duration.ofMinutes(15),
-        10, Duration.ofHours(24), 20, Duration.ofMinutes(10));
+        100, Duration.ofHours(1), 20, Duration.ofMinutes(10));
 
     private LockoutService service() {
         return new LockoutService(attempts, credentials, properties, securityEvents);
@@ -62,33 +66,40 @@ class LockoutServiceTest {
 
     // ------------------------------------------------------------------ per-account
 
+    /** Failures from {@link #IP} for any account, oldest first, as the repository answers. */
+    private void failuresAt(Instant... at) {
+        when(attempts.failuresFromSince(anyString(), eq(IP), any())).thenReturn(List.of(at));
+    }
+
     @Test
     @DisplayName("Below the threshold the counter rises but no lock is set")
     void countsWithoutLockingBelowTheThreshold() {
-        when(attempts.countFailuresSince(anyString(), any())).thenReturn(3L);
+        failuresAt(NOW.minusSeconds(120), NOW.minusSeconds(60), NOW);
         LocalCredential credential = credential();
-        when(credentials.findByUserId(any())).thenReturn(java.util.Optional.of(credential));
+        when(credentials.findByUserId(any())).thenReturn(Optional.of(credential));
 
         service().recordFailure("a@trove.test", IP, UUID.randomUUID(), NOW);
 
         assertThat(credential.getFailedAttempts()).isEqualTo(3);
         assertThat(credential.getLockedUntil()).isNull();
+        assertThat(service().isLocked("a@trove.test", IP, NOW)).isFalse();
         verify(securityEvents, never()).record(eq(SecurityEventType.LOCKOUT), any(), any());
     }
 
     @Test
-    @DisplayName("The fifth failure inside the window locks the account and writes LOCKOUT")
+    @DisplayName("The fifth failure in a run throttles that address and writes LOCKOUT")
     void locksAtTheThreshold() {
-        when(attempts.countFailuresSince(anyString(), any())).thenReturn(5L);
+        failuresAt(NOW.minusSeconds(4), NOW.minusSeconds(3), NOW.minusSeconds(2),
+            NOW.minusSeconds(1), NOW);
         LocalCredential credential = credential();
         UUID userId = UUID.randomUUID();
-        when(credentials.findByUserId(userId)).thenReturn(java.util.Optional.of(credential));
+        when(credentials.findByUserId(userId)).thenReturn(Optional.of(credential));
 
         service().recordFailure("a@trove.test", IP, userId, NOW);
 
         assertThat(credential.getLockedUntil()).isEqualTo(NOW.plusSeconds(30));
-        assertThat(credential.isLockedAt(NOW.plusSeconds(10))).isTrue();
-        assertThat(credential.isLockedAt(NOW.plusSeconds(31))).isFalse();
+        assertThat(service().isLocked("a@trove.test", IP, NOW.plusSeconds(10))).isTrue();
+        assertThat(service().isLocked("a@trove.test", IP, NOW.plusSeconds(31))).isFalse();
         verify(securityEvents).record(eq(SecurityEventType.LOCKOUT), eq(userId), any());
     }
 
@@ -112,15 +123,89 @@ class LockoutServiceTest {
     }
 
     @Test
-    @DisplayName("Past the hard threshold the lock becomes the long one an admin clears")
-    void hardLockTakesOver() {
-        when(attempts.countFailuresSince(anyString(), any())).thenReturn(10L);
+    @DisplayName("There is no long lock: however many failures, a throttle ends within maxBackoff")
+    void thereIsNoLongLock() {
+        Instant[] run = new Instant[40];
+        for (int i = 0; i < run.length; i++) {
+            run[i] = NOW.minusSeconds(run.length - 1 - i);
+        }
+        failuresAt(run);
         LocalCredential credential = credential();
-        when(credentials.findByUserId(any())).thenReturn(java.util.Optional.of(credential));
+        when(credentials.findByUserId(any())).thenReturn(Optional.of(credential));
 
         service().recordFailure("a@trove.test", IP, UUID.randomUUID(), NOW);
 
-        assertThat(credential.getLockedUntil()).isEqualTo(NOW.plus(Duration.ofHours(24)));
+        assertThat(credential.getLockedUntil())
+            .as("the 24-hour lock this replaced was ten requests from anybody who knows the "
+                + "address: a member signed out of their own finance server for a day")
+            .isEqualTo(NOW.plus(Duration.ofMinutes(15)));
+    }
+
+    @Test
+    @DisplayName("A run does not decay while it is served; it ends after a quiet window")
+    void aRunDoesNotDecayWhileItIsServed() {
+        // A patient script: five quick guesses, then one each time the throttle lifts.
+        List<Instant> run = new java.util.ArrayList<>();
+        Instant at = NOW;
+        for (int i = 0; i < 5; i++) {
+            run.add(at);
+            at = at.plusSeconds(1);
+        }
+        LockoutService service = service();
+        for (int i = 0; i < 6; i++) {
+            at = run.get(run.size() - 1).plus(service.backoffFor(run.size()));
+            run.add(at);
+        }
+        Instant last = run.get(run.size() - 1);
+        failuresAt(run.toArray(Instant[]::new));
+
+        assertThat(service.throttle("a@trove.test", IP, last).until())
+            .as("counted in a sliding fifteen-minute window, the oldest of these had already left "
+                + "it, the count was back under five, and the script had five free guesses")
+            .isEqualTo(last.plus(Duration.ofMinutes(15)));
+
+        Instant quiet = last.plus(Duration.ofMinutes(15)).plus(Duration.ofMinutes(15));
+        run.add(quiet.plusSeconds(1));
+        failuresAt(run.toArray(Instant[]::new));
+        assertThat(service.throttle("a@trove.test", IP, quiet.plusSeconds(1)))
+            .as("a quiet window after the throttle ends the run")
+            .isEqualTo(new LockoutService.Throttle(1, null));
+    }
+
+    @Test
+    @DisplayName("Past the ceiling only addresses that signed in before get through")
+    void theCeilingSparesKnownAddresses() {
+        failuresAt();
+        when(attempts.countFailuresSince(eq("a@trove.test"), eq(NOW.minus(Duration.ofHours(1)))))
+            .thenReturn(100L);
+        when(attempts.hasSucceededFrom("a@trove.test", IP)).thenReturn(false);
+
+        assertThat(service().isLocked("a@trove.test", IP, NOW))
+            .as("a botnet with one address per guess must still stop at ASVS's hundred an hour")
+            .isTrue();
+
+        when(attempts.hasSucceededFrom("a@trove.test", IP)).thenReturn(true);
+        assertThat(service().isLocked("a@trove.test", IP, NOW))
+            .as("and the owner at home keeps signing in while it does")
+            .isFalse();
+        assertThat(service().isLockedForSecondFactor("a@trove.test", IP, NOW))
+            .as("but the second factor exempts nobody: a correct password is what made the "
+                + "address known, so whoever reaches this step already has it")
+            .isTrue();
+    }
+
+    @Test
+    @DisplayName("Reaching the ceiling writes one LOCKOUT for the account")
+    void reachingTheCeilingIsRecorded() {
+        failuresAt(NOW);
+        UUID userId = UUID.randomUUID();
+        when(credentials.findByUserId(userId)).thenReturn(Optional.of(credential()));
+        when(attempts.countFailuresSince(eq("a@trove.test"), any())).thenReturn(100L);
+
+        service().recordFailure("a@trove.test", IP, userId, NOW);
+
+        verify(securityEvents).record(SecurityEventType.LOCKOUT, userId,
+            Map.of("scope", "account", "failures", 100L));
     }
 
     @Test
@@ -129,7 +214,7 @@ class LockoutServiceTest {
         service().recordFailure("nobody@trove.test", IP, null, NOW);
 
         verify(attempts).record("nobody@trove.test", IP, false, NOW);
-        verify(attempts, never()).countFailuresSince(anyString(), any());
+        verify(attempts, never()).failuresFromSince(anyString(), anyString(), any());
     }
 
     @Test

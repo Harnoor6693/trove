@@ -19,8 +19,10 @@ class LockoutPropertiesTest {
         assertThat(properties.window()).isEqualTo(Duration.ofMinutes(15));
         assertThat(properties.baseBackoff()).isEqualTo(Duration.ofSeconds(30));
         assertThat(properties.maxBackoff()).isEqualTo(Duration.ofMinutes(15));
-        assertThat(properties.hardThreshold()).isEqualTo(10);
-        assertThat(properties.hardLock()).isEqualTo(Duration.ofHours(24));
+        assertThat(properties.accountThreshold())
+            .as("OWASP ASVS v4 2.2.1: no more than 100 failed attempts an hour on one account")
+            .isEqualTo(100);
+        assertThat(properties.accountWindow()).isEqualTo(Duration.ofHours(1));
         assertThat(properties.ipThreshold())
             .as("P2-5: 20 failures per address per 10 minutes")
             .isEqualTo(20);
@@ -28,12 +30,12 @@ class LockoutPropertiesTest {
     }
 
     @Test
-    @DisplayName("A hard threshold below the soft one is a configuration error")
-    void refusesAnUnreachableHardLock() {
+    @DisplayName("An account ceiling below the per-address threshold is a configuration error")
+    void refusesACeilingBelowTheThreshold() {
         assertThatThrownBy(() ->
             new LockoutProperties(10, null, null, null, 5, null, 0, null))
-            .as("a hard threshold under the soft one means the hard lock fires first and the "
-                + "backoff never runs, which is not what the operator asked for")
+            .as("a ceiling under the per-address threshold throttles every unrecognised address "
+                + "before any one of them could be, which is not what the operator asked for")
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("must not be below threshold");
     }

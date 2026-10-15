@@ -203,7 +203,7 @@ public class AuthService {
         // precisely when somebody is guessing at it — so without this the second factor was the
         // one door a locked account could still walk through. Refused with the same exception the
         // password path throws, so the body is identical and the lock stays invisible.
-        if (accounts.isLockedAt(user.getId(), now)) {
+        if (lockout.isLockedForSecondFactor(user.getEmail(), ip, now)) {
             throw new InvalidCredentialsException();
         }
 

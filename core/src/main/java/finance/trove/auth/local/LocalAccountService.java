@@ -95,10 +95,17 @@ public class LocalAccountService {
         LocalCredential credential = maybeCredential.orElse(null);
         UUID userId = user == null ? null : user.getId();
 
-        boolean locked = credential != null && credential.isLockedAt(now);
         boolean active = user != null && user.isActive();
 
-        if (!passwordMatches || locked || !active || credential == null) {
+        if (lockout.isLocked(email, ip, now)) {
+            // Not recorded as a failure: the password was never considered, so this was not a
+            // guess, and counting it would only stretch the throttle of an owner who retried
+            // too soon (LockoutService's class javadoc).
+            securityEvents.record(SecurityEventType.LOGIN_FAIL, userId, userId,
+                Map.of("reason", "rejected"));
+            throw new InvalidCredentialsException();
+        }
+        if (!passwordMatches || !active || credential == null) {
             // Both of these commit independently of this method: it is about to throw, and a
             // rollback would erase the very evidence being recorded. LockoutService#recordFailure
             // re-reads and saves the credential itself for the same reason.
@@ -142,9 +149,15 @@ public class LocalAccountService {
         credentials.save(credential);
     }
 
-    /** Admin unlock (gap P2-5): clears the counter and the lock without changing the password. */
+    /**
+     * Admin unlock (gap P2-5), also run by a password reset: ends every throttle on the account,
+     * from every address, without changing the password.
+     *
+     * @return whether the account has a password to sign in with
+     */
     @Transactional
     public boolean unlock(UUID userId) {
+        users.findAccount(userId).ifPresent(user -> lockout.forgetFailures(user.getEmail()));
         return credentials.findByUserId(userId)
             .map(credential -> {
                 credential.clearLock();
@@ -160,25 +173,6 @@ public class LocalAccountService {
 
     public Optional<Instant> lockedUntil(UUID userId) {
         return credentials.findByUserId(userId).map(LocalCredential::getLockedUntil);
-    }
-
-    /**
-     * Whether the account is under a soft lock right now.
-     *
-     * <p>{@link #authenticate} is not the only door into a session: the second half of a
-     * two-factor login ({@code AuthService#completeTotpLogin}) arrives with a challenge token
-     * instead of a password and never touches this method's caller. Before this existed, that
-     * route read nothing but {@code User::isActive}, so a challenge minted moments before the
-     * account locked still completed into a full session and the lock was enforced on the
-     * password half of the login only.
-     *
-     * <p>It answers the same {@code LocalCredential#isLockedAt} the password path uses rather
-     * than re-deriving the comparison, so there stays exactly one definition of "locked".
-     */
-    public boolean isLockedAt(UUID userId, Instant now) {
-        return credentials.findByUserId(userId)
-            .map(credential -> credential.isLockedAt(now))
-            .orElse(false);
     }
 
     private static String randomSecret() {

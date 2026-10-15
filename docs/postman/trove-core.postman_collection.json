@@ -3025,7 +3025,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "**Requires the `ADMIN` role.**\n\nThe intended way out of the long lock repeated failures produce. It\nexists because the alternative for a household member who mistyped their\npassword ten times is waiting a day, and the alternative for an admin is\na database edit. It does not change the password.\n\n**A self-target is 403 `step-up-required`**, so that \"an admin route\nnever acts on the admin's own security state\" is one rule rather than a\nlist of exceptions. An administrator who has locked themselves out uses\nthe server console, which requires shell access — a credential a stolen\nsession does not confer.\n",
+              "content": "**Requires the `ADMIN` role.**\n\nEnds every sign-in throttle on the member's account, from every address,\nby forgetting its failed attempts. Throttles end by themselves within\nfifteen minutes, but an account under attack from many addresses stays\nthrottled for addresses it has not signed in from until the attack\nstops; this is the way out for a member signing in from somewhere new.\nIt does not change the password.\n\n**A self-target is 403 `step-up-required`**, so that \"an admin route\nnever acts on the admin's own security state\" is one rule rather than a\nlist of exceptions. An administrator who has locked themselves out uses\nthe server console, which requires shell access — a credential a stolen\nsession does not confer.\n",
               "type": "text/plain"
             },
             "header": [

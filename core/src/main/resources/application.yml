@@ -304,8 +304,8 @@ trove:
       window: 15m
       base-backoff: 30s
       max-backoff: 15m
-      hard-threshold: 10
-      hard-lock: 24h
+      account-threshold: 100
+      account-window: 1h
       ip-threshold: 20
       ip-window: 10m
 
