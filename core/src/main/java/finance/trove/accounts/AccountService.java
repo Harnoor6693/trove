@@ -9,6 +9,7 @@ import finance.trove.common.plugin.SourceKind;
 import finance.trove.common.time.UserClock;
 import finance.trove.users.UserRepository;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -159,25 +160,23 @@ public class AccountService {
                                           String externalAccountId, String displayName,
                                           String institution, AccountType accountType,
                                           CurrencyCode currency) {
+        Optional<ConnectedAccount> existing = accounts
+            .findByHouseholdIdAndSourceKindAndExternalAccountId(householdId, sourceKind,
+                externalAccountId);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        // Insert-if-absent, then read: a concurrent first upsert of the same account makes this a
+        // no-op that reads the winner's row, where a caught unique violation would have aborted
+        // this transaction (B1-15).
+        accounts.insertProviderAccountIfAbsent(householdId, userId, sourceKind.name(),
+            externalAccountId, displayName.trim(), trimToNull(institution), accountType.name(),
+            (currency != null ? currency : creatorCurrency(householdId, userId)).name(),
+            clock.now());
         return accounts.findByHouseholdIdAndSourceKindAndExternalAccountId(householdId, sourceKind,
                 externalAccountId)
-            .orElseGet(() -> {
-                ConnectedAccount created = new ConnectedAccount(householdId, userId, sourceKind,
-                    displayName.trim(), trimToNull(institution), accountType,
-                    currency != null ? currency : creatorCurrency(householdId, userId),
-                    clock.now());
-                created.setExternalAccountId(externalAccountId);
-                try {
-                    return accounts.saveAndFlush(created);
-                } catch (DataIntegrityViolationException e) {
-                    // Two requests raced on the same provider account. The winner's row is the one
-                    // to use: the point of the key is that there is exactly one.
-                    return accounts.findByHouseholdIdAndSourceKindAndExternalAccountId(householdId,
-                            sourceKind, externalAccountId)
-                        .orElseThrow(() -> new ConflictException("This household already has a "
-                            + sourceKind + " account for that source.", e));
-                }
-            });
+            .orElseThrow(() -> new ConflictException("This household already has a "
+                + sourceKind + " account for that source."));
     }
 
     private CurrencyCode creatorCurrency(UUID householdId, UUID userId) {
