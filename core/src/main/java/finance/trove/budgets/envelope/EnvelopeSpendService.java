@@ -188,7 +188,7 @@ public class EnvelopeSpendService {
         envelopes.save(envelope);
         LOG.debug("envelope {} spent rewritten {} -> {}", envelope.getId(), previous, recomputed);
 
-        if (crossedAnyThreshold(previous, recomputed, envelope.getAllocated(), thresholds)) {
+        if (crossedAnyThreshold(previous, recomputed, budgetOf(envelope), thresholds)) {
             publishCrossing(envelope, actingUserId, month, recomputed);
         }
     }
@@ -240,6 +240,11 @@ public class EnvelopeSpendService {
      * <p>An envelope with nothing allocated never crosses: there is no ratio, and an alert saying
      * spending is 100 % of a zero budget tells the household nothing it can act on.
      */
+    /** Allocated plus carry-over: the amount thresholds and health are measured against. */
+    private static BigDecimal budgetOf(Envelope envelope) {
+        return envelope.getAllocated().add(envelope.getRolloverAmount());
+    }
+
     private static boolean crossedAnyThreshold(BigDecimal previous, BigDecimal recomputed,
                                                BigDecimal allocated,
                                                Set<BigDecimal> thresholds) {
@@ -272,6 +277,6 @@ public class EnvelopeSpendService {
         CurrencyCode currency = envelope.getCurrency();
         events.publishEvent(new BudgetThresholdCrossedEvent(envelope.getHouseholdId(), member,
             envelope.getId(), envelope.getCategoryId(), month, new Money(recomputed, currency),
-            new Money(envelope.getAllocated(), currency)));
+            new Money(budgetOf(envelope), currency)));
     }
 }

@@ -32,6 +32,21 @@ class EnvelopeHealthCalculatorTest {
         return envelope;
     }
 
+    @Test
+    @DisplayName("B2-07: health and pace are measured against allocated plus rollover")
+    void rolloverCountsTowardsTheBudget() {
+        EnvelopeHealth carriedOnly = EnvelopeHealthCalculator.calculate(
+            envelope("0.00", "50.00", "50.00", CurrencyCode.CAD),
+            YearMonth.of(2026, 9), LocalDate.of(2026, 9, 30));
+        assertThat(carriedOnly.healthPercentage()).isEqualTo(100);
+
+        EnvelopeHealth half = EnvelopeHealthCalculator.calculate(
+            envelope("100.00", "80.00", "100.00", CurrencyCode.CAD),
+            YearMonth.of(2026, 9), LocalDate.of(2026, 9, 30));
+        assertThat(half.healthPercentage()).isEqualTo(40);
+        assertThat(half.expectedSpend()).isEqualByComparingTo(new BigDecimal("200.00"));
+    }
+
     @Nested
     @DisplayName("the pace marker is about the period's month, not about today's day number")
     class PaceIsPerPeriodMonth {
