@@ -56,13 +56,18 @@ public interface ConnectedAccountRepository extends UserScopedRepository<Connect
      * dedup index halfway through the batch. An in-memory "is it already syncing?" check cannot
      * give that guarantee at any isolation level.
      *
+     * <p>The claim is a lease: a {@code SYNCING} row not touched for an hour belongs to a run that
+     * crashed (JVM kill, deploy) and may be taken over, otherwise the account would answer 409
+     * forever. An hour is far longer than the longest legitimate commit.
+     *
      * @return 1 when this caller took the claim, 0 when another already holds it or the id is not
      *         this household's — which are indistinguishable here on purpose, because the caller
      *         has already established the account exists
      */
     @Modifying
     @Query(value = "UPDATE connected_account SET sync_status = 'SYNCING', updated_at = now() "
-        + "WHERE id = :id AND household_id = :householdId AND sync_status <> 'SYNCING'",
+        + "WHERE id = :id AND household_id = :householdId AND (sync_status <> 'SYNCING' "
+        + "OR updated_at < now() - interval '1 hour')",
         nativeQuery = true)
     int claimForSync(@Param("id") UUID id, @Param("householdId") UUID householdId);
 
