@@ -366,6 +366,19 @@ class CsvSourceTest {
     }
 
     @Test
+    @DisplayName("B1-02: a wider export that overlaps an imported one gives the overlap the same ids")
+    void anOverlappingExportKeepsItsIds() {
+        List<String> january = ids(fixture("overlap-jan.csv"));
+        List<String> januaryAndFebruary = ids(fixture("overlap-jan-feb.csv"));
+
+        assertThat(januaryAndFebruary.subList(1, 3))
+            .as("COFFEE and RENT moved down one line; the row ordinal used to be in the hash, so "
+                + "they got new ids and the exact-match pass inserted them a second time")
+            .isEqualTo(january);
+        assertThat(januaryAndFebruary).doesNotHaveDuplicates();
+    }
+
+    @Test
     @DisplayName("the id depends on the account, so the same file on two accounts is two ledgers")
     void theIdDependsOnTheAccount() {
         String file = "Date,Description,Amount\n2026-09-01,A,-1.00\n";
