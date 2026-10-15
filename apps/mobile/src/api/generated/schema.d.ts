@@ -8880,7 +8880,7 @@ export interface components {
                 };
             };
         };
-        /** @description **429.** A request-rate limit was exceeded. The limiter keys on the authenticated user when there is one and on the client address otherwise, and matches the request against the rules in `rate_limit_config`, so the ceiling that was hit depends on the route. `Retry-After` carries the number of seconds to wait. Every route on this API except `GET /v1/status` can answer this. */
+        /** @description **429.** A request-rate limit was exceeded. The limiter keys on the authenticated user when there is one and on the client address otherwise, except on the anonymous sign-in routes (`register`, `login`, `login/totp`, `refresh`, `logout`, `password/reset`), which are always keyed on the client address so that a session cannot buy a second budget there, and matches the request against the rules in `rate_limit_config`, so the ceiling that was hit depends on the route. `Retry-After` carries the number of seconds to wait. Every route on this API except `GET /v1/status` can answer this. */
         RateLimited: {
             headers: {
                 "X-Request-Id": components["headers"]["XRequestId"];
