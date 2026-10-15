@@ -86,6 +86,10 @@ public class NetWorthSnapshotService {
         EnumSet<CurrencyCode> currencies = EnumSet.noneOf(CurrencyCode.class);
         currencies.addAll(assetTotals.keySet());
         currencies.addAll(liabilityTotals.keySet());
+        // A currency whose positions were all removed after today's earlier snapshot must be
+        // rewritten as zero, not left showing a figure that no longer exists.
+        snapshots.findAllByHouseholdIdAndSnapshotDate(householdId, today)
+            .forEach(row -> currencies.add(row.getCurrency()));
 
         List<NetWorthSnapshot> result = new ArrayList<>();
         for (CurrencyCode currency : currencies) {

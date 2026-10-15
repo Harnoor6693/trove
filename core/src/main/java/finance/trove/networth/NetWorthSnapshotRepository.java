@@ -31,6 +31,9 @@ public interface NetWorthSnapshotRepository extends UserScopedRepository<NetWort
      * per currency (F2) — grouping in SQL here would gain nothing, since the whole range for a
      * household is a small, bounded set of rows.
      */
+    List<NetWorthSnapshot> findAllByHouseholdIdAndSnapshotDate(UUID householdId,
+                                                               LocalDate snapshotDate);
+
     List<NetWorthSnapshot> findAllByHouseholdIdAndSnapshotDateGreaterThanEqualOrderBySnapshotDateAsc(
         UUID householdId, LocalDate from);
 }
