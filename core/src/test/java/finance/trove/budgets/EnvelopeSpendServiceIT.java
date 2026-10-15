@@ -117,8 +117,12 @@ class EnvelopeSpendServiceIT extends BudgetTestSupport {
     @DisplayName("B2-04: pairing a transfer, by the job or by PATCH, takes the leg out of spent")
     void transferPairingRecomputesSpent() {
         String other = createManualAccount(member, "Card " + UUID.randomUUID());
-        String debit = spend("60.00", "2026-09-25", "DEBIT", groceries);
-        createManualTransaction(member, other, "60.00", "2026-09-26", "CREDIT", "CARD PAYMENT");
+        String debit = createManualTransaction(member, accountId, "60.00", "2026-09-25", "DEBIT",
+            "CARD PAYMENT " + UUID.randomUUID()).path("id").asString();
+        patchJson(appUrl("/v1/transactions/" + debit), Json.object("categoryId", groceries),
+            "Authorization", "Bearer " + member.accessToken());
+        createManualTransaction(member, other, "60.00", "2026-09-26", "CREDIT",
+            "PAYMENT RECEIVED " + UUID.randomUUID());
         assertThat(storedSpent(envelopeId)).isEqualByComparingTo(new BigDecimal("60.0000"));
 
         pairingJob.runOnce();
