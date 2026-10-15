@@ -13229,7 +13229,12 @@ components:
       description: |
         What the generated file is. `CSV` is the machine-readable one an
         accountant imports; `PDF` renders the same columns for printing. Both
-        carry the member's own amounts and labels and no computed figure.
+        carry the member's own amounts and labels. Amounts are always
+        positive; the final `type` column (`DEBIT`, `CREDIT`, `REFUND`, `FEE`,
+        `INTEREST`, `TRANSFER`, `OTHER`) says which way the money moved. The
+        per-tax-line totals are spending only: a `DEBIT` adds, a `REFUND`
+        subtracts, and every other type is listed on its row but never added
+        into a total. This is an export, not a tax calculation.
       enum: [CSV, PDF]
       example: CSV
 

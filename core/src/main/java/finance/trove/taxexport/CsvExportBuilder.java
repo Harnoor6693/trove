@@ -62,7 +62,7 @@ public class CsvExportBuilder {
 
     /** The column list §2.9 fixes. {@code CsvExportBuilderTest} asserts this set exactly. */
     public static final List<String> HEADERS = List.of("date", "merchant", "description", "notes",
-        "amount", "currency", "category", "taxLineCode", "taxLineLabel", "receiptId");
+        "amount", "currency", "category", "taxLineCode", "taxLineLabel", "receiptId", "type");
 
     /** The heading above the per-line totals. */
     public static final String TOTALS_SECTION_TITLE = "Totals by tax line";
@@ -107,7 +107,8 @@ public class CsvExportBuilder {
             escape(text(row.category())),
             escape(text(row.taxLineCode())),
             escape(text(row.taxLineLabel())),
-            escape(text(row.receiptId())));
+            escape(text(row.receiptId())),
+            escape(text(row.type())));
     }
 
     private void printTotals(CSVPrinter printer, List<ExportRow> rows) throws IOException {
@@ -133,13 +134,23 @@ public class CsvExportBuilder {
     static List<LineTotal> totalsByLineAndCurrency(List<ExportRow> rows) {
         Map<String, LineTotal> accumulated = new LinkedHashMap<>();
         for (ExportRow row : rows) {
-            if (row.amount() == null || row.currency() == null) {
+            if (row.amount() == null || row.currency() == null || row.type() == null) {
+                continue;
+            }
+            // Spending only (B2-01): a debit adds, a refund subtracts, and income, fees,
+            // interest and the rest are listed per row but never added into an expense total.
+            BigDecimal signed = switch (row.type()) {
+                case DEBIT -> row.amount();
+                case REFUND -> row.amount().negate();
+                default -> null;
+            };
+            if (signed == null) {
                 continue;
             }
             String code = text(row.taxLineCode());
             String key = code + ' ' + row.currency().name();
             LineTotal running = accumulated.get(key);
-            BigDecimal sum = running == null ? row.amount() : running.total().add(row.amount());
+            BigDecimal sum = running == null ? signed : running.total().add(signed);
             accumulated.put(key,
                 new LineTotal(code, text(row.taxLineLabel()), row.currency(), sum));
         }

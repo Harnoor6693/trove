@@ -210,7 +210,8 @@ public class DataExportGenerationService {
                 categoryNames.getOrDefault(transaction.getCategoryId(), ""),
                 line.code(),
                 line.label(),
-                transaction.getReceiptId()));
+                transaction.getReceiptId(),
+                transaction.getType()));
         }
         return rows;
     }
