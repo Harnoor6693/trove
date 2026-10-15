@@ -72,6 +72,14 @@ public class SimplefinSource implements BankSource {
 
         ZoneId zone = zoneOf(config.get(MEMBER_ZONE));
         SimplefinAccountSet set = bridge.fetchAccounts(accessUrl, from);
+        if (set.errors() != null && !set.errors().isEmpty()) {
+            // A soft error (e.g. an institution that needs re-authentication) arrives with an
+            // empty or stale account list. Treating that as an empty success hid a broken
+            // connection (RD2), so it fails the run and the member sees why.
+            throw new BankSourceConnectionException("SimpleFIN reported a problem with this "
+                + "connection: " + describe(set.errors()) + " Check the connection at your "
+                + "SimpleFIN bridge, then sync again.");
+        }
         List<RawTransaction> rows = new ArrayList<>();
         for (SimplefinAccount account : set.accountsOrEmpty()) {
             if (!externalAccountId.equals(account.id()) || account.transactions() == null) {
@@ -104,5 +112,12 @@ public class SimplefinSource implements BankSource {
             // swallow-ok: UserClock already resolved this id; UTC is what dating was before.
             return ZoneOffset.UTC;
         }
+    }
+
+    /** The bridge's own wording, with links removed and the length bounded: it may quote secrets. */
+    private static String describe(List<String> errors) {
+        String text = String.join("; ", errors).replaceAll("https?://\\S*", "").trim();
+        text = text.replaceAll("\\s+", " ").replaceAll("[\\s,;:]+$", "");
+        return (text.length() > 200 ? text.substring(0, 200) : text) + ".";
     }
 }
