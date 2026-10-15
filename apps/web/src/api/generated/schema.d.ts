@@ -914,10 +914,12 @@ export interface paths {
          * Clear a member's sign-in lock
          * @description **Requires the `ADMIN` role.**
          *
-         *     The intended way out of the long lock repeated failures produce. It
-         *     exists because the alternative for a household member who mistyped their
-         *     password ten times is waiting a day, and the alternative for an admin is
-         *     a database edit. It does not change the password.
+         *     Ends every sign-in throttle on the member's account, from every address,
+         *     by forgetting its failed attempts. Throttles end by themselves within
+         *     fifteen minutes, but an account under attack from many addresses stays
+         *     throttled for addresses it has not signed in from until the attack
+         *     stops; this is the way out for a member signing in from somewhere new.
+         *     It does not change the password.
          *
          *     **A self-target is 403 `step-up-required`**, so that "an admin route
          *     never acts on the admin's own security state" is one rule rather than a

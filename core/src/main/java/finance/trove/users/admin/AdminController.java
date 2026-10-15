@@ -229,11 +229,11 @@ public class AdminController {
     }
 
     /**
-     * {@code POST /v1/admin/users/{id}/unlock} — clears a soft lock without changing a password.
+     * {@code POST /v1/admin/users/{id}/unlock} — ends every sign-in throttle on the account
+     * without changing a password (gap P2-5, B3-05).
      *
-     * <p>The intended way out of the long hard lock that repeated failures produce (gap P2-5). It
-     * exists because the alternative for a household member who mistyped their password ten times
-     * is waiting a day, and the alternative for an admin is a database edit.
+     * <p>Throttles end by themselves; this is for an account under attack from many addresses,
+     * which stays throttled for addresses it has not signed in from until the attack stops.
      */
     @PostMapping("/users/{id}/unlock")
     public ApiResponse<Void> unlock(@AuthenticationPrincipal TroveUserDetails principal,

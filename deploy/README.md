@@ -305,8 +305,16 @@ from browsing on a hostname that is not `TROVE_DOMAIN` (an IP, or `localhost`).
 Use the configured hostname.
 
 **"too many requests" on the login page.** Traefik limits `/api/v1/auth/*` to
-5 requests/second per IP and the app applies its own per-account lockout after
-5 failures. Wait, or raise `ratelimit-auth` in
+5 requests/second per IP. The app also throttles sign-in, and answers only
+"Email or password is incorrect." while it does: 5 failures for one account
+from one address throttle that address for 30 seconds, doubling up to 15
+minutes, and 20 failures from one address across all accounts in 10 minutes
+answer "too many requests". After 100 failures in an hour for one account, from
+anywhere, the account accepts sign-ins only from addresses it has signed in
+from before. Wait, or have an admin unlock the member (Settings, Admin), or,
+for the admin, run
+`docker compose run --rm trove-core --trove.cli.command="unlock <email>"`. For
+the Traefik limit, raise `ratelimit-auth` in
 `traefik/dynamic/middlewares.yml` (hot-reloaded, no restart).
 
 **Disk full.** `./trove status` shows database and data-directory sizes. Receipts

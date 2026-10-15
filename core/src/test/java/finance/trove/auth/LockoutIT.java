@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import finance.trove.app.support.AuthFlowSupport;
 import finance.trove.app.support.Json;
+import finance.trove.auth.local.LoginAttemptRepository;
 import finance.trove.auth.totp.TotpGenerator;
 import java.net.http.HttpResponse;
+import java.sql.Timestamp;
 import java.time.Instant;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +35,12 @@ class LockoutIT extends AuthFlowSupport {
     private HttpResponse<String> attempt(String email, String password) {
         return postJson(appUrl("/v1/auth/login"),
             Json.object("email", email, "password", password));
+    }
+
+    /** The same login, arriving through the trusted proxy from {@code address}. */
+    private HttpResponse<String> attemptFrom(String address, String email, String password) {
+        return postJson(appUrl("/v1/auth/login"),
+            Json.object("email", email, "password", password), FORWARDED_FOR, address);
     }
 
     /** Enrols {@code member} in TOTP through the real setup/confirm endpoints. */
@@ -287,6 +295,60 @@ class LockoutIT extends AuthFlowSupport {
     }
 
     @Test
+    @DisplayName("Ten failures from one address do not lock the owner out from another")
+    void anAttackerCannotLockTheOwnerOut() {
+        // B3-05. The lock used to be keyed on the account alone and turned into a 24-hour lock
+        // at ten failures, so anybody who knew a member's address could sign them out of their
+        // own finance server for a day with ten requests, and keep them out with ten more.
+        Session admin = loginBootstrapAdmin();
+        Session member = inviteAndRegister(admin, "lockout-dos");
+        String attacker = "198.19.250.1";
+        String owner = "198.19.250.2";
+
+        for (int i = 0; i < 10; i++) {
+            attemptFrom(attacker, member.email(), "wrong-passphrase-" + i);
+        }
+
+        assertThat(attemptFrom(attacker, member.email(), MEMBER_PASSWORD).statusCode())
+            .as("the address doing the guessing is throttled, right password or not")
+            .isEqualTo(401);
+        HttpResponse<String> fromOwner = attemptFrom(owner, member.email(), MEMBER_PASSWORD);
+        assertThat(fromOwner.statusCode())
+            .as("the owner, from anywhere else, still gets in: %s", fromOwner.body())
+            .isEqualTo(200);
+    }
+
+    @Test
+    @DisplayName("Past the per-account ceiling, only addresses that signed in before get through")
+    void thePerAccountCeilingSparesKnownAddresses() {
+        // ASVS v4 2.2.1: no more than 100 failed attempts an hour on one account, which the
+        // per-address throttle alone does not bound — a botnet has an address per guess.
+        Session admin = loginBootstrapAdmin();
+        Session member = inviteAndRegister(admin, "lockout-ceiling");
+        String home = "198.19.251.1";
+        assertThat(attemptFrom(home, member.email(), MEMBER_PASSWORD).statusCode())
+            .isEqualTo(200);
+
+        // A hundred guesses from a hundred addresses inside the hour, one each, written
+        // directly: over HTTP this is a hundred argon2id verifications for no extra coverage.
+        Timestamp recent = Timestamp.from(Instant.now().minusSeconds(60));
+        for (int i = 0; i < 100; i++) {
+            jdbcTemplate.update("INSERT INTO login_attempt (email_hash, ip, success, at) "
+                    + "VALUES (?, CAST(? AS inet), false, ?)",
+                LoginAttemptRepository.hashEmail(member.email()), "198.19.252." + i, recent);
+        }
+
+        assertThat(attemptFrom("198.19.253.1", member.email(), MEMBER_PASSWORD).statusCode())
+            .as("an address this account has never signed in from is refused while the account "
+                + "is over the ceiling, right password or not")
+            .isEqualTo(401);
+        assertThat(attemptFrom(home, member.email(), MEMBER_PASSWORD).statusCode())
+            .as("an address that signed in before keeps only its own throttle, so the attacker "
+                + "cannot lock the owner out from home")
+            .isEqualTo(200);
+    }
+
+    @Test
     @DisplayName("An admin can unlock a member without changing their password")
     void adminUnlock() {
         Session admin = loginBootstrapAdmin();
@@ -302,8 +364,7 @@ class LockoutIT extends AuthFlowSupport {
         assertThat(unlocked.statusCode()).as(unlocked.body()).isEqualTo(200);
 
         assertThat(attempt(member.email(), MEMBER_PASSWORD).statusCode())
-            .as("the alternative for a member who mistyped ten times is waiting a day, and for "
-                + "an admin a database edit")
+            .as("an unlock ends the throttle at once, rather than when the backoff runs out")
             .isEqualTo(200);
     }
 
