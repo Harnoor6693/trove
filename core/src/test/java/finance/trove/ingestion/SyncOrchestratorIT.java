@@ -145,6 +145,25 @@ class SyncOrchestratorIT extends LedgerSupport {
     }
 
     @Test
+    @DisplayName("B1-07: a pre-authorisation that posts with a tip takes the posted amount")
+    void aPromotedRowTakesThePostedAmount() {
+        LocalDate day = LocalDate.of(2026, 9, 4);
+        source.returning(List.of(pending("bank-tip", "40.00", day)));
+        sync();
+
+        source.returning(List.of(row("bank-tip", "48.00", day)));
+        JsonNode log = Json.data(sync().body());
+
+        assertThat(log.path("transactionsUpdated").asInt()).isEqualTo(1);
+        List<JsonNode> rows = listTransactions(admin, "accountId=" + accountId);
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).path("pending").asBoolean()).isFalse();
+        assertThat(new BigDecimal(rows.get(0).path("amount").asString()))
+            .as("the bank charged 48.00; the ledger kept the 40.00 pre-authorisation for ever")
+            .isEqualByComparingTo("48.00");
+    }
+
+    @Test
     @DisplayName("A run that refuses some rows records PARTIAL_FAILURE and keeps the good ones")
     void aPartialFailureIsRecorded() {
         source.returning(List.of(
