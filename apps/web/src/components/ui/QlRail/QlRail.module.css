@@ -14,7 +14,7 @@
 .item {
   display: flex; align-items: center; justify-content: center;
   width: 40px; height: 40px; border-radius: var(--radius-sm, 6px);
-  color: var(--ink-3, #8c8578); text-decoration: none; position: relative;
+  color: var(--ink-3, #6b6558); text-decoration: none; position: relative;
   transition: background 0.1s ease, color 0.1s ease;
 }
 .item:hover { background: var(--paper-dim, #eeeadf); color: var(--ink); }
