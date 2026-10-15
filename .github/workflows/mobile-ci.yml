@@ -79,6 +79,9 @@ jobs:
   detox-ios:
     if: github.event_name == 'workflow_dispatch'
     runs-on: macos-15
+    env:
+      # Baked into the native build (app.config.ts); the simulator shares the host's network.
+      EXPO_PUBLIC_API_BASE_URL: http://localhost:8080
     defaults:
       run:
         working-directory: apps/mobile
@@ -136,6 +139,29 @@ jobs:
       - name: Build Detox iOS
         run: npx detox build --configuration ios.sim.debug
 
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Start Postgres
+        # No Docker on macos-15: Homebrew Postgres, with the role and database the server expects.
+        run: |
+          brew install postgresql@17
+          brew services start postgresql@17
+          pgbin="$(brew --prefix postgresql@17)/bin"
+          export PATH="$pgbin:$PATH"
+          for _ in $(seq 1 30); do pg_isready -q && break; sleep 2; done
+          psql -d postgres -c "CREATE ROLE trove LOGIN PASSWORD 'trove'"
+          createdb -O trove trove
+
+      - name: Start Trove server
+        # Real core server for the app to connect to; see scripts/e2e-server.sh.
+        working-directory: .
+        run: scripts/e2e-server.sh
+
       # The debug builds load JavaScript from Metro, so it must be running
       # before Detox launches the app (locally it is the developer's `npm start`).
       - name: Start Metro
@@ -159,6 +185,23 @@ jobs:
   detox-android:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    env:
+      # Baked into the native build (app.config.ts); 10.0.2.2 is the emulator's alias for the host.
+      EXPO_PUBLIC_API_BASE_URL: http://10.0.2.2:8080
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: trove
+          POSTGRES_PASSWORD: trove
+          POSTGRES_DB: trove
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U trove"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     defaults:
       run:
         working-directory: apps/mobile
@@ -196,6 +239,11 @@ jobs:
 
       - name: Build Detox Android
         run: npx detox build --configuration android.emu.debug
+
+      - name: Start Trove server
+        # Real core server for the app to connect to; see scripts/e2e-server.sh.
+        working-directory: .
+        run: scripts/e2e-server.sh
 
       # The debug builds load JavaScript from Metro, so it must be running
       # before Detox launches the app (locally it is the developer's `npm start`).
