@@ -53,12 +53,13 @@ public class OfxNormalizer {
         metadata.put("checkNum", transaction.checkNum() != null ? transaction.checkNum() : "");
 
         String description = transaction.memo() != null ? transaction.memo() : transaction.name();
-        return new RawTransaction(transaction.fitId(), account.accountId(), amount.abs(),
+        return new RawTransaction(transaction.fitId(), account.accountId(),
+            amount == null ? null : amount.abs(),
             currencyOf(account, transaction), description, transaction.name(), date,
             transaction.datePosted() == null
                 ? null
                 : transaction.datePosted().atStartOfDay(ZoneOffset.UTC).toInstant(),
-            type(transaction.type(), amount), false, metadata);
+            amount == null ? null : type(transaction.type(), amount), false, metadata);
     }
 
     /**

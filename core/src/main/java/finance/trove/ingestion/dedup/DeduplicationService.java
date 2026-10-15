@@ -6,6 +6,7 @@ import finance.trove.common.domain.Money;
 import finance.trove.common.plugin.RawTransaction;
 import finance.trove.common.plugin.TransactionType;
 import finance.trove.common.time.Instants;
+import finance.trove.ingestion.ParsedRow;
 import finance.trove.ingestion.RawTransactionRejectedException;
 import finance.trove.transactions.Transaction;
 import finance.trove.transactions.TransactionRepository;
@@ -333,6 +334,10 @@ public class DeduplicationService {
 
     /** Everything a row must have before it is worth looking for a match for it. */
     private static void validate(RawTransaction incoming) {
+        String parseError = incoming.metadata().get(ParsedRow.PARSE_ERROR);
+        if (parseError != null) {
+            throw new RawTransactionRejectedException(parseError);
+        }
         if (incoming.date() == null) {
             throw new RawTransactionRejectedException("the source reported no date");
         }

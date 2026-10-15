@@ -119,7 +119,7 @@ public class CsvSource implements FileImportSource {
         UUID accountId = accountIdOf(config);
         ParsedUpload parsed = read(storage.readAllBytes(storageKey), mapping,
             new ImportContext(accountId));
-        return parsed.rows().stream().map(ParsedRow::row).toList();
+        return parsed.rows().stream().map(ParsedRow::toPipeline).toList();
     }
 
     @Override

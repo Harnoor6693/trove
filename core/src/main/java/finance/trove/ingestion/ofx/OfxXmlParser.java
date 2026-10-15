@@ -1,21 +1,17 @@
 package finance.trove.ingestion.ofx;
 
 import finance.trove.common.plugin.BankSourceConnectionException;
-import finance.trove.ingestion.Amounts;
 import finance.trove.ingestion.ofx.dto.OfxAccount;
 import finance.trove.ingestion.ofx.dto.OfxDocument;
 import finance.trove.ingestion.ofx.dto.OfxTransaction;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
@@ -35,13 +31,13 @@ import org.xml.sax.SAXException;
  * <p><strong>A missing {@code ACCTID} is refused</strong>, which is what this parser always did.
  * The SGML parser now agrees with it — see {@link OfxSgmlParser}.
  *
- * <p>A single unreadable {@code STMTTRN} is skipped with a warning rather than abandoning the
- * file, which is the pre-collapse behaviour and the right one: one corrupt line should not cost a
- * member their whole statement. Nothing about the row is logged.
+ * <p>A single unreadable {@code STMTTRN} does not abandon the file: one corrupt line should not
+ * cost a member their whole statement. It is not skipped either (B1-13): its missing
+ * {@code FITID} or {@code TRNAMT} stays {@code null}, and {@link OfxSource} shows it in the
+ * preview with its reason.
  */
 public class OfxXmlParser {
 
-    private static final Logger LOG = LoggerFactory.getLogger(OfxXmlParser.class);
 
     /**
      * Parses {@code xmlBytes}.
@@ -68,30 +64,17 @@ public class OfxXmlParser {
 
         List<OfxTransaction> transactions = new ArrayList<>(nodes.getLength());
         for (int i = 0; i < nodes.getLength(); i++) {
-            OfxTransaction transaction = transaction((Element) nodes.item(i), i);
-            if (transaction != null) {
-                transactions.add(transaction);
-            }
+            transactions.add(transaction((Element) nodes.item(i)));
         }
         return new OfxDocument(account, transactions);
     }
 
-    private OfxTransaction transaction(Element element, int index) {
-        String fitId = childText(element, "FITID");
-        String amount = childText(element, "TRNAMT");
-        if (fitId == null || amount == null) {
-            return null;
-        }
-        BigDecimal parsedAmount = Amounts.parse(amount);
-        if (parsedAmount == null) {
-            // One unreadable amount skips one transaction. The index identifies it for an
-            // operator; nothing about the row's content is logged.
-            LOG.warn("Skipping OFX transaction {}: its TRNAMT is not a number", index);
-            return null;
-        }
-        return new OfxTransaction(fitId, childText(element, "TRNTYPE"),
+    /** A missing FITID or an unreadable TRNAMT stays null: OfxSource gives the row its reason. */
+    private static OfxTransaction transaction(Element element) {
+        return new OfxTransaction(childText(element, "FITID"), childText(element, "TRNTYPE"),
             OfxSgmlParser.date(childText(element, "DTPOSTED")),
-            OfxSgmlParser.date(childText(element, "DTUSER")), parsedAmount,
+            OfxSgmlParser.date(childText(element, "DTUSER")),
+            OfxSgmlParser.amount(childText(element, "TRNAMT")),
             childText(element, "NAME"), childText(element, "MEMO"),
             childText(element, "CHECKNUM"), childText(element, "CURSYM"));
     }

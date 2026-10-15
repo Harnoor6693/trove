@@ -2,6 +2,7 @@ package finance.trove.ingestion.ofx;
 
 import finance.trove.accounts.AccountType;
 import finance.trove.common.domain.CurrencyCode;
+import finance.trove.common.domain.Money;
 import finance.trove.common.plugin.BankSourceConnectionException;
 import finance.trove.common.plugin.RawTransaction;
 import finance.trove.common.plugin.SourceKind;
@@ -94,7 +95,7 @@ public class OfxSource implements FileImportSource {
                 + "written.");
         }
         return read(storage.readAllBytes(storageKey), null, new ImportContext(null)).rows()
-            .stream().map(ParsedRow::row).toList();
+            .stream().map(ParsedRow::toPipeline).toList();
     }
 
     @Override
@@ -105,14 +106,31 @@ public class OfxSource implements FileImportSource {
         for (OfxTransaction transaction : document.transactions()) {
             ordinal++;
             RawTransaction row = normalizer.normalize(document.account(), transaction);
-            rows.add(row.date() == null
-                ? new ParsedRow(ordinal, row, "this transaction has neither a DTPOSTED nor a "
-                    + "DTUSER date")
-                : ParsedRow.of(ordinal, row));
+            rows.add(new ParsedRow(ordinal, row, error(row)));
         }
         return new ParsedUpload(rows, document.account().accountId(),
             blankToNull(document.account().bankId()), accountType(document.account().accountType()),
             currency(document.account().currency()), null, List.of(), List.of());
+    }
+
+    /**
+     * Why a row cannot be imported, or {@code null}. B1-13: the parsers used to drop a row with no
+     * {@code FITID} or an unreadable {@code TRNAMT}, so the preview never counted it.
+     */
+    private static String error(RawTransaction row) {
+        if (row.providerTransactionId() == null || row.providerTransactionId().isBlank()) {
+            return "this transaction has no FITID, the bank's own id for it, so importing this "
+                + "statement again could not recognise it";
+        }
+        if (row.amount() == null) {
+            return "this transaction's TRNAMT is missing or is not a number this server can store "
+                + "(no exponent, at most " + Money.MAX_INTEGER_DIGITS + " digits before the "
+                + "decimal point and " + Money.MAX_FRACTION_DIGITS + " after it)";
+        }
+        if (row.date() == null) {
+            return "this transaction has neither a DTPOSTED nor a DTUSER date";
+        }
+        return null;
     }
 
     /**
