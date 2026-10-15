@@ -1,0 +1,52 @@
+name: Feature Request
+description: Suggest a new feature or improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the problem or limitation you're experiencing.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What would you like to see added or changed?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Feature area
+      options:
+        - Data ingestion / bank connectivity
+        - AI coaching
+        - Tax export (Canada)
+        - Tax export (US)
+        - Receipt scanner
+        - Budgeting & goals
+        - Subscription detection
+        - Dashboard & analytics
+        - Mobile app
+        - Self-hosting / deployment
+        - Privacy & security
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any other approaches you've thought about?
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Are you willing to contribute this?
+      options:
+        - label: Yes, I'd like to implement this

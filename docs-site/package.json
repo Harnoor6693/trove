@@ -1,0 +1,19 @@
+{
+  "name": "trove-docs-site",
+  "version": "1.0.0",
+  "description": "Trove developer documentation site (VitePress)",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "docs:dev": "vitepress dev .",
+    "docs:build": "vitepress build .",
+    "docs:preview": "vitepress preview ."
+  },
+  "license": "AGPL-3.0-or-later",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.4"
+  }
+}

@@ -1,0 +1,92 @@
+/* Every value below is a token from src/styles/tokens.css — no hex, no raw px
+   font size, no spacing literal (§9 accessibility rule). */
+
+.page { display: flex; flex-direction: column; gap: var(--space-5); padding: var(--space-8); box-sizing: border-box; }
+.header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-5); flex-wrap: wrap; }
+.heading { font-family: Fraunces, Georgia, serif; font-size: var(--font-2xl); font-weight: 400; color: var(--ink); margin: 0; letter-spacing: -0.02em; }
+.sectionTitle { font-family: Inter, sans-serif; font-size: var(--font-md); font-weight: 500; color: var(--ink); margin: 0; }
+.lede { font-family: Inter, sans-serif; font-size: var(--font-sm); color: var(--ink-2); max-width: 46rem; line-height: 1.5; margin: var(--space-2) 0 0; }
+.hint { font-family: Inter, sans-serif; font-size: var(--font-xs); color: var(--ink-3); line-height: 1.5; margin: 0; }
+.headerActions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+
+.stack { display: flex; flex-direction: column; gap: var(--space-4); }
+.dialogActions { display: flex; gap: var(--space-3); justify-content: flex-end; flex-wrap: wrap; }
+
+.error { font-family: Inter, sans-serif; font-size: var(--font-sm); color: var(--red); margin: 0; line-height: 1.5; }
+.success { font-family: Inter, sans-serif; font-size: var(--font-sm); color: var(--sage); margin: 0; line-height: 1.5; }
+.status { font-family: Inter, sans-serif; font-size: var(--font-sm); color: var(--sage); margin: 0; line-height: 1.5; }
+
+.selectLabel { font-family: Inter, sans-serif; font-size: var(--font-sm); font-weight: 500; color: var(--ink-2); }
+.select { font-family: Inter, sans-serif; font-size: var(--font-sm); color: var(--ink); background: var(--card); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3); }
+
+/* ------------------------------------------------------------------ tabs */
+.tabs { display: flex; gap: var(--space-2); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.tab {
+  font-family: Inter, sans-serif; font-size: var(--font-sm); font-weight: 500; color: var(--ink-2);
+  background: none; border: none; border-bottom: 2px solid transparent;
+  padding: var(--space-3) var(--space-2); cursor: pointer; text-decoration: none;
+}
+.tab:hover { color: var(--ink); }
+.tabActive { color: var(--ink); border-bottom-color: var(--sage); }
+
+/* --------------------------------------------------------- category tree */
+.tree { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+.treeChildren { list-style: none; margin: 0; padding-left: var(--space-6); display: flex; flex-direction: column; gap: var(--space-1); }
+.treeRow { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-2); border-radius: var(--radius-sm); flex-wrap: wrap; }
+.treeRow:hover { background: var(--paper); }
+.treeMain { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.treeToggle {
+  font-family: Inter, sans-serif; font-size: var(--font-sm); color: var(--ink-2); background: none;
+  border: none; cursor: pointer; width: 1.5rem; text-align: center; padding: 0; flex-shrink: 0;
+}
+.treeToggleSpacer { width: 1.5rem; flex-shrink: 0; }
+.treeName { font-family: Inter, sans-serif; font-size: var(--font-sm); color: var(--ink); }
+.treeActions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+
+/* --------------------------------------------------------------- rule list */
+.ruleList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.ruleRow { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-md); flex-wrap: wrap; }
+.ruleMain { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.ruleMerchant { font-family: Inter, sans-serif; font-size: var(--font-md); font-weight: 500; color: var(--ink); margin: 0; }
+.ruleMeta { font-family: Inter, sans-serif; font-size: var(--font-xs); color: var(--ink-3); margin: 0; display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.ruleActions { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+.reorderGroup { display: flex; flex-direction: column; }
+.reorderBtn {
+  font-family: Inter, sans-serif; font-size: var(--font-sm); color: var(--ink-2); background: var(--card);
+  border: 1px solid var(--line-strong); cursor: pointer; padding: 0 var(--space-2); line-height: 1.4;
+}
+.reorderBtn:disabled { opacity: 0.35; cursor: not-allowed; }
+.reorderBtn:first-child { border-radius: var(--radius-sm) var(--radius-sm) 0 0; border-bottom: none; }
+.reorderBtn:last-child { border-radius: 0 0 var(--radius-sm) var(--radius-sm); }
+
+.dryRunResult { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-3); background: var(--paper); border-radius: var(--radius-md); }
+
+/* --------------------------------------------------------------- goal list */
+.goalList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-4); }
+.goalRow { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.goalHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
+.goalName { font-family: Inter, sans-serif; font-size: var(--font-md); font-weight: 500; color: var(--ink); margin: 0; }
+.goalMeta { font-family: Inter, sans-serif; font-size: var(--font-xs); color: var(--ink-3); margin: 0; }
+.goalAmounts { font-family: Inter, sans-serif; font-size: var(--font-sm); color: var(--ink-2); display: flex; align-items: center; gap: var(--space-2); }
+.goalActions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+
+/* --------------------------------------------------------------- periods */
+.periodPicker { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+
+/* --------------------------------------------------------------- envelopes */
+.tableWrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-md); }
+.table { width: 100%; border-collapse: collapse; font-family: Inter, sans-serif; font-size: var(--font-sm); }
+.table th { text-align: left; padding: var(--space-3) var(--space-4); font-weight: 500; color: var(--ink-3); font-size: var(--font-xs); letter-spacing: 0.05em; text-transform: uppercase; border-bottom: 1px solid var(--line); background: var(--paper); }
+.table td { padding: var(--space-3) var(--space-4); color: var(--ink); border-bottom: 1px solid var(--line); vertical-align: middle; }
+.table tbody tr:last-child td { border-bottom: none; }
+.right { text-align: right; }
+.envelopeHealthCell { display: flex; flex-direction: column; gap: var(--space-1); min-width: 8rem; }
+.envelopeHealthWord { font-family: Inter, sans-serif; font-size: var(--font-xs); font-weight: 500; }
+.envelopeActions { display: flex; gap: var(--space-2); justify-content: flex-end; flex-wrap: wrap; }
+
+.srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+@media (max-width: 759px) {
+  .page { padding: var(--space-4); }
+  .treeActions, .ruleActions, .envelopeActions { justify-content: flex-start; }
+}

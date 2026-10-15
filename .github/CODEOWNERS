@@ -1,0 +1,16 @@
+# Default owner for everything
+*                               @Harnoor6693
+
+# AI call sites -- requires extra scrutiny. Layout: core/ (the Spring Boot monolith),
+# apps/web, apps/mobile, docs-site, deploy. Scoped to the ai/ abstraction itself AND
+# the domain packages that actually call it and decide sensitivity / build prompts --
+# `grep -rl '^import finance\.trove\.ai\.' core/src/main/java` outside ai/ turns up
+# exactly these two packages (receipts vision pipeline, categorisation tiers).
+core/src/main/java/finance/trove/ai/                    @Harnoor6693
+core/src/main/java/finance/trove/receipts/pipeline/     @Harnoor6693
+core/src/main/java/finance/trove/receipts/upload/       @Harnoor6693
+core/src/main/java/finance/trove/categorisation/        @Harnoor6693
+
+# Infrastructure & CI
+deploy/                         @Harnoor6693
+.github/                        @Harnoor6693

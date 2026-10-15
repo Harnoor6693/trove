@@ -1,0 +1,22 @@
+.page {
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+}
+.card {
+  max-width: 34rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.title { font-size: var(--font-lg); font-weight: 600; }
+.detail { font-size: var(--font-sm); color: var(--ink-2); line-height: 1.5; }
+.meta {
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+  color: var(--ink-2);
+  word-break: break-all;
+}
+.actions { display: flex; gap: var(--space-3); margin-top: var(--space-3); }

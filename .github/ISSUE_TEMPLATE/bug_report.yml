@@ -1,0 +1,68 @@
+name: Bug Report
+description: Something isn't working as expected
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill out the details below.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to ...
+        2. Click on ...
+        3. See error
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment mode
+      options:
+        - Docker Compose (self-hosted, deploy/)
+        - Local dev (mvnw spring-boot:run)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: ai-mode
+    attributes:
+      label: AI mode
+      options:
+        - Off (default)
+        - On — local provider (e.g. Ollama)
+        - On — hosted provider
+        - Not applicable
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or error output
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: Trove version
+      placeholder: e.g. v0.3.1
+    validations:
+      required: true

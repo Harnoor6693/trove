@@ -1,0 +1,22 @@
+{"merchants":[
+  {"name":"TIM HORTONS","categoryName":"Coffee Shops","confidence":0.99},
+  {"name":"STARBUCKS","categoryName":"Coffee Shops","confidence":0.99},
+  {"name":"MCDONALDS","categoryName":"Fast Food","confidence":0.99},
+  {"name":"SUBWAY","categoryName":"Fast Food","confidence":0.98},
+  {"name":"SHOPPERS DRUG MART","categoryName":"Pharmacy","confidence":0.97},
+  {"name":"LOBLAWS","categoryName":"Groceries","confidence":0.97},
+  {"name":"METRO","categoryName":"Groceries","confidence":0.96},
+  {"name":"UBER","categoryName":"Ride Share","confidence":0.97},
+  {"name":"LYFT","categoryName":"Ride Share","confidence":0.97},
+  {"name":"NETFLIX","categoryName":"Streaming","confidence":0.99},
+  {"name":"SPOTIFY","categoryName":"Streaming","confidence":0.99},
+  {"name":"AMAZON","categoryName":"Shopping","confidence":0.90},
+  {"name":"HYDRO ONE","categoryName":"Electricity","confidence":0.98},
+  {"name":"BELL CANADA","categoryName":"Internet","confidence":0.97},
+  {"name":"ROGERS","categoryName":"Internet","confidence":0.97},
+  {"name":"AIR CANADA","categoryName":"Flights","confidence":0.99},
+  {"name":"WESTJET","categoryName":"Flights","confidence":0.99},
+  {"name":"PETRO-CANADA","categoryName":"Gas & Fuel","confidence":0.97},
+  {"name":"ESSO","categoryName":"Gas & Fuel","confidence":0.97},
+  {"name":"APPLE.COM","categoryName":"Electronics","confidence":0.90}
+]}

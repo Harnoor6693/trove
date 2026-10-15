@@ -1,0 +1,103 @@
+# The AI coach's prompt content (collapse step 13; moved from
+# services/model-manager/src/main/resources/coach-prompts.yml, §2.10).
+#
+# THIS FILE IS THE ONE SOURCE FOR trove.coach.*, AND THAT IS THE POINT.
+# The source declared `trove.coach.max-history-messages` in application.yml AND
+# `trove.coach.max_history_messages` here, two independently loaded property sources binding one
+# field, with the winner decided by load order (inventory model-manager §12). Only this file
+# survives: it is bound by @PropertySource on CoachPromptsConfig, nothing about the coach is added
+# to application.yml, and the key exists exactly once.
+#
+# It is prompt CONTENT rather than deployment configuration, which is why it lives beside the code
+# instead of in application.yml. Editing it changes what the model is told; it changes no timeout,
+# no address and no limit an operator tunes. The runtime numbers — the context deadline and the
+# stored-answer cap — are on CoachProperties, under trove.ai.coach, with their defaults in Java.
+
+trove:
+  coach:
+
+    # Sent as the SYSTEM turn of every conversation. It is never returned to a client: it is the
+    # server's construction, not the member's conversation, and GET /v1/chat/history excludes it.
+    system_prompt: |
+      You are Trove, a personal financial coach. Your job is to help the user understand their
+      finances, identify patterns, and make better financial decisions.
+      You are direct, practical, and empathetic. You never judge spending habits.
+      You use plain language — no financial jargon unless the user uses it first.
+      You use short sentences. You occasionally use em-dashes for rhythm — like this.
+      You never recommend specific financial products or stocks.
+      You never provide investment advice. You always base responses on the user's actual data.
+      When data is missing, say so clearly rather than guessing. Never invent a figure: if a
+      section below says data is unavailable, say that it is unavailable.
+
+    # Appended to the system turn, with {{placeholders}} filled by CoachContextBuilder.
+    #
+    # A section whose read failed or overran the deadline is filled with the words
+    # "(unavailable)" — never with a zero. A coach that confidently tells a member their spending
+    # was 0.00 because a query timed out is worse than one that says it does not know, and that
+    # confident zero is what the source shipped (inventory D1: three of its four context reads
+    # 401'd unconditionally and the fourth was zeroed by a header-name mismatch).
+    #
+    # Amounts are decimal strings in the MEMBER's own currency, one block per currency the
+    # household actually holds. There is no exchange rate anywhere in Trove, so nothing is blended.
+    context_template: |
+      --- {{display_name}}'s financial context, as of {{date}} ({{timezone}}) ---
+      Tax jurisdiction: {{jurisdiction}}
+
+      This month ({{month}}):
+      {{month_summary}}
+
+      Budget ({{month}}):
+      {{budget_summary}}
+
+      Subscriptions:
+      {{subscription_summary}}
+
+      Net worth:
+      {{net_worth_summary}}
+      --- end of context ---
+
+    # How many stored turns of the current conversation are replayed into the prompt. The window
+    # bounds the prompt, not the history: GET /v1/chat/history still returns everything.
+    max_history_messages: 20
+
+    suggestions:
+      default_suggestions:
+        - "What did I spend the most on this month?"
+        - "Am I on track with my savings goals?"
+        - "Do I have any subscriptions I am not using?"
+        - "What is my biggest spending category this year?"
+        - "How can I improve my net worth?"
+      budget_keywords:
+        - "budget"
+        - "envelope"
+        - "allocated"
+      budget_suggestions:
+        - "Which envelope is furthest over budget?"
+        - "How do I create a zero-based budget?"
+        - "Where did my grocery budget go this month?"
+        - "Which categories am I consistently under-allocating?"
+        - "Am I on pace with my transport budget?"
+      subscription_keywords:
+        - "subscription"
+        - "recurring"
+        - "monthly charge"
+      subscription_suggestions:
+        - "Which subscriptions am I not using?"
+        - "How much am I spending on streaming services per year?"
+        - "Can I cancel anything to save money?"
+        - "What is my total subscription cost per year?"
+        - "Which subscription had a price increase recently?"
+      # The tax list is deliberately about the member's own records rather than about tax rules:
+      # Trove computes no tax, holds no bracket and no rate, and the coach must not be the place
+      # that starts (§2.9, §4.12). These prompt the member toward their own categorised ledger.
+      tax_keywords:
+        - "tax"
+        - "deduction"
+        - "write off"
+        - "write-off"
+      tax_suggestions:
+        - "Which of my categories are marked deductible this year?"
+        - "How much did I spend in each deductible category?"
+        - "Which transactions have no receipt attached?"
+        - "What does my tax export cover?"
+        - "Which categories have no tax line mapped?"

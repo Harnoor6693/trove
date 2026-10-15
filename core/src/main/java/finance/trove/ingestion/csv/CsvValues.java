@@ -1,0 +1,237 @@
+package finance.trove.ingestion.csv;
+
+import finance.trove.ingestion.DateFormatCandidate;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+
+/**
+ * Reading the two cell types a CSV export gets wrong in interesting ways: money and dates.
+ *
+ * <p>Nothing here is generic parsing for its own sake — every case is something a real Canadian or
+ * American bank export actually contains.
+ *
+ * <h2>Money</h2>
+ * Thousands separators ({@code 1,234.56}), a currency symbol ({@code $1,234.56}), a
+ * non-breaking space between the symbol and the digits, an accounting negative in parentheses
+ * ({@code (42.00)}) and a trailing minus ({@code 42.00-}). Everything is read into a
+ * {@link BigDecimal}: §9 risk 6 makes a binary float in the ledger an architecture violation, and
+ * the reason is that IEEE-754 cannot represent {@code 0.10} at all.
+ *
+ * <h2>Dates, and the one question the data cannot answer</h2>
+ * {@code 03/09/2026} is the third of September in Canada and the ninth of March in the United
+ * States. Both readings produce a valid date for every row of a file that happens to contain only
+ * day-of-month values of twelve or less, so no amount of sniffing can decide it — which is exactly
+ * why {@link #dateFormatCandidates} exists. A file that contains one unambiguous cell
+ * ({@code 13/09/2026}) settles the question for the whole file; a file that does not offers the
+ * member both readings with the sample values that make them ambiguous, and the commit uses what
+ * comes back. Guessing silently is how a household's September spending lands in March.
+ */
+final class CsvValues {
+
+    /** Unambiguous patterns, tried in order before the two that need the member. */
+    private static final List<String> UNAMBIGUOUS_DATE_PATTERNS = List.of(
+        "uuuu-MM-dd", "uuuu/MM/dd", "uuuuMMdd", "d MMM uuuu", "MMM d uuuu", "d MMMM uuuu");
+
+    /** Day-first, then month-first. The order is the order the candidates are offered in. */
+    static final String DAY_FIRST_SLASH = "dd/MM/uuuu";
+
+    static final String MONTH_FIRST_SLASH = "MM/dd/uuuu";
+
+    static final String DAY_FIRST_DASH = "dd-MM-uuuu";
+
+    static final String MONTH_FIRST_DASH = "MM-dd-uuuu";
+
+    /**
+     * The same two readings for a file whose day and month are NOT zero-padded
+     * ({@code 3/9/2026}), which plenty of Canadian and American exports emit
+     * (confirmed review finding 4).
+     *
+     * <p>They are a separate, later pair rather than a replacement for the padded ones because
+     * {@code d} accepts one digit OR two: {@code d/M/uuuu} reads a padded file perfectly well, so
+     * promoting it would silently rename the format offered for every ordinary file — and a
+     * member's stored {@code mapping_json} says {@code dd/MM/uuuu}. Tried after the padded pair,
+     * it changes nothing for a padded file and is the only pair that fits an unpadded one.
+     *
+     * <p>Without them {@code detectDateFormat} returned null AND {@code dateFormatCandidates}
+     * returned empty for such a file: every row came back INVALID with the message "this row's
+     * date could not be read as null", and the commit told the member to choose from an empty
+     * list.
+     */
+    static final String DAY_FIRST_SLASH_UNPADDED = "d/M/uuuu";
+
+    static final String MONTH_FIRST_SLASH_UNPADDED = "M/d/uuuu";
+
+    static final String DAY_FIRST_DASH_UNPADDED = "d-M-uuuu";
+
+    static final String MONTH_FIRST_DASH_UNPADDED = "M-d-uuuu";
+
+    /**
+     * The ambiguous readings, in the order they are tried and offered.
+     *
+     * <p>Padded before unpadded, so a file that fits both is described the way it is written.
+     */
+    private static final List<String[]> AMBIGUOUS_PAIRS = List.of(
+        new String[] {DAY_FIRST_SLASH, MONTH_FIRST_SLASH},
+        new String[] {DAY_FIRST_DASH, MONTH_FIRST_DASH},
+        new String[] {DAY_FIRST_SLASH_UNPADDED, MONTH_FIRST_SLASH_UNPADDED},
+        new String[] {DAY_FIRST_DASH_UNPADDED, MONTH_FIRST_DASH_UNPADDED});
+
+    private CsvValues() {
+        throw new UnsupportedOperationException("Utility class");
+    }
+
+    /**
+     * Reads one money cell.
+     *
+     * @return the value, or {@code null} when the cell is blank or is not a number at all
+     */
+    static BigDecimal amount(String cell) {
+        if (cell == null) {
+            return null;
+        }
+        String text = cell.trim();
+        if (text.isEmpty()) {
+            return null;
+        }
+        boolean negative = false;
+        if (text.startsWith("(") && text.endsWith(")")) {
+            negative = true;
+            text = text.substring(1, text.length() - 1).trim();
+        }
+        if (text.endsWith("-")) {
+            negative = true;
+            text = text.substring(0, text.length() - 1).trim();
+        }
+        if (text.startsWith("-")) {
+            negative = true;
+            text = text.substring(1).trim();
+        } else if (text.startsWith("+")) {
+            text = text.substring(1).trim();
+        }
+        StringBuilder digits = new StringBuilder(text.length());
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c >= '0' && c <= '9') {
+                digits.append(c);
+            } else if (c == '.') {
+                digits.append(c);
+            } else if (c == ',' || c == ' ' || c == ' ' || c == ' ' || c == '\'') {
+                // A thousands separator, or the space some exports put after the currency symbol.
+                continue;
+            } else if (c == '$' || c == '€' || c == '£' || Character.isLetter(c)) {
+                // A currency symbol or a trailing "CAD". Ignored: the row's currency comes from
+                // the mapped currency column or from the account, never from a symbol (F4).
+                continue;
+            } else {
+                return null;
+            }
+        }
+        if (digits.isEmpty() || ".".contentEquals(digits)) {
+            return null;
+        }
+        try {
+            BigDecimal value = new BigDecimal(digits.toString());
+            return negative ? value.negate() : value;
+        } catch (NumberFormatException e) {
+            // swallow-ok: a cell that is not a number is a row the preview shows with its reason,
+            // not an exception that abandons the rest of the file.
+            return null;
+        }
+    }
+
+    /** Parses {@code cell} under {@code pattern}, or {@code null} if it does not fit. */
+    static LocalDate date(String cell, String pattern) {
+        if (cell == null || pattern == null) {
+            return null;
+        }
+        String text = cell.trim().replace(',', ' ').replaceAll("\\s+", " ");
+        if (text.isEmpty()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(text, formatter(pattern));
+        } catch (DateTimeParseException e) {
+            // swallow-ok: "does not fit this pattern" is the question being asked.
+            return null;
+        }
+    }
+
+    /**
+     * The pattern that reads every one of {@code cells}, or {@code null} when the file is
+     * ambiguous (or unreadable) and {@link #dateFormatCandidates} has to ask.
+     */
+    static String detectDateFormat(List<String> cells) {
+        for (String pattern : UNAMBIGUOUS_DATE_PATTERNS) {
+            if (readsEveryCell(cells, pattern)) {
+                return pattern;
+            }
+        }
+        for (String[] pair : AMBIGUOUS_PAIRS) {
+            boolean dayFirst = readsEveryCell(cells, pair[0]);
+            boolean monthFirst = readsEveryCell(cells, pair[1]);
+            if (dayFirst != monthFirst) {
+                return dayFirst ? pair[0] : pair[1];
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The readings a member has to choose between, or empty when the file is not ambiguous.
+     *
+     * <p>Non-empty exactly when {@link #detectDateFormat} returned {@code null} because BOTH
+     * readings fit every cell. A file nothing reads at all produces no candidates either — that is
+     * an unmappable date column, not a choice.
+     */
+    static List<DateFormatCandidate> dateFormatCandidates(List<String> cells, int sampleSize) {
+        for (String[] pair : AMBIGUOUS_PAIRS) {
+            if (readsEveryCell(cells, pair[0]) && readsEveryCell(cells, pair[1])) {
+                List<String> samples = samples(cells, sampleSize);
+                List<DateFormatCandidate> candidates = new ArrayList<>(2);
+                for (String pattern : pair) {
+                    candidates.add(new DateFormatCandidate(pattern, samples,
+                        samples.stream().map(cell -> date(cell, pattern)).toList()));
+                }
+                return List.copyOf(candidates);
+            }
+        }
+        return List.of();
+    }
+
+    private static List<String> samples(List<String> cells, int sampleSize) {
+        Set<String> distinct = new LinkedHashSet<>(cells);
+        return distinct.stream().limit(Math.max(1, sampleSize)).toList();
+    }
+
+    private static boolean readsEveryCell(List<String> cells, String pattern) {
+        if (cells.isEmpty()) {
+            return false;
+        }
+        for (String cell : cells) {
+            if (date(cell, pattern) == null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * {@link ResolverStyle#STRICT} with {@code uuuu} rather than {@code yyyy}, so that
+     * {@code 13/09/2026} is REFUSED by {@code MM/dd/uuuu} instead of being smoothed into a valid
+     * date. That refusal is the whole mechanism by which one unambiguous row settles the format
+     * for a file; a lenient resolver accepts both readings of every row and the ambiguity becomes
+     * undetectable.
+     */
+    private static DateTimeFormatter formatter(String pattern) {
+        return DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH)
+            .withResolverStyle(ResolverStyle.STRICT);
+    }
+}

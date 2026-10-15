@@ -1,0 +1,365 @@
+# Trove — single-host deployment (modular monolith).
+#
+# This is the ONLY compose file a self-hoster needs. Drive it with `./trove`
+# (same directory) rather than `docker compose` directly: the CLI renders
+# traefik.runtime.yml, derives the TLS routing variables from TROVE_TLS_MODE,
+# and refuses to start with placeholder secrets.
+#
+#   ./trove bootstrap   # generate .env (0600) with real secrets
+#   ./trove up          # build from source, start, wait for readiness
+#
+# Images are built locally from this repository on purpose: the repo is
+# private, so there is no public registry to pull `trove-core` from.
+#
+# Only `traefik` publishes ports. Everything else is reachable exclusively
+# through it (prometheus/grafana bind to loopback under the monitoring
+# profile, never to 0.0.0.0).
+
+# Fixed project name so `docker compose` and `./trove` address the same
+# containers, volumes and networks no matter which directory you run from.
+name: trove
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+x-hardening: &hardening
+  security_opt:
+    - no-new-privileges:true
+
+services:
+
+  # ─── Docker API gate for Traefik ────────────────────────────────────────
+  # Copied from infra/full-stack/docker-compose.yml: Traefik never gets raw
+  # access to /var/run/docker.sock; it reads a filtered, read-only subset.
+  socket-proxy:
+    image: ghcr.io/tecnativa/docker-socket-proxy:0.3
+    environment:
+      CONTAINERS: 1
+      NETWORKS: 1
+      SERVICES: 1
+      TASKS: 1
+      INFO: 1
+      POST: 0
+      LOG_LEVEL: warning
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - socket_proxy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:2375/_ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    logging: *logging
+    <<: *hardening
+
+  # ─── Edge: TLS termination, routing, security headers, rate limit ───────
+  traefik:
+    image: traefik:v3.7
+    command: ["--configfile=/etc/traefik/traefik.runtime.yml"]
+    ports:
+      # The only published ports in the whole stack.
+      - "${TROVE_HTTP_PORT:-80}:80"
+      - "${TROVE_HTTPS_PORT:-443}:443"
+    environment:
+      # Only read by the letsencrypt-dns resolver (TROVE_TLS_MODE=acme-dns).
+      CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN:-}
+      TZ: ${TZ:-UTC}
+    volumes:
+      # traefik.runtime.yml is rendered from traefik.yml by `./trove up`
+      # (Traefik does not expand environment variables in static config).
+      - ./traefik:/etc/traefik:ro
+      - traefik_acme:/letsencrypt
+    networks:
+      - socket_proxy
+      - edge
+    depends_on:
+      socket-proxy:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8082/ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    logging: *logging
+    <<: *hardening
+
+  # ─── SPA (nginx) ────────────────────────────────────────────────────────
+  web:
+    build:
+      context: ../apps/web
+      dockerfile: Dockerfile
+    environment:
+      TZ: ${TZ:-UTC}
+    networks:
+      edge:
+        priority: 100
+    labels:
+      - "traefik.enable=true"
+      # Everything that is not /api is the SPA.
+      - "traefik.http.routers.trove-web.rule=Host(`${TROVE_DOMAIN:?set TROVE_DOMAIN in deploy/.env - the hostname this install answers on}`)"
+      - "traefik.http.routers.trove-web.entrypoints=${TROVE_ROUTER_ENTRYPOINT:-websecure}"
+      # One of (derived from TROVE_TLS_MODE by ./trove):
+      #   tls.certresolver=letsencrypt-http | tls.certresolver=letsencrypt-dns | tls=false
+      - "traefik.http.routers.trove-web.${TROVE_ROUTER_TLS_LABEL:-tls.certresolver=letsencrypt-http}"
+      - "traefik.http.routers.trove-web.middlewares=security-headers@file,csp-web@file,ratelimit-general@file,compress@file"
+      - "traefik.http.services.trove-web.loadbalancer.server.port=80"
+    depends_on:
+      trove-core:
+        condition: service_started
+    restart: unless-stopped
+    logging: *logging
+    <<: *hardening
+
+  # ─── The monolith ───────────────────────────────────────────────────────
+  trove-core:
+    build:
+      # Build context is the repository root; core/Dockerfile copies
+      # core/target/*-exec.jar, so the jar must be packaged first.
+      # `./trove up` does that for you (with the host JDK if there is one,
+      # otherwise in a throwaway Maven container).
+      context: ..
+      dockerfile: core/Dockerfile
+    image: trove-core:local
+    environment:
+      TZ: ${TZ:-UTC}
+      # core/Dockerfile's ENTRYPOINT is `java -jar app.jar` with no wrapper
+      # script, so JAVA_OPTS would be ignored; JAVA_TOOL_OPTIONS is the one
+      # the JVM itself reads. JAVA_OPTS stays the operator-facing name.
+      JAVA_TOOL_OPTIONS: ${JAVA_OPTS:--Xmx1280m -XX:+UseZGC}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      # Datasource — both the canonical names (plan 1.6) and Spring's own
+      # relaxed-binding names, so the container is correct whichever the
+      # application.yml placeholder ends up being.
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-trove}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-trove}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env - run ./trove bootstrap to generate it}
+      POSTGRES_USER: ${POSTGRES_USER:-trove}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env - run ./trove bootstrap to generate it}
+      POSTGRES_DB: ${POSTGRES_DB:-trove}
+      # Identity / crypto
+      TROVE_DOMAIN: ${TROVE_DOMAIN:?set TROVE_DOMAIN in deploy/.env - the hostname this install answers on}
+      # Base URL of invite links, admin reset links, OIDC redirects and CORS.
+      # Defaults to https://<TROVE_DOMAIN>; set it only if members reach Trove elsewhere.
+      TROVE_PUBLIC_URL: ${TROVE_PUBLIC_URL:-https://${TROVE_DOMAIN}}
+      TROVE_JWT_SECRET: ${TROVE_JWT_SECRET:?set TROVE_JWT_SECRET in deploy/.env - run ./trove bootstrap to generate it}
+      TROVE_ENCRYPTION_KEY: ${TROVE_ENCRYPTION_KEY:?set TROVE_ENCRYPTION_KEY in deploy/.env - run ./trove bootstrap to generate it}
+      # First-run bootstrap (consumed only while the users table is empty)
+      TROVE_ADMIN_EMAIL: ${TROVE_ADMIN_EMAIL:?set TROVE_ADMIN_EMAIL in deploy/.env - the first admin account}
+      TROVE_ADMIN_PASSWORD: ${TROVE_ADMIN_PASSWORD:?set TROVE_ADMIN_PASSWORD in deploy/.env - run ./trove bootstrap to generate it}
+      # Storage and policy
+      TROVE_DATA_DIR: ${TROVE_DATA_DIR:-/data}
+      TROVE_REGISTRATION_OPEN: ${TROVE_REGISTRATION_OPEN:-false}
+      TROVE_RATE_LIMIT_ENABLED: ${TROVE_RATE_LIMIT_ENABLED:-true}
+      TROVE_EGRESS_ALLOW_PRIVATE: ${TROVE_EGRESS_ALLOW_PRIVATE:-false}
+      TROVE_RECEIPT_QUOTA_MB: ${TROVE_RECEIPT_QUOTA_MB:-2048}
+      TROVE_AUDIT_RETENTION_DAYS: ${TROVE_AUDIT_RETENTION_DAYS:-90}
+      # Optional OIDC (all-or-nothing, validated at boot)
+      TROVE_OIDC_ENABLED: ${TROVE_OIDC_ENABLED:-false}
+      TROVE_OIDC_ISSUER_URI: ${TROVE_OIDC_ISSUER_URI:-}
+      TROVE_OIDC_CLIENT_ID: ${TROVE_OIDC_CLIENT_ID:-}
+      TROVE_OIDC_CLIENT_SECRET: ${TROVE_OIDC_CLIENT_SECRET:-}
+      TROVE_OIDC_DISPLAY_NAME: ${TROVE_OIDC_DISPLAY_NAME:-}
+      # Optional SMTP (off by default; without it password reset is admin-issued)
+      SMTP_ENABLED: ${SMTP_ENABLED:-false}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      NOTIFICATION_FROM_ADDRESS: ${NOTIFICATION_FROM_ADDRESS:-}
+    volumes:
+      - trove_data:${TROVE_DATA_DIR:-/data}
+    networks:
+      edge:
+        priority: 100
+      data: {}
+      ai: {}
+      monitoring: {}
+    labels:
+      - "traefik.enable=true"
+      # /api wins over the SPA router (higher priority = longer, more specific rule).
+      - "traefik.http.routers.trove-api.rule=Host(`${TROVE_DOMAIN:?set TROVE_DOMAIN in deploy/.env - the hostname this install answers on}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.trove-api.entrypoints=${TROVE_ROUTER_ENTRYPOINT:-websecure}"
+      - "traefik.http.routers.trove-api.${TROVE_ROUTER_TLS_LABEL:-tls.certresolver=letsencrypt-http}"
+      - "traefik.http.routers.trove-api.priority=100"
+      - "traefik.http.routers.trove-api.middlewares=security-headers@file,csp-api@file,ratelimit-general@file,compress@file"
+      - "traefik.http.routers.trove-api.service=trove-api"
+      # Auth endpoints get the tight limiter (outer layer; the app has its own).
+      - "traefik.http.routers.trove-api-auth.rule=Host(`${TROVE_DOMAIN:?set TROVE_DOMAIN in deploy/.env - the hostname this install answers on}`) && PathPrefix(`/api/v1/auth`)"
+      - "traefik.http.routers.trove-api-auth.entrypoints=${TROVE_ROUTER_ENTRYPOINT:-websecure}"
+      - "traefik.http.routers.trove-api-auth.${TROVE_ROUTER_TLS_LABEL:-tls.certresolver=letsencrypt-http}"
+      - "traefik.http.routers.trove-api-auth.priority=200"
+      - "traefik.http.routers.trove-api-auth.middlewares=security-headers@file,csp-api@file,ratelimit-auth@file,compress@file"
+      - "traefik.http.routers.trove-api-auth.service=trove-api"
+      - "traefik.http.services.trove-api.loadbalancer.server.port=8080"
+      # Management port 9090 is deliberately NOT routed: no actuator, no
+      # /prometheus, no /metrics on the public front door.
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Same probe as core/Dockerfile's HEALTHCHECK, restated here so that
+    # `up -d --wait` is gated on readiness (db + flyway + the receipts
+    # volume) rather than liveness: a container still applying migrations
+    # is not ready, and that is what makes migrate-before-serve observable.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9090/actuator/health/readiness | grep -q '\"status\":\"UP\"'"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 240s
+      start_interval: 5s
+    mem_limit: ${TROVE_CORE_MEM_LIMIT:-2g}
+    stop_grace_period: 30s
+    restart: unless-stopped
+    logging: *logging
+    <<: *hardening
+
+  # ─── Database ───────────────────────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    # Tuned for a 1-2 GB box sharing RAM with a 2 GB JVM. Raise
+    # shared_buffers/effective_cache_size on anything larger (see README).
+    command:
+      - postgres
+      - -c
+      - max_connections=${POSTGRES_MAX_CONNECTIONS:-50}
+      - -c
+      - shared_buffers=${POSTGRES_SHARED_BUFFERS:-192MB}
+      - -c
+      - effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-512MB}
+      - -c
+      - work_mem=${POSTGRES_WORK_MEM:-8MB}
+      - -c
+      - maintenance_work_mem=${POSTGRES_MAINTENANCE_WORK_MEM:-64MB}
+      - -c
+      - wal_compression=on
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - max_wal_size=1GB
+      - -c
+      - log_min_duration_statement=2000
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-trove}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env - run ./trove bootstrap to generate it}
+      POSTGRES_DB: ${POSTGRES_DB:-trove}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      TZ: ${TZ:-UTC}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-trove} -d ${POSTGRES_DB:-trove}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    shm_size: ${POSTGRES_SHM_SIZE:-256mb}
+    mem_limit: ${POSTGRES_MEM_LIMIT:-512m}
+    stop_grace_period: 60s
+    restart: unless-stopped
+    logging: *logging
+    <<: *hardening
+
+  # ─── Optional local model host (profile: ai) ────────────────────────────
+  # Nothing talks to this unless a user points their per-user AI endpoint at
+  # http://ollama:11434/v1 in Settings -> AI.
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ai"]
+    environment:
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-5m}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - ai
+    mem_limit: ${OLLAMA_MEM_LIMIT:-4g}
+    restart: unless-stopped
+    logging: *logging
+    <<: *hardening
+
+  # ─── Optional monitoring (profile: monitoring) ──────────────────────────
+  # Bound to loopback only: reach them over an SSH tunnel, never from the
+  # public internet, and never through Traefik.
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    profiles: ["monitoring"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION_TIME:-15d}
+      - --storage.tsdb.retention.size=${PROMETHEUS_RETENTION_SIZE:-512MB}
+      - --web.enable-lifecycle=false
+    ports:
+      - "127.0.0.1:${PROMETHEUS_BIND_PORT:-9091}:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - monitoring
+    restart: unless-stopped
+    logging: *logging
+    <<: *hardening
+
+  grafana:
+    image: grafana/grafana:11.6.16
+    profiles: ["monitoring"]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in deploy/.env before enabling the monitoring profile - there is no default}
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_SERVER_ROOT_URL: http://127.0.0.1:${GRAFANA_BIND_PORT:-3001}
+      TZ: ${TZ:-UTC}
+    ports:
+      - "127.0.0.1:${GRAFANA_BIND_PORT:-3001}:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    logging: *logging
+    <<: *hardening
+
+volumes:
+  postgres_data:
+  trove_data:
+  traefik_acme:
+  ollama_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  # Traefik <-> web/core. Not internal: Traefik needs outbound for ACME and
+  # trove-core needs it for SimpleFIN / the per-user AI endpoint / webhooks.
+  edge:
+    name: trove_edge
+  # core <-> postgres only. No route off the box.
+  data:
+    name: trove_data
+    internal: true
+  # core <-> ollama only (ollama must not reach postgres).
+  ai:
+    name: trove_ai
+    internal: true
+  # prometheus -> core:9090, grafana -> prometheus.
+  monitoring:
+    name: trove_monitoring
+    internal: true
+  # traefik -> socket-proxy only.
+  socket_proxy:
+    name: trove_socket_proxy
+    internal: true

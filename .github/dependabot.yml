@@ -1,0 +1,133 @@
+version: 2
+updates:
+  # Java backend — the monolith (root pom + core; collapse step 24 removed services/, libs/)
+  - package-ecosystem: maven
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    labels: [dependencies, java]
+    assignees: ["Harnoor6693"]
+    commit-message:
+      prefix: chore
+    groups:
+      maven-minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Majors require coordinated migration — bump manually
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # Web app
+  - package-ecosystem: npm
+    directory: "/apps/web"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    labels: [dependencies, frontend]
+    assignees: ["Harnoor6693"]
+    commit-message:
+      prefix: chore
+    groups:
+      web-prod-minor-and-patch:
+        dependency-type: production
+        update-types: [minor, patch]
+      web-dev-minor-and-patch:
+        dependency-type: development
+        update-types: [minor, patch]
+    ignore:
+      # Framework majors require manual migration
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-router-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@vitejs/plugin-react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      # vitest 5 needs vite 6+, whose major is ignored above
+      - dependency-name: "vitest"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@vitest/*"
+        update-types: ["version-update:semver-major"]
+
+  # Mobile app (React Native / Expo)
+  - package-ecosystem: npm
+    directory: "/apps/mobile"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    labels: [dependencies, mobile]
+    assignees: ["Harnoor6693"]
+    commit-message:
+      prefix: chore
+    groups:
+      mobile-prod-minor-and-patch:
+        dependency-type: production
+        update-types: [minor, patch]
+      mobile-dev-minor-and-patch:
+        dependency-type: development
+        update-types: [minor, patch]
+    ignore:
+      # Native runtime bumps are SDK-pinned via Expo — bump manually with prebuild.
+      # react must equal the renderer react-native ships, and the native modules
+      # must match the SDK's native build, so these move only with
+      # `npx expo install --fix` when the SDK moves, never one at a time.
+      - dependency-name: "react-native"
+      - dependency-name: "react-native-*"
+      - dependency-name: "@react-native/*"
+      - dependency-name: "expo"
+      - dependency-name: "expo-*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "jest-expo"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react"
+      - dependency-name: "react-test-renderer"
+      - dependency-name: "@types/react"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      # eslint 9+ drops the .eslintrc format this app uses; flat-config migration first
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "jest"
+        update-types: ["version-update:semver-major"]
+
+  # Docker — the core image and the web Dockerfile (collapse step 24 removed services/*)
+  - package-ecosystem: docker
+    directories:
+      - "/apps/web"
+      - "/core"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    labels: [dependencies, docker]
+    assignees: ["Harnoor6693"]
+    commit-message:
+      prefix: chore
+    groups:
+      docker-minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    labels: [dependencies, github-actions]
+    assignees: ["Harnoor6693"]
+    commit-message:
+      prefix: chore
+    groups:
+      actions-all:
+        patterns: ["*"]

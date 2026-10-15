@@ -1,0 +1,118 @@
+# Traefik STATIC configuration — template.
+#
+# Traefik does not expand environment variables inside its static
+# configuration (file, CLI flags and env vars are mutually exclusive
+# sources), so `./trove up` renders this file into `traefik.runtime.yml`
+# in this directory and that rendered copy is what the container loads
+# (`--configfile=/etc/traefik/traefik.runtime.yml`).
+#
+# Substitutions performed by ./trove (the placeholder tokens are deliberately
+# not repeated in this comment - they appear only where they are substituted):
+#   the acme email placeholder      <- ACME_EMAIL from deploy/.env
+#   the acme caServer placeholder   <- TROVE_ACME_CA_SERVER
+#                                      (default: Let's Encrypt production)
+#   the HTTP->HTTPS redirect block on the `web` entrypoint is deleted when
+#   TROVE_TLS_MODE=off (Tailscale, or another proxy terminating TLS).
+#
+# Edit this file, never traefik.runtime.yml — the latter is regenerated on
+# every `./trove up`.
+
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+# ─── Entrypoints ─────────────────────────────────────────────────────────
+entryPoints:
+  web:
+    address: ":80"
+    # __HTTP_REDIRECT_BEGIN__
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+    # __HTTP_REDIRECT_END__
+
+  websecure:
+    address: ":443"
+    http:
+      tls: {}
+
+  # Internal only — never published by docker-compose.yml. Used by the
+  # compose healthcheck (GET /ping).
+  ping:
+    address: ":8082"
+
+# ─── Providers ───────────────────────────────────────────────────────────
+providers:
+  docker:
+    # Never the raw socket: socket-proxy exposes a filtered, read-only API.
+    endpoint: "tcp://socket-proxy:2375"
+    exposedByDefault: false
+    # Must match `networks.edge.name` in docker-compose.yml.
+    network: trove_edge
+    watch: true
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+# ─── Dashboard / API: OFF ────────────────────────────────────────────────
+# No dashboard, no insecure API. There is nothing to route to it and
+# nothing to leak.
+api:
+  dashboard: false
+  insecure: false
+
+# ─── Liveness probe on the internal `ping` entrypoint ────────────────────
+ping:
+  entryPoint: ping
+
+# ─── ACME ────────────────────────────────────────────────────────────────
+# Two resolvers, one storage file (acme.json keeps a separate account and
+# certificate set per resolver). Routers pick one via the label
+# `traefik.http.routers.<name>.tls.certresolver`, which ./trove derives
+# from TROVE_TLS_MODE.
+certificatesResolvers:
+  # Default. Requires inbound TCP/80 from the internet to this host.
+  letsencrypt-http:
+    acme:
+      email: "__ACME_EMAIL__"
+      storage: /letsencrypt/acme.json
+      caServer: "__ACME_CA_SERVER__"
+      keyType: EC256
+      httpChallenge:
+        entryPoint: web
+
+  # For CGNAT / no inbound 80, or wildcard certificates. Cloudflare only
+  # (owner decision); the token comes from CF_DNS_API_TOKEN in the
+  # container environment.
+  letsencrypt-dns:
+    acme:
+      email: "__ACME_EMAIL__"
+      storage: /letsencrypt/acme.json
+      caServer: "__ACME_CA_SERVER__"
+      keyType: EC256
+      dnsChallenge:
+        provider: cloudflare
+        # Ask the public resolvers, not the host's, so a split-horizon or
+        # caching local resolver cannot stall propagation checks.
+        resolvers:
+          - "1.1.1.1:53"
+          - "9.9.9.9:53"
+        propagation:
+          delayBeforeChecks: 10s
+
+# ─── Logging ─────────────────────────────────────────────────────────────
+log:
+  level: INFO
+  format: json
+
+accessLog:
+  format: json
+  fields:
+    headers:
+      defaultMode: drop
+      names:
+        X-Request-Id: keep
+        User-Agent: keep

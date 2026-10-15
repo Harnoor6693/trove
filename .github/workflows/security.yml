@@ -1,0 +1,258 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [master, develop, canary]
+  pull_request:
+    branches: [master, develop]
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly Monday 02:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Read-only by default; only the CodeQL jobs, which upload SARIF to code
+# scanning, get security-events: write.
+permissions:
+  contents: read
+
+jobs:
+  # A docs-only (or web-only / mobile-only) push must not pay for a backend
+  # compile or an npm install it can't possibly affect. Unlike ci.yml/web-ci.yml
+  # /mobile-ci.yml, this whole workflow's `on.push`/`on.pull_request` deliberately
+  # carry NO top-level `paths:` filter, because secret-scan must still run on
+  # every push regardless of what changed (a secret can leak in a doc or a
+  # config file just as easily as in core/). So path-gating happens per-job
+  # instead, via this cheap "changes" job, rather than at the trigger level.
+  # On schedule/workflow_dispatch runs (no base/head to diff) both outputs
+  # default to 'true' so the weekly/manual sweep still covers everything.
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    # paths-filter lists a pull request's files through the API.
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend || 'true' }}
+      apps: ${{ steps.filter.outputs.apps || 'true' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        with:
+          filters: |
+            backend:
+              - 'core/**'
+              - 'pom.xml'
+              - '.mvn/**'
+              - 'mvnw'
+              - 'mvnw.cmd'
+              - 'config/checkstyle/**'
+              - 'openapi/**'
+              - '.github/workflows/security.yml'
+            apps:
+              - 'apps/web/**'
+              - 'apps/mobile/**'
+              - 'openapi/**'
+              - '.github/workflows/security.yml'
+
+  # Split into two jobs, rather than one job with a `language` matrix, because
+  # a job-level `if:` cannot see the `matrix` context (only `github`, `inputs`,
+  # `needs`, `vars` are available there — actionlint catches this) and a
+  # docs-only push must skip the ENTIRE java leg's checkout+init+build+analyze,
+  # not just its build step.
+  codeql-java:
+    name: CodeQL Analysis (java)
+    needs: [changes]
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: java
+          queries: security-and-quality
+          build-mode: manual
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+      # Only 'core' ships (plan step 22); nothing else in the reactor is a CodeQL
+      # target any more. -pl core -am keeps this compile from touching the dead
+      # services/* modules (and the env vars only those modules' application.yml
+      # ever needed).
+      - name: Build core for CodeQL
+        run: ./mvnw --batch-mode -pl core -am compile
+      - uses: github/codeql-action/analyze@v4
+        if: always()
+        with:
+          category: "/language:java"
+          upload: always
+          output: codeql-results
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: codeql-sarif-java
+          path: codeql-results
+          retention-days: 30
+
+  codeql-js:
+    name: CodeQL Analysis (javascript-typescript)
+    needs: [changes]
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    # Covers both apps/web and apps/mobile in one pass — CodeQL's JS/TS
+    # extractor needs no build step (build-mode: none), so this is close to
+    # free: no npm install, just source extraction. Still gated on `apps` so
+    # a backend-only or docs-only push doesn't pay for it either.
+    if: needs.changes.outputs.apps == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+          build-mode: none
+      - uses: github/codeql-action/analyze@v4
+        if: always()
+        with:
+          category: "/language:javascript-typescript"
+          upload: always
+          output: codeql-results
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: codeql-sarif-javascript-typescript
+          path: codeql-results
+          retention-days: 30
+
+  secret-scan:
+    name: Secret Scanning (gitleaks)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+
+  dependency-audit:
+    name: Dependency Audit (npm)
+    needs: [changes]
+    # Only apps/web and apps/mobile depend on npm — a backend-only or
+    # docs-only push has nothing for `npm audit` to say about.
+    if: needs.changes.outputs.apps == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Audit web dependencies
+        run: |
+          if [ -d apps/web ]; then
+            cd apps/web && npm ci && node ../../scripts/npm-audit-gate.mjs
+          fi
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: apps/mobile/package-lock.json
+      - name: Audit mobile dependencies
+        run: |
+          if [ -d apps/mobile ]; then
+            cd apps/mobile && npm ci && node ../../scripts/npm-audit-gate.mjs
+          fi
+
+  owasp-dependency-check:
+    name: OWASP Dependency-Check (Java)
+    # The NVD feed rate-limits anonymous clients into failure. Runs only on the
+    # weekly schedule or by hand until an NVD_API_KEY secret is configured.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+      - name: Cache OWASP NVD database
+        uses: actions/cache@v6
+        with:
+          path: ~/.m2/repository/org/owasp/dependency-check-data
+          key: owasp-nvd-${{ runner.os }}-${{ hashFiles('.owasp-suppressions.xml') }}
+          restore-keys: |
+            owasp-nvd-${{ runner.os }}-
+      # -pl core -am scopes the aggregate scan to the one module that ships
+      # (plan step 22) instead of the dead services/*, plugins/*, libs/* trees
+      # that collapse step 24 removed from root pom.xml's <modules> —
+      # scanning their dependencies too would have wasted NVD-lookup time on
+      # code nothing runs.
+      - name: Run OWASP Dependency-Check
+        run: |
+          ./mvnw --batch-mode -pl core -am \
+            org.owasp:dependency-check-maven:10.0.4:aggregate \
+            -DfailBuildOnCVSS=7 \
+            -DsuppressionFile=.owasp-suppressions.xml \
+            -DnvdApiKey="${NVD_API_KEY}"
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+      - name: Upload Dependency-Check report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dependency-check-report
+          path: target/dependency-check-report.html
+          retention-days: 30
+
+  trivy-scan:
+    name: Trivy Image Scan (core)
+    # Scans the one image that ships post-collapse. Manual-only: release.yml
+    # already scans nothing (no CI minutes budget for an image scan on every
+    # push), and the ten-service matrix this replaced was already gated to
+    # workflow_dispatch only — this keeps that same manual-only cost, just
+    # pointed at a real, still-shipping target.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+      - name: Package core
+        run: ./mvnw --batch-mode -pl core -am package -DskipTests
+      - name: Build core image
+        run: docker build -t "ghcr.io/${{ github.repository_owner }}/trove-core:trivy-scan" -f core/Dockerfile .
+      - name: Scan core image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ghcr.io/${{ github.repository_owner }}/trove-core:trivy-scan
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          format: table

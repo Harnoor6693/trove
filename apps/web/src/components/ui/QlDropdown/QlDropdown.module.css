@@ -1,0 +1,22 @@
+.wrapper { position: relative; display: inline-block; }
+.trigger { background: none; border: none; cursor: pointer; padding: 0; display: inline-flex; align-items: center; }
+.menu {
+  position: absolute; top: calc(100% + 4px); min-width: 160px;
+  background: var(--card, #fffdf7); border: 1px solid var(--line);
+  border-radius: var(--radius-md, 12px); box-shadow: 0 4px 16px rgba(27,26,23,0.10);
+  padding: var(--space-1, 4px); z-index: 150;
+  visibility: hidden; opacity: 0; pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+.menu.open { visibility: visible; opacity: 1; pointer-events: auto; }
+.left { left: 0; }
+.right { right: 0; }
+.item {
+  display: flex; align-items: center; gap: var(--space-2, 8px); width: 100%;
+  padding: 7px var(--space-3, 12px); font-family: Inter, sans-serif; font-size: var(--font-sm, 13px);
+  color: var(--ink, #1b1a17); background: none; border: none; border-radius: var(--radius-sm, 6px);
+  cursor: pointer; text-align: left;
+}
+.item:hover { background: var(--paper, #f6f3ec); }
+.item.danger { color: var(--red, #9b3a2a); }
+.itemIcon { display: inline-flex; color: var(--ink-3, #8c8578); }

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+  <!--
+    Add suppressions only for confirmed false positives.
+    Every suppression MUST include a <notes> element with justification.
+    Template:
+    <suppress>
+      <notes>Justification: explain why this CVE does not apply to Trove</notes>
+      <cve>CVE-XXXX-XXXXX</cve>
+    </suppress>
+
+    Example (commented out):
+    <suppress>
+      <notes>
+        Justification: CVE-2024-XXXXX affects only the SAML pathway; Trove uses
+        OIDC via Authentik. Reviewed by @Harnoor6693 2026-XX-XX.
+      </notes>
+      <packageUrl regex="true">^pkg:maven/org\.example/affected-lib@.*$</packageUrl>
+      <cve>CVE-2024-XXXXX</cve>
+    </suppress>
+  -->
+</suppressions>

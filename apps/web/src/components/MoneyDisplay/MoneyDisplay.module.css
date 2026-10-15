@@ -1,0 +1,7 @@
+.amount {
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+.positive { color: var(--sage); }
+.negative { color: var(--red); }
+.neutral { color: var(--ink); }

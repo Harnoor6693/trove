@@ -1,0 +1,133 @@
+# ─── Secrets & Environment ───────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.env
+
+# Google Play / Firebase service account keys (never commit)
+google-service-account.json
+*-service-account.json
+google-services.json
+GoogleService-Info.plist
+
+# ─── Java / Maven ────────────────────────────────────────────────────────────
+target/
+build/
+META-INF/
+.mvn/repository/
+*.class
+*.jar
+*.war
+*.ear
+.classpath
+.project
+.settings/
+bin/
+out/
+
+# ─── Node.js / npm ───────────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+dist/
+.next/
+.nuxt/
+.output/
+.cache/
+.parcel-cache/
+.vite/
+
+# frontend-maven-plugin downloads node runtime locally — never commit
+apps/web/node/
+
+# VitePress documentation site build artefacts
+docs-site/.vitepress/dist/
+docs-site/.vitepress/cache/
+
+# ─── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+.eggs/
+dist/
+*.pyc
+
+# ─── React Native / Expo ─────────────────────────────────────────────────────
+.expo/
+.expo-shared/
+expo-env.d.ts
+ios/
+android/
+*.jks
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
+
+# ─── Docker ──────────────────────────────────────────────────────────────────
+docker-compose.override.yml
+
+# ─── IDE ─────────────────────────────────────────────────────────────────────
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ─── Logs & Temp ─────────────────────────────────────────────────────────────
+logs/
+*.log
+*.tmp
+*.temp
+tmp/
+
+# ─── Test artifacts ──────────────────────────────────────────────────────────
+test-results/
+coverage/
+.nyc_output/
+.playwright-mcp
+
+# ─── Git Worktrees ───────────────────────────────────────────────────────────
+.worktrees/
+
+# ─── Project planning docs (local only) ──────────────────────────────────────
+plans/
+docs/superpowers
+
+# ─── MCP configuration (may contain API keys) ────────────────────────────────
+mcp.json
+.mcp.json
+
+# ─── Obsidian Configs─────────────────────────────────────────────────────────-
+.trove-valut
+
+# ─── Local tooling (not for remote) ──────────────────────────────────────────
+.claude/
+.serena/
+tools/hooks/
+graphify-out/
+# ── deploy/ (step 19) ────────────────────────────────────────────────────
+# Rendered from deploy/traefik/traefik.yml by `./trove up`; never committed.
+deploy/traefik/traefik.runtime.yml
+deploy/.bootstrap-done
+deploy/backups/
+deploy/trove-support-*.tar.gz
+
+# Local tooling / working notes (never published)
+.archify/
+docs/recovery/_wip/
+.superpowers/

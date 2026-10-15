@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  trove-core logging. One file replaces the ten per-service logback-spring.xml copies (§5.14).
+
+  Default (prod and anything unprofiled): one JSON object per line via the logstash encoder,
+  so `docker logs` output is machine-readable without a log shipper.
+  dev/test: a plain, human-readable console line.
+
+  The requestId/userId MDC keys are populated by RequestIdMdcFilter (collapse step 2), which
+  ObservabilityConfig registers once at HIGHEST_PRECEDENCE.
+
+  %redact is RedactingConverter: a backstop that masks bearer tokens, JWT-shaped strings and
+  card numbers in a formatted message. It is defence in depth only — the primary defence is
+  Redact.token()/email() at the call site (§2.11).
+-->
+<configuration>
+  <springProperty scope="context" name="appName" source="spring.application.name"
+                  defaultValue="trove-core"/>
+  <conversionRule conversionWord="redact"
+                  converterClass="finance.trove.common.observability.RedactingConverter"/>
+
+  <springProfile name="dev | test">
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+      <encoder>
+        <pattern>%clr(%d{HH:mm:ss.SSS}){faint} %clr(%-5level) %clr([%X{requestId:-no-req}/%X{userId:-anon}]){magenta} %clr(%-24.24logger{0}){cyan} : %redact%n%wEx</pattern>
+      </encoder>
+    </appender>
+    <root level="INFO">
+      <appender-ref ref="CONSOLE"/>
+    </root>
+  </springProfile>
+
+  <springProfile name="!dev &amp; !test">
+    <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+      <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+        <includeMdcKeyName>requestId</includeMdcKeyName>
+        <includeMdcKeyName>userId</includeMdcKeyName>
+        <customFields>{"service":"${appName:-trove-core}"}</customFields>
+        <fieldNames>
+          <timestamp>timestamp</timestamp>
+          <message>message</message>
+          <logger>logger</logger>
+          <thread>thread</thread>
+          <level>level</level>
+        </fieldNames>
+      </encoder>
+    </appender>
+    <root level="INFO">
+      <appender-ref ref="JSON"/>
+    </root>
+  </springProfile>
+
+  <logger name="org.hibernate.SQL" level="WARN"/>
+  <logger name="org.springframework.security" level="INFO"/>
+  <logger name="org.apache.tomcat" level="WARN"/>
+  <logger name="com.zaxxer.hikari" level="WARN"/>
+</configuration>

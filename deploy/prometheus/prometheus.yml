@@ -1,0 +1,18 @@
+# Scrape config for the optional `monitoring` profile.
+#
+# trove-core's management port (9090) is on the internal `trove_monitoring`
+# network and is never routed by Traefik: metrics are not on the public
+# front door.
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["127.0.0.1:9090"]
+
+  - job_name: trove-core
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["trove-core:9090"]

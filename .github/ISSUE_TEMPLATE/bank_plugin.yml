@@ -1,0 +1,63 @@
+name: Bank Source Plugin
+description: Add support for a new bank or financial institution
+labels: [bank-plugin, enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before starting, read "Contribution types" in [CONTRIBUTING.md](../../CONTRIBUTING.md).
+        Bank sources live in `core/src/main/java/finance/trove/ingestion/` since the
+        collapse (step 24) — there is no separate `plugins/bank-sources` module, and no
+        runtime plugin registry to implement against (see the superseded
+        [ADR-0003](../../docs/adr/0003-plugin-architecture.md)).
+        Your PR will need 10 sample fixtures and must pass `./mvnw -pl core test`.
+
+  - type: input
+    id: institution
+    attributes:
+      label: Institution name
+      placeholder: e.g. Scotiabank, TD Bank, Chase
+    validations:
+      required: true
+
+  - type: dropdown
+    id: country
+    attributes:
+      label: Country
+      options:
+        - Canada
+        - United States
+        - Both
+    validations:
+      required: true
+
+  - type: dropdown
+    id: source-type
+    attributes:
+      label: Source type
+      options:
+        - Email alerts (IMAP)
+        - OFX / QFX Direct Connect
+        - OFX file import
+        - SimpleFIN
+        - SMS
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: email-pattern
+    attributes:
+      label: Sample alert format (redacted)
+      description: Paste a redacted example (remove all real account numbers and amounts).
+      placeholder: "A transaction of $XX.XX was made on your account ending XXXX at MERCHANT NAME"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Plugin checklist
+      options:
+        - label: I have 10+ sample fixtures ready for `src/test/resources/fixtures/`
+        - label: I am willing to maintain this plugin

@@ -1,0 +1,80 @@
+.page { display: flex; flex-direction: column; gap: var(--space-6); max-width: 44rem; }
+.heading { font-family: var(--font-serif); font-size: var(--font-2xl); font-weight: 500; }
+.section { display: flex; flex-direction: column; gap: var(--space-4); }
+.sectionTitle { font-size: var(--font-md); font-weight: 600; }
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-4);
+  font-size: var(--font-sm);
+}
+.label { color: var(--ink-2); }
+.value { font-weight: 600; }
+.note { font-size: var(--font-sm); color: var(--ink-2); line-height: 1.5; }
+.actions { display: flex; gap: var(--space-3); }
+.inviteList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.invite {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--font-sm);
+}
+.inviteUrl { font-family: var(--font-mono); font-size: var(--font-xs); word-break: break-all; }
+.status { color: var(--sage); font-size: var(--font-sm); }
+.error { color: var(--red); font-size: var(--font-sm); }
+
+/* Added by step 204 for the AI endpoint section. */
+.select {
+  font: inherit;
+  font-size: var(--font-sm);
+  padding: var(--space-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--ink);
+}
+
+/* Added by step 205 (family E) — account security, the data section and the
+   admin console. Colour, spacing and type all come from `src/styles/tokens.css`;
+   there is no hex value, raw px size or spacing literal below. */
+.header { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); }
+.stack { display: flex; flex-direction: column; gap: var(--space-4); }
+.tableWrap { overflow-x: auto; }
+.rowActions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.dialogActions { display: flex; justify-content: flex-end; gap: var(--space-3); }
+.pager { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.warning {
+  font-size: var(--font-sm);
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--red-soft);
+  border: 1px solid var(--red);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4);
+}
+.consequences { font-size: var(--font-sm); line-height: 1.6; color: var(--ink-2); padding-left: var(--space-5); }
+.consequences li { margin-bottom: var(--space-2); }
+/* Recovery codes and the enrolment secret: selectable and copyable, never an image only. */
+.codeBlock {
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+  background: var(--paper-dim);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4);
+  user-select: all;
+  word-break: break-all;
+}
+.codeList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+  user-select: all;
+}

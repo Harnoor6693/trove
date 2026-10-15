@@ -1,0 +1,26 @@
+.backdrop {
+  position: fixed; inset: 0; background: rgba(27,26,23,0.5);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 200; animation: fadeIn 0.15s ease;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.modal {
+  background: var(--card, #fffdf7); border-radius: var(--radius-lg, 20px);
+  box-shadow: 0 8px 32px rgba(27,26,23,0.15); display: flex; flex-direction: column;
+  max-height: 90vh; animation: slideUp 0.2s ease;
+}
+@keyframes slideUp { from { transform: translateY(12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.sm { width: 380px; }
+.md { width: 520px; }
+.lg { width: 720px; }
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-5, 20px) var(--space-6, 24px); border-bottom: 1px solid var(--line);
+}
+.title { font-family: Fraunces, Georgia, serif; font-size: var(--font-xl, 24px); font-weight: 600; color: var(--ink); margin: 0; }
+.close { background: none; border: none; font-size: 24px; color: var(--ink-3, #8c8578); cursor: pointer; padding: 0 4px; line-height: 1; }
+.close:hover { color: var(--ink); }
+.body { padding: var(--space-6, 24px); overflow-y: auto; }
+@media (max-width: 768px) {
+  .sm, .md, .lg { width: calc(100vw - 32px); max-width: 100%; }
+}

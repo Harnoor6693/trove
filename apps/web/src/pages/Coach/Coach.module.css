@@ -1,0 +1,111 @@
+.page { display: flex; flex-direction: column; gap: var(--space-5); }
+.heading { font-family: var(--font-serif); font-size: var(--font-2xl); font-weight: 500; }
+.lede { font-size: var(--font-sm); color: var(--ink-2); max-width: 46rem; line-height: 1.5; }
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.stack { display: flex; flex-direction: column; gap: var(--space-4); }
+.sectionTitle { font-size: var(--font-md); font-weight: 600; }
+.note { font-size: var(--font-sm); color: var(--ink-2); line-height: 1.5; }
+.hint { font-size: var(--font-xs); color: var(--ink-3); }
+.error { color: var(--red); font-size: var(--font-sm); line-height: 1.5; }
+.status { color: var(--ink-2); font-size: var(--font-sm); }
+.actions { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; }
+
+/* ------------------------------------------------------------- transcript */
+
+.transcript {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-height: 28rem;
+  overflow-y: auto;
+}
+
+.turn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-width: 46rem;
+}
+
+.turnUser { align-self: flex-end; align-items: flex-end; }
+
+.role {
+  font-size: var(--font-xs);
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.bubble {
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--font-base);
+  line-height: 1.55;
+  /* The answer is plain text by contract: newlines are honoured, and nothing
+     in it is ever interpreted as markup. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--line);
+}
+
+.bubbleUser { background: var(--sage-soft); border-color: transparent; }
+.bubbleAssistant { background: var(--paper-dim); }
+
+.caret {
+  display: inline-block;
+  width: var(--space-2);
+  border-bottom: 2px solid var(--ink-3);
+  margin-left: var(--space-1);
+}
+
+/* -------------------------------------------------------------- composer */
+
+.composer { display: flex; flex-direction: column; gap: var(--space-3); }
+
+.textarea {
+  width: 100%;
+  min-height: 5rem;
+  resize: vertical;
+  font: inherit;
+  font-size: var(--font-base);
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+.textarea:focus-visible { outline: 2px solid var(--sage); outline-offset: 1px; }
+
+.counter { font-size: var(--font-xs); color: var(--ink-3); }
+
+/* ------------------------------------------------------------ suggestions */
+
+.suggestions { display: flex; flex-wrap: wrap; gap: var(--space-2); list-style: none; margin: 0; padding: 0; }
+
+/* --------------------------------------------------------------- insights */
+
+.insightList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-4); }
+.insight { display: flex; flex-direction: column; gap: var(--space-1); }
+.insightWeek { font-size: var(--font-xs); color: var(--ink-3); }
+.insightBody { font-size: var(--font-sm); line-height: 1.55; white-space: pre-wrap; }
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

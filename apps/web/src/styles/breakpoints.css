@@ -1,0 +1,11 @@
+/* Breakpoints (match AppShell responsive logic):
+   mobile:  ≤ 759px   → bottom tab bar
+   tablet:  760–1199px → 64px icon rail
+   desktop: ≥ 1200px  → 220px sidebar
+*/
+
+/* Use in components via @media queries:
+   @media (max-width: 759px) { ... }
+   @media (min-width: 760px) and (max-width: 1199px) { ... }
+   @media (min-width: 1200px) { ... }
+*/

@@ -1,0 +1,11 @@
+.card { background: var(--card, #fffdf7); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.default { box-shadow: none; }
+.elevated { box-shadow: var(--shadow-md, 0 4px 16px rgba(27,26,23,0.10)); }
+.flat { background: var(--paper); border-color: var(--line); box-shadow: none; }
+.pad_none { padding: 0; }
+.pad_sm   { padding: var(--space-3); }
+.pad_md   { padding: 22px; }
+.pad_lg   { padding: var(--space-8); }
+.clickable { cursor: pointer; transition: box-shadow 0.15s ease; }
+.clickable:hover { box-shadow: var(--shadow-md, 0 4px 16px rgba(27,26,23,0.10)); }
+.clickable:focus-visible { outline: 2px solid var(--sage); outline-offset: 2px; }

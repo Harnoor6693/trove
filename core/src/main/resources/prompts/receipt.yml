@@ -1,0 +1,51 @@
+# The receipt vision prompt (docs/recovery/06-COLLAPSE-PLAN.md §2.6 — moved here from the
+# receipt-processor's own prompts.yml, which sat beside application.yml and got half of its
+# configuration from each).
+#
+# It lives here rather than inline in Java because prompt text is content that belongs beside the
+# code that sends it, and rather than in application.yml because collapse steps 11, 13, 14 and 16
+# run in parallel worktrees and no step of this wave owns that file. ReceiptPromptsConfig makes it
+# a property source; ReceiptPromptsProperties binds it.
+#
+# What changed from the source's version:
+#   * it is a VISION prompt now, not an OCR-text one. There is no {{ocr_text}} placeholder,
+#     because the model is being handed the image itself — PaddleOCR is deleted.
+#   * "CAD or USD" is gone from the currency instruction. Asking the model to choose between two
+#     currencies is how a receipt with a bare '$' became Canadian (inventory D3); the server
+#     resolves the currency from the member's own row unless the receipt names an ISO code, so the
+#     prompt asks only for what is printed.
+#   * the date instruction asks for what is printed rather than for an interpretation, because the
+#     server knows the member's country and the model does not (inventory D2).
+#   * it says explicitly that the answer is JSON and nothing else. The server strips control
+#     characters, caps the length and validates every field regardless — the model's answer is a
+#     suggestion for a member to confirm, never a value the code trusts (gap row 44).
+trove:
+  receipt:
+    prompt:
+      extract: |
+        You are reading a photograph of a paper receipt. Extract what is printed on it.
+
+        Respond with a single JSON object and nothing else. No prose before or after it, no
+        markdown fences, no explanation.
+
+        {
+          "merchant": "the store name as printed",
+          "amount": the grand total as a number, no currency symbol, no thousands separator,
+          "currency": "the ISO 4217 code ONLY if one is printed on the receipt, otherwise null",
+          "date": "the date as printed, copied exactly, or null",
+          "text": "every line of text you can read, in order, one per line",
+          "lineItems": [
+            {
+              "description": "the item as printed",
+              "quantity": a number,
+              "unitPrice": a number,
+              "totalPrice": a number,
+              "taxable": true or false
+            }
+          ],
+          "confidence": your confidence from 0.0 to 1.0 that you read this receipt correctly
+        }
+
+        Omit any field you cannot read. Do not guess a value that is not printed, and do not
+        convert or reformat anything: copy what is on the paper. If the image is not a receipt,
+        answer {"confidence": 0.0}.

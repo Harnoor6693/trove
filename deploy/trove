@@ -1,0 +1,965 @@
+#!/usr/bin/env bash
+#
+# trove — the operator front door for a self-hosted Trove install.
+#
+#   ./trove bootstrap        generate .env with real secrets (once)
+#   ./trove up               check, build, start, wait for readiness
+#   ./trove down             stop (never removes data)
+#   ./trove status           what is running, versions, disk, backup age
+#   ./trove logs [service]   follow logs
+#   ./trove backup           encrypted archive: database + files + secrets
+#   ./trove restore <file>   restore one of those archives
+#   ./trove update           backup, pull, rebuild, migrate, restart
+#   ./trove reset            DESTROY all data (double confirmation)
+#   ./trove doctor           diagnose without touching anything
+#   ./trove support-bundle   redacted logs + config for a bug report
+#
+# Needs: docker (with compose v2), openssl, awk, tar. Nothing else.
+
+set -euo pipefail
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+REPO_ROOT=$(cd -- "${SCRIPT_DIR}/.." && pwd)
+COMPOSE_FILE="${SCRIPT_DIR}/docker-compose.yml"
+ENV_FILE="${SCRIPT_DIR}/.env"
+ENV_EXAMPLE="${SCRIPT_DIR}/.env.example"
+TRAEFIK_TEMPLATE="${SCRIPT_DIR}/traefik/traefik.yml"
+TRAEFIK_RUNTIME="${SCRIPT_DIR}/traefik/traefik.runtime.yml"
+BOOTSTRAP_MARKER="${SCRIPT_DIR}/.bootstrap-done"
+PROJECT_NAME="${TROVE_PROJECT_NAME:-trove}"
+# Already present locally (it is the postgres image), so no extra pull.
+HELPER_IMAGE="pgvector/pgvector:pg16"
+DEFAULT_ACME_CA="https://acme-v02.api.letsencrypt.org/directory"
+
+FAILED_CHECKS=0
+
+# ─── output ──────────────────────────────────────────────────────────────
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+  C_OK=$'\033[32m'; C_BAD=$'\033[31m'; C_WARN=$'\033[33m'; C_DIM=$'\033[2m'; C_OFF=$'\033[0m'
+else
+  C_OK=''; C_BAD=''; C_WARN=''; C_DIM=''; C_OFF=''
+fi
+
+say()  { printf '%s\n' "$*"; }
+head1() { printf '\n%s\n' "$*"; }
+ok()   { printf '  %sok%s   %s\n' "$C_OK" "$C_OFF" "$1"; }
+warn() { printf '  %swarn%s %s\n' "$C_WARN" "$C_OFF" "$1"; [ $# -lt 2 ] || printf '       %s%s%s\n' "$C_DIM" "$2" "$C_OFF"; }
+bad()  { printf '  %sFAIL%s %s\n' "$C_BAD" "$C_OFF" "$1"; [ $# -lt 2 ] || printf '       fix: %s\n' "$2"; FAILED_CHECKS=$((FAILED_CHECKS + 1)); }
+die()  { printf '%serror:%s %s\n' "$C_BAD" "$C_OFF" "$1" >&2; [ $# -lt 2 ] || printf '  fix: %s\n' "$2" >&2; exit 1; }
+
+# ─── env handling (no eval, no sourcing) ─────────────────────────────────
+load_env() {
+  [ -f "$ENV_FILE" ] || return 0
+  local line key value
+  while IFS= read -r line || [ -n "$line" ]; do
+    line=${line%$'\r'}
+    case "$line" in ''|'#'*) continue ;; esac
+    case "$line" in *=*) ;; *) continue ;; esac
+    key=${line%%=*}
+    value=${line#*=}
+    case "$key" in
+      [A-Za-z_]*) ;;
+      *) continue ;;
+    esac
+    case "$value" in
+      '"'*'"') value=${value#\"}; value=${value%\"} ;;
+      "'"*"'") value=${value#\'}; value=${value%\'} ;;
+    esac
+    export "${key}=${value}"
+  done < "$ENV_FILE"
+}
+
+# Upsert KEY=VALUE in $ENV_FILE. awk-based (BSD/GNU sed -i differ) and the
+# temp file is a sibling so the final mv is an atomic rename.
+upsert_env() {
+  local key="$1" value="$2" tmp
+  tmp=$(mktemp "${ENV_FILE}.XXXXXX")
+  if grep -qE "^${key}=" "$ENV_FILE"; then
+    awk -v k="$key" -v v="$value" -F= '$1 == k { print k "=" v; next } { print }' "$ENV_FILE" > "$tmp"
+  else
+    cat "$ENV_FILE" > "$tmp"
+    printf '%s=%s\n' "$key" "$value" >> "$tmp"
+  fi
+  mv "$tmp" "$ENV_FILE"
+  chmod 600 "$ENV_FILE"
+}
+
+require_env_file() {
+  [ -f "$ENV_FILE" ] || die "deploy/.env does not exist" "run: ./trove bootstrap"
+  load_env
+  derive_tls_vars
+}
+
+derive_tls_vars() {
+  case "${TROVE_TLS_MODE:-acme-http}" in
+    acme-http)
+      export TROVE_ROUTER_ENTRYPOINT=websecure
+      export TROVE_ROUTER_TLS_LABEL="tls.certresolver=letsencrypt-http" ;;
+    acme-dns)
+      export TROVE_ROUTER_ENTRYPOINT=websecure
+      export TROVE_ROUTER_TLS_LABEL="tls.certresolver=letsencrypt-dns" ;;
+    off)
+      export TROVE_ROUTER_ENTRYPOINT=web
+      export TROVE_ROUTER_TLS_LABEL="tls=false" ;;
+    *)
+      die "TROVE_TLS_MODE='${TROVE_TLS_MODE}' is not one of acme-http, acme-dns, off" \
+          "edit deploy/.env" ;;
+  esac
+}
+
+compose() {
+  docker compose -p "$PROJECT_NAME" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
+}
+
+# ─── traefik static config rendering ─────────────────────────────────────
+# Traefik cannot expand env vars in static config, so render the template.
+render_traefik() {
+  local email ca drop
+  email="${ACME_EMAIL:-}"
+  ca="${TROVE_ACME_CA_SERVER:-$DEFAULT_ACME_CA}"
+  drop=0
+  [ "${TROVE_TLS_MODE:-acme-http}" = "off" ] && drop=1
+  # `&` is the whole-match reference in awk's gsub replacement.
+  email=${email//&/\\&}
+  ca=${ca//&/\\&}
+  awk -v email="$email" -v ca="$ca" -v drop="$drop" '
+    /^[[:space:]]*#[[:space:]]*__HTTP_REDIRECT_BEGIN__[[:space:]]*$/ { if (drop == 1) skip = 1; next }
+    /^[[:space:]]*#[[:space:]]*__HTTP_REDIRECT_END__[[:space:]]*$/   { if (drop == 1) skip = 0; next }
+    skip == 1 { next }
+    {
+      gsub(/__ACME_EMAIL__/, email)
+      gsub(/__ACME_CA_SERVER__/, ca)
+      print
+    }
+  ' "$TRAEFIK_TEMPLATE" > "${TRAEFIK_RUNTIME}.tmp"
+  mv "${TRAEFIK_RUNTIME}.tmp" "$TRAEFIK_RUNTIME"
+}
+
+# ─── small helpers ───────────────────────────────────────────────────────
+have() { command -v "$1" >/dev/null 2>&1; }
+
+port_in_use() {
+  local p="$1"
+  if (exec 3<>"/dev/tcp/127.0.0.1/${p}") 2>/dev/null; then
+    return 0
+  fi
+  return 1
+}
+
+free_gb() {
+  local dir="$1"
+  df -Pk "$dir" 2>/dev/null | awk 'NR == 2 { printf "%d", $4 / 1048576 }'
+}
+
+gen_b64() { openssl rand -base64 "$1" | tr -d '\n='; }
+gen_hex() { openssl rand -hex "$1" | tr -d '\n'; }
+
+is_placeholder() {
+  local v="${1:-}"
+  case "$v" in
+    ''|'change-me'*|'trove.example.com'|'you@example.com'|'admin@example.com'|'000000'*) return 0 ;;
+  esac
+  return 1
+}
+
+backup_dir() {
+  local d="${TROVE_BACKUP_DIR:-./backups}"
+  case "$d" in
+    /*) printf '%s' "$d" ;;
+    *)  printf '%s' "${SCRIPT_DIR}/${d#./}" ;;
+  esac
+}
+
+with_timeout() {
+  local secs="$1"; shift
+  if have timeout; then timeout "$secs" "$@"
+  elif have gtimeout; then gtimeout "$secs" "$@"
+  else "$@"
+  fi
+}
+
+container_id() { compose ps -aq "$1" 2>/dev/null | head -n 1; }
+
+core_running() {
+  local cid
+  cid=$(compose ps -q trove-core 2>/dev/null | head -n 1) || true
+  [ -n "$cid" ]
+}
+
+# core/Dockerfile is not multi-stage: it copies core/target/*-exec.jar, so
+# the jar has to exist before `compose build`. Build it with the host JDK
+# when there is one; otherwise in a throwaway Maven container, so a box
+# with nothing but Docker on it can still install Trove.
+core_jar() {
+  ls -1t "${REPO_ROOT}"/core/target/*-exec.jar 2>/dev/null | head -n 1 || true
+}
+
+ensure_core_jar() {
+  local force="${1:-}" jar
+  jar=$(core_jar)
+  if [ -n "$jar" ] && [ "$force" != "force" ]; then
+    ok "trove-core jar present ($(basename "$jar"))"
+    return 0
+  fi
+  head1 "Packaging trove-core"
+  if [ -x "${REPO_ROOT}/mvnw" ] && have java; then
+    say "  host JDK found: ./mvnw --batch-mode clean package -pl core -am -DskipTests"
+    ( cd "$REPO_ROOT" && ./mvnw --batch-mode clean package -pl core -am -DskipTests )
+  else
+    say "  no JDK on this host: building in maven:3.9-eclipse-temurin-21"
+    say "  (the ~/.m2 cache lives in the trove_maven_cache volume, so this is slow once)"
+    docker run --rm \
+      -v "${REPO_ROOT}:/src" \
+      -v trove_maven_cache:/root/.m2 \
+      -w /src \
+      maven:3.9-eclipse-temurin-21 \
+      mvn --batch-mode clean package -pl core -am -DskipTests
+  fi
+  jar=$(core_jar)
+  [ -n "$jar" ] || die "packaging produced no core/target/*-exec.jar" \
+      "run './mvnw clean package -pl core -am' by hand and read the failure"
+  ok "packaged $(basename "$jar")"
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+# bootstrap
+# ═════════════════════════════════════════════════════════════════════════
+cmd_bootstrap() {
+  if [ -f "$ENV_FILE" ]; then
+    say "deploy/.env already exists — nothing to do."
+    say "Secrets are never regenerated automatically (that would lock you out of"
+    say "your own data). To rotate one, see deploy/README.md -> Key rotation."
+    return 0
+  fi
+
+  have openssl || die "openssl is not installed" "macOS: brew install openssl · Debian/Ubuntu: apt install openssl"
+
+  head1 "Writing deploy/.env"
+  cp "$ENV_EXAMPLE" "$ENV_FILE"
+  chmod 600 "$ENV_FILE"
+
+  local domain="${TROVE_DOMAIN:-}" email="${ACME_EMAIL:-}" admin="${TROVE_ADMIN_EMAIL:-}"
+  if [ -t 0 ]; then
+    [ -n "$domain" ] || { printf '  Domain this install answers on (e.g. trove.example.com): '; read -r domain; }
+    [ -n "$email" ]  || { printf '  Email for Let'\''s Encrypt notices: '; read -r email; }
+    [ -n "$admin" ]  || { printf '  First admin account email: '; read -r admin; }
+  fi
+  [ -n "$domain" ] && upsert_env TROVE_DOMAIN "$domain"
+  [ -n "$email" ]  && upsert_env ACME_EMAIL "$email"
+  [ -n "$admin" ]  && upsert_env TROVE_ADMIN_EMAIL "$admin"
+
+  local pg_pw jwt enc admin_pw backup_pw grafana_pw
+  pg_pw=$(gen_b64 36)
+  jwt=$(gen_b64 48)
+  enc=$(gen_hex 32)
+  admin_pw=$(gen_b64 18)
+  backup_pw=$(gen_b64 32)
+  grafana_pw=$(gen_b64 18)
+
+  upsert_env POSTGRES_PASSWORD "$pg_pw"
+  upsert_env TROVE_JWT_SECRET "$jwt"
+  upsert_env TROVE_ENCRYPTION_KEY "$enc"
+  upsert_env TROVE_ADMIN_PASSWORD "$admin_pw"
+  upsert_env TROVE_BACKUP_PASSPHRASE "$backup_pw"
+  upsert_env GRAFANA_ADMIN_PASSWORD "$grafana_pw"
+
+  date -u +%Y-%m-%dT%H:%M:%SZ > "$BOOTSTRAP_MARKER"
+
+  ok "deploy/.env written, mode 0600, six secrets generated"
+  head1 "Write these down NOW — they are not shown again"
+  say "  first admin email    : $(grep -E '^TROVE_ADMIN_EMAIL=' "$ENV_FILE" | cut -d= -f2-)"
+  say "  first admin password : ${admin_pw}"
+  say "  backup passphrase    : ${backup_pw}"
+  say ""
+  say "Also copy TROVE_ENCRYPTION_KEY out of deploy/.env into your password"
+  say "manager. Every stored bank credential is encrypted with it; a backup"
+  say "restored without it cannot decrypt them."
+  head1 "First run"
+  say "  1. ./trove up"
+  say "  2. open https://$(grep -E '^TROVE_DOMAIN=' "$ENV_FILE" | cut -d= -f2-)/"
+  say "  3. sign in as the admin above. trove-core creates the household and"
+  say "     that first ADMIN user on its first boot, while the users table is"
+  say "     still empty; after that TROVE_ADMIN_* are ignored."
+  say "  4. change the password, then invite the household from"
+  say "     Settings -> Household (single-use 72 h links; no SMTP needed)."
+  say "     Self-serve signup stays closed (TROVE_REGISTRATION_OPEN=false)."
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+# up
+# ═════════════════════════════════════════════════════════════════════════
+cmd_up() {
+  head1 "Preflight"
+
+  if have docker; then ok "docker installed"
+  else bad "docker installed" "install Docker Desktop (macOS/Windows) or docker.io + docker-compose-plugin (Linux), then re-run"; fi
+
+  if have docker && docker info >/dev/null 2>&1; then ok "docker daemon running"
+  else bad "docker daemon running" "start it: 'open -a Docker' on macOS, 'sudo systemctl start docker' on Linux"; fi
+
+  if have docker && docker compose version >/dev/null 2>&1; then ok "docker compose v2 available"
+  else bad "docker compose v2 available" "install the compose plugin: https://docs.docker.com/compose/install/"; fi
+
+  if [ ! -f "$ENV_FILE" ]; then
+    warn "deploy/.env missing — running bootstrap first"
+    cmd_bootstrap
+  fi
+  require_env_file
+  ok "deploy/.env present"
+
+  local perms
+  perms=$(ls -l "$ENV_FILE" | cut -c1-10)
+  case "$perms" in
+    -rw-------) ok "deploy/.env is 0600" ;;
+    *) warn "deploy/.env is $perms, not 0600" "chmod 600 deploy/.env" ;;
+  esac
+
+  if is_placeholder "${TROVE_DOMAIN:-}"; then
+    bad "TROVE_DOMAIN set" "edit deploy/.env: TROVE_DOMAIN=the hostname this install answers on"
+  else
+    ok "TROVE_DOMAIN = ${TROVE_DOMAIN}"
+  fi
+
+  local missing=""
+  for v in POSTGRES_PASSWORD TROVE_JWT_SECRET TROVE_ENCRYPTION_KEY TROVE_ADMIN_PASSWORD; do
+    if is_placeholder "$(printf '%s' "${!v:-}")"; then missing="${missing} ${v}"; fi
+  done
+  if [ -n "$missing" ]; then
+    bad "secrets generated (missing:${missing} )" "run: ./trove bootstrap  (or set them by hand with openssl rand — see deploy/.env.example)"
+  else
+    ok "secrets generated"
+  fi
+
+  if [ "${TROVE_TLS_MODE:-acme-http}" = "off" ]; then
+    ok "TLS mode: off (expects Tailscale HTTPS or another terminating proxy in front)"
+  elif is_placeholder "${ACME_EMAIL:-}"; then
+    bad "ACME_EMAIL set" "edit deploy/.env: ACME_EMAIL=you@example.com (Let's Encrypt needs a contact)"
+  else
+    ok "TLS mode: ${TROVE_TLS_MODE:-acme-http} (${ACME_EMAIL})"
+    if [ "${TROVE_TLS_MODE:-acme-http}" = "acme-dns" ] && [ -z "${CF_DNS_API_TOKEN:-}" ]; then
+      bad "CF_DNS_API_TOKEN set for DNS-01" "create a Cloudflare token with Zone:DNS:Edit on ${TROVE_DOMAIN}'s zone and put it in deploy/.env"
+    fi
+  fi
+
+  local http_port="${TROVE_HTTP_PORT:-80}" https_port="${TROVE_HTTPS_PORT:-443}"
+  local traefik_up=""
+  traefik_up=$(compose ps -q traefik 2>/dev/null | head -n 1) || true
+  for p in "$http_port" "$https_port"; do
+    if port_in_use "$p"; then
+      if [ -n "$traefik_up" ]; then
+        ok "port ${p} held by this stack's traefik"
+      else
+        bad "port ${p} free" "something else owns it (lsof -nP -iTCP:${p} -sTCP:LISTEN). Stop it, or set TROVE_HTTP_PORT/TROVE_HTTPS_PORT in deploy/.env and put your own proxy in front"
+      fi
+    else
+      ok "port ${p} free"
+    fi
+  done
+
+  local gb
+  gb=$(free_gb "$SCRIPT_DIR")
+  if [ -z "$gb" ]; then
+    warn "disk space unknown" "df failed on ${SCRIPT_DIR}"
+  elif [ "$gb" -lt 5 ]; then
+    bad "disk >= 5 GB free (have ${gb} GB)" "free space, or move Docker's data-root to a bigger disk; images + database + receipts need room to grow"
+  else
+    ok "disk ${gb} GB free"
+  fi
+
+  if [ -f "${REPO_ROOT}/core/Dockerfile" ]; then
+    ok "core/Dockerfile present"
+  else
+    bad "core/Dockerfile present" "the trove-core image is built from source; this checkout has no core/Dockerfile"
+  fi
+
+  if [ "$FAILED_CHECKS" -gt 0 ]; then
+    say ""
+    die "${FAILED_CHECKS} check(s) failed — nothing was started"
+  fi
+
+  head1 "Rendering traefik static config"
+  render_traefik
+  ok "$(basename "$TRAEFIK_RUNTIME") (acme email + CA, redirect $( [ "${TROVE_TLS_MODE:-acme-http}" = off ] && echo disabled || echo enabled ))"
+
+  ensure_core_jar
+
+  head1 "Building images from source"
+  compose build
+
+  head1 "Pulling image-only services (traefik, postgres, socket proxy, ...)"
+  # --ignore-buildable skips trove-core and trove-web, which are built above.
+  # Without it a stale cached tag (e.g. an old traefik:v3.7) is never refreshed.
+  # Non-fatal here: a registry outage must not stop a restart that cached images can serve
+  # (`./trove update` keeps the pull fatal, since refreshing is its whole job).
+  compose pull --ignore-buildable || warn "image pull failed - starting with cached images" "run ./trove update once the registry is reachable"
+
+  head1 "Starting"
+  if compose up -d --wait --wait-timeout 300; then
+    ok "all services healthy"
+  else
+    say ""
+    say "Startup did not reach healthy within 300s. Last 50 lines of trove-core:"
+    compose logs --tail=50 trove-core || true
+    die "start failed" "./trove doctor, then ./trove logs trove-core"
+  fi
+
+  head1 "Ready"
+  if [ "${TROVE_TLS_MODE:-acme-http}" = "off" ]; then
+    say "  http://${TROVE_DOMAIN}/"
+  else
+    say "  https://${TROVE_DOMAIN}/"
+    say "  (the first request can take ~30 s while Let's Encrypt issues the certificate)"
+  fi
+  say "  sign in with TROVE_ADMIN_EMAIL / TROVE_ADMIN_PASSWORD from deploy/.env,"
+  say "  then change that password and delete it from the file."
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+# down / logs / status
+# ═════════════════════════════════════════════════════════════════════════
+cmd_down() {
+  require_env_file
+  # Deliberately no -v: `down` must never be able to delete data.
+  compose down --remove-orphans
+  say "Stopped. Data volumes are untouched — ./trove up brings it all back."
+}
+
+cmd_logs() {
+  require_env_file
+  if [ $# -gt 0 ]; then
+    compose logs -f --tail=200 "$@"
+  else
+    compose logs -f --tail=200
+  fi
+}
+
+cmd_status() {
+  require_env_file
+  head1 "Services"
+  compose ps || true
+
+  head1 "Version"
+  if git -C "$REPO_ROOT" rev-parse --short HEAD >/dev/null 2>&1; then
+    say "  source     : $(git -C "$REPO_ROOT" describe --tags --always --dirty 2>/dev/null || git -C "$REPO_ROOT" rev-parse --short HEAD)"
+  fi
+  local img
+  img=$(docker image inspect trove-core:local --format '{{.Id}}' 2>/dev/null | cut -c8-19) || img="not built"
+  say "  core image : ${img}"
+
+  head1 "Capacity"
+  say "  disk free  : $(free_gb "$SCRIPT_DIR") GB"
+  if core_running; then
+    say "  data dir   : $(compose exec -T trove-core du -sh "${TROVE_DATA_DIR:-/data}" 2>/dev/null | awk '{print $1}' || echo '?')"
+  fi
+  if compose ps -q postgres >/dev/null 2>&1 && [ -n "$(compose ps -q postgres 2>/dev/null)" ]; then
+    say "  database   : $(compose exec -T postgres psql -U "${POSTGRES_USER:-trove}" -d "${POSTGRES_DB:-trove}" -tAc "SELECT pg_size_pretty(pg_database_size('${POSTGRES_DB:-trove}'))" 2>/dev/null || echo '?')"
+  fi
+
+  head1 "Backups"
+  report_backup_age
+
+  head1 "Certificate"
+  report_cert_expiry
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+# backup
+# ═════════════════════════════════════════════════════════════════════════
+encrypt_stream() {
+  if [ -n "${TROVE_BACKUP_AGE_RECIPIENT:-}" ] && have age; then
+    age -r "$TROVE_BACKUP_AGE_RECIPIENT"
+  else
+    openssl enc -aes-256-cbc -md sha512 -pbkdf2 -iter 600000 -salt -pass env:TROVE_BACKUP_PASSPHRASE
+  fi
+}
+
+decrypt_stream() {
+  local file="$1"
+  case "$file" in
+    *.age)
+      have age || die "this archive is age-encrypted but age is not installed" "install age: https://github.com/FiloSottile/age"
+      age -d -i "${TROVE_BACKUP_AGE_IDENTITY:?set TROVE_BACKUP_AGE_IDENTITY to your age key file}" "$file" ;;
+    *)
+      openssl enc -d -aes-256-cbc -md sha512 -pbkdf2 -iter 600000 -pass env:TROVE_BACKUP_PASSPHRASE -in "$file" ;;
+  esac
+}
+
+cmd_backup() {
+  require_env_file
+  local dir stamp staging archive ext
+  dir=$(backup_dir)
+  mkdir -p "$dir"
+  chmod 700 "$dir"
+
+  if [ -n "${TROVE_BACKUP_AGE_RECIPIENT:-}" ] && have age; then
+    ext="tar.gz.age"
+  else
+    [ -n "${TROVE_BACKUP_PASSPHRASE:-}" ] || die "TROVE_BACKUP_PASSPHRASE is empty" "set it in deploy/.env: openssl rand -base64 32 | tr -d '\\n'"
+    ext="tar.gz.enc"
+  fi
+
+  stamp=$(date -u +%Y%m%dT%H%M%SZ)
+  staging=$(mktemp -d "${TMPDIR:-/tmp}/trove-backup.XXXXXX")
+  # shellcheck disable=SC2064
+  trap "rm -rf '${staging}'" EXIT
+
+  head1 "Backing up"
+
+  local pg_cid
+  pg_cid=$(compose ps -q postgres 2>/dev/null | head -n 1) || true
+  [ -n "$pg_cid" ] || die "postgres is not running" "./trove up  (a dump needs the database up; the files alone are not a backup)"
+  compose exec -T postgres pg_dump -U "${POSTGRES_USER:-trove}" -d "${POSTGRES_DB:-trove}" \
+    -Fc --no-owner --no-acl > "${staging}/database.dump"
+  ok "database.dump ($(du -h "${staging}/database.dump" | awk '{print $1}'))"
+
+  local core_cid traefik_cid
+  core_cid=$(container_id trove-core)
+  if [ -n "$core_cid" ]; then
+    docker run --rm --volumes-from "$core_cid" -v "${staging}:/backup" "$HELPER_IMAGE" \
+      tar -czf /backup/trove-data.tar.gz -C "${TROVE_DATA_DIR:-/data}" . 2>/dev/null
+    ok "trove-data.tar.gz — receipts, exports, uploads ($(du -h "${staging}/trove-data.tar.gz" | awk '{print $1}'))"
+  else
+    warn "trove-core container does not exist; receipts/exports NOT in this archive" "./trove up first"
+  fi
+
+  traefik_cid=$(container_id traefik)
+  if [ -n "$traefik_cid" ]; then
+    docker run --rm --volumes-from "$traefik_cid" -v "${staging}:/backup" "$HELPER_IMAGE" \
+      tar -czf /backup/acme.tar.gz -C /letsencrypt . 2>/dev/null || true
+    [ -f "${staging}/acme.tar.gz" ] && ok "acme.tar.gz — TLS certificates (Let's Encrypt rate-limits re-issuance)"
+  fi
+
+  # The encryption key lives here. Without it the database dump's bank
+  # credentials are undecryptable ciphertext — so it belongs in the archive,
+  # and the archive must be encrypted.
+  cp "$ENV_FILE" "${staging}/env.secrets"
+  ok "env.secrets — .env including TROVE_ENCRYPTION_KEY"
+
+  {
+    printf 'trove backup\n'
+    printf 'created_utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    printf 'host=%s\n' "$(hostname)"
+    printf 'domain=%s\n' "${TROVE_DOMAIN:-}"
+    printf 'source_version=%s\n' "$(git -C "$REPO_ROOT" describe --tags --always --dirty 2>/dev/null || echo unknown)"
+    printf 'postgres_db=%s\n' "${POSTGRES_DB:-trove}"
+    printf 'encryption=%s\n' "$( [ "$ext" = "tar.gz.age" ] && echo age || echo openssl-aes-256-cbc-pbkdf2 )"
+    printf 'contents:\n'
+    ( cd "$staging" && ls -l )
+  } > "${staging}/manifest.txt"
+
+  archive="${dir}/trove-${stamp}.${ext}"
+  tar -czf - -C "$staging" . | encrypt_stream > "${archive}.part"
+  mv "${archive}.part" "$archive"
+  chmod 600 "$archive"
+  date -u +%Y-%m-%dT%H:%M:%SZ > "${dir}/LAST_SUCCESS"
+
+  ok "wrote $(basename "$archive") ($(du -h "$archive" | awk '{print $1}'))"
+
+  local keep count
+  keep="${TROVE_BACKUP_KEEP:-7}"
+  count=$(ls -1t "${dir}"/trove-*.tar.gz.* 2>/dev/null | wc -l | tr -d ' ' || true)
+  if [ "$count" -gt "$keep" ]; then
+    ls -1t "${dir}"/trove-*.tar.gz.* | tail -n "+$((keep + 1))" | while IFS= read -r old; do
+      rm -f "$old"
+      say "  pruned $(basename "$old")"
+    done
+  fi
+
+  say ""
+  say "This archive is useless on this disk alone. Copy it off the box, and keep"
+  say "TROVE_ENCRYPTION_KEY and TROVE_BACKUP_PASSPHRASE somewhere that is not"
+  say "this machine."
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+# restore
+# ═════════════════════════════════════════════════════════════════════════
+cmd_restore() {
+  require_env_file
+  local archive="${1:-}" include_secrets=0
+  shift || true
+  for a in "$@"; do
+    [ "$a" = "--include-secrets" ] && include_secrets=1
+  done
+  [ -n "$archive" ] || die "usage: ./trove restore <archive> [--include-secrets]"
+  [ -f "$archive" ] || die "no such archive: ${archive}"
+
+  say "This REPLACES the database and the data volume of ${TROVE_DOMAIN:-this install}."
+  printf 'Type the hostname to confirm: '
+  local answer
+  read -r answer
+  [ "$answer" = "${TROVE_DOMAIN:-}" ] || die "hostname did not match — nothing was changed"
+
+  local staging
+  staging=$(mktemp -d "${TMPDIR:-/tmp}/trove-restore.XXXXXX")
+  # shellcheck disable=SC2064
+  trap "rm -rf '${staging}'" EXIT
+
+  head1 "Unpacking"
+  decrypt_stream "$archive" | tar -xzf - -C "$staging"
+  [ -f "${staging}/database.dump" ] || die "archive has no database.dump" "wrong file, or the wrong passphrase/key"
+  cat "${staging}/manifest.txt" 2>/dev/null || true
+
+  head1 "Stopping the application (postgres stays up)"
+  compose stop trove-core web || true
+
+  compose up -d --wait --wait-timeout 120 postgres
+
+  head1 "Restoring database"
+  compose exec -T postgres psql -U "${POSTGRES_USER:-trove}" -d postgres \
+    -c "DROP DATABASE IF EXISTS \"${POSTGRES_DB:-trove}\" WITH (FORCE)"
+  compose exec -T postgres psql -U "${POSTGRES_USER:-trove}" -d postgres \
+    -c "CREATE DATABASE \"${POSTGRES_DB:-trove}\" OWNER \"${POSTGRES_USER:-trove}\""
+  compose exec -T postgres pg_restore -U "${POSTGRES_USER:-trove}" -d "${POSTGRES_DB:-trove}" \
+    --no-owner --no-acl < "${staging}/database.dump"
+  ok "database restored"
+
+  if [ -f "${staging}/trove-data.tar.gz" ]; then
+    head1 "Restoring receipts / exports / uploads"
+    local core_cid
+    core_cid=$(container_id trove-core)
+    [ -n "$core_cid" ] || die "trove-core container does not exist" "./trove up once so the data volume exists, then restore"
+    docker run --rm --volumes-from "$core_cid" -v "${staging}:/backup" "$HELPER_IMAGE" \
+      sh -c "rm -rf ${TROVE_DATA_DIR:-/data}/* && tar -xzf /backup/trove-data.tar.gz -C ${TROVE_DATA_DIR:-/data}"
+    ok "data volume restored"
+  fi
+
+  if [ -f "${staging}/acme.tar.gz" ]; then
+    local traefik_cid
+    traefik_cid=$(container_id traefik)
+    if [ -n "$traefik_cid" ]; then
+      docker run --rm --volumes-from "$traefik_cid" -v "${staging}:/backup" "$HELPER_IMAGE" \
+        sh -c 'tar -xzf /backup/acme.tar.gz -C /letsencrypt && chmod 600 /letsencrypt/acme.json' || true
+      ok "TLS certificates restored (no new Let's Encrypt issuance needed)"
+    fi
+  fi
+
+  if [ "$include_secrets" -eq 1 ]; then
+    cp "${staging}/env.secrets" "$ENV_FILE"
+    chmod 600 "$ENV_FILE"
+    load_env
+    derive_tls_vars
+    ok "deploy/.env restored from the archive"
+  else
+    say ""
+    say "Kept your current deploy/.env. If this archive came from a different"
+    say "install, its bank credentials need that install's TROVE_ENCRYPTION_KEY:"
+    say "re-run with --include-secrets."
+  fi
+
+  head1 "Starting"
+  render_traefik
+  compose up -d --wait --wait-timeout 300 || die "did not become healthy" "./trove logs trove-core"
+
+  head1 "Verifying"
+  compose exec -T postgres psql -U "${POSTGRES_USER:-trove}" -d "${POSTGRES_DB:-trove}" -tAc \
+    "SELECT 'users=' || (SELECT count(*) FROM users)" 2>/dev/null || warn "row count query failed" "schema may predate this table set"
+  ok "restore complete"
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+# update
+# ═════════════════════════════════════════════════════════════════════════
+cmd_update() {
+  require_env_file
+  local before after skip_backup=0
+  for a in "$@"; do
+    [ "$a" = "--no-backup" ] && skip_backup=1
+  done
+
+  before=$(git -C "$REPO_ROOT" describe --tags --always --dirty 2>/dev/null || echo unknown)
+  head1 "Version before: ${before}"
+
+  if [ "$skip_backup" -eq 0 ]; then
+    head1 "Backing up first"
+    cmd_backup
+  else
+    warn "skipping the pre-update backup (--no-backup)" "you are one failed migration away from needing it"
+  fi
+
+  head1 "Fetching source"
+  if git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+    if [ -n "$(git -C "$REPO_ROOT" status --porcelain)" ]; then
+      warn "working tree has local changes — skipping git pull" "commit or stash them, then re-run"
+    else
+      git -C "$REPO_ROOT" pull --ff-only
+    fi
+  else
+    warn "not a git checkout — nothing to pull" "unpack the new release tarball over this directory, then re-run"
+  fi
+
+  head1 "Rebuilding"
+  ensure_core_jar force
+  compose build --pull
+  # build --pull refreshes only the base images of built services; the
+  # image-only services (traefik, postgres, ...) need their own pull.
+  compose pull --ignore-buildable
+
+  head1 "Restarting (Flyway migrates on boot; readiness is gated on it)"
+  render_traefik
+  if compose up -d --wait --wait-timeout 300; then
+    ok "healthy"
+  else
+    say ""
+    compose logs --tail=80 trove-core || true
+    say ""
+    say "The new version did not become ready. Roll back with:"
+    say "  git -C ${REPO_ROOT} checkout ${before} && ./trove up"
+    say "and if the database was already migrated:"
+    say "  ./trove restore \"$(backup_dir)/$(ls -1t "$(backup_dir)" 2>/dev/null | head -n1)\""
+    die "update failed"
+  fi
+
+  after=$(git -C "$REPO_ROOT" describe --tags --always --dirty 2>/dev/null || echo unknown)
+  head1 "Version after: ${after}"
+  say "  (migrate-before-serve: trove-core runs Flyway during startup and only"
+  say "   reports readiness once migrations have applied, so --wait covered it)"
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+# reset
+# ═════════════════════════════════════════════════════════════════════════
+cmd_reset() {
+  require_env_file
+  say ""
+  say "${C_BAD}This deletes every volume: the database, all receipts and exports,"
+  say "and the TLS certificates. It cannot be undone.${C_OFF}"
+  say ""
+  say "Backups in $(backup_dir) are NOT touched — but nothing else survives."
+  say ""
+  printf 'Type DELETE to continue: '
+  local a1 a2
+  read -r a1
+  [ "$a1" = "DELETE" ] || die "not confirmed — nothing was changed"
+  printf 'Now type the hostname (%s) to confirm: ' "${TROVE_DOMAIN:-}"
+  read -r a2
+  [ "$a2" = "${TROVE_DOMAIN:-}" ] || die "hostname did not match — nothing was changed"
+
+  compose down -v --remove-orphans
+  say "Everything removed. ./trove up starts a fresh install."
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+# doctor
+# ═════════════════════════════════════════════════════════════════════════
+report_backup_age() {
+  local dir last age_days
+  dir=$(backup_dir)
+  if [ -f "${dir}/LAST_SUCCESS" ]; then
+    last=$(cat "${dir}/LAST_SUCCESS")
+    say "  last success : ${last}"
+  else
+    warn "no successful backup recorded" "run: ./trove backup"
+    return 0
+  fi
+  local newest
+  newest=$(ls -1t "${dir}"/trove-*.tar.gz.* 2>/dev/null | head -n 1) || true
+  if [ -n "$newest" ]; then
+    age_days=$(( ( $(date +%s) - $(date -r "$newest" +%s 2>/dev/null || echo 0) ) / 86400 ))
+    say "  newest       : $(basename "$newest") (${age_days} day(s) old)"
+    if [ "$age_days" -gt 2 ]; then
+      warn "newest backup is ${age_days} days old" "run ./trove backup, or add it to cron: 0 3 * * * ${SCRIPT_DIR}/trove backup"
+    fi
+    say "  kept         : $(ls -1 "${dir}"/trove-*.tar.gz.* 2>/dev/null | wc -l | tr -d ' ' || true) archive(s), retention ${TROVE_BACKUP_KEEP:-7}"
+  fi
+}
+
+report_cert_expiry() {
+  if [ "${TROVE_TLS_MODE:-acme-http}" = "off" ]; then
+    say "  TLS is terminated in front of Traefik (TROVE_TLS_MODE=off) — nothing to check here"
+    return 0
+  fi
+  if ! have openssl; then
+    warn "openssl not installed; cannot check the certificate"
+    return 0
+  fi
+  local out enddate
+  local host="${TROVE_DOMAIN:-}"
+  if [ -z "$host" ]; then warn "TROVE_DOMAIN is not set; cannot check the certificate" "edit deploy/.env"; return 0; fi
+  out=$(with_timeout 10 openssl s_client -connect "${host}:${TROVE_HTTPS_PORT:-443}" \
+        -servername "${host}" </dev/null 2>/dev/null) || true
+  if [ -z "$out" ]; then
+    warn "could not reach https://${host}:${TROVE_HTTPS_PORT:-443}" "expected before the first certificate is issued; otherwise check DNS and your router's port forward"
+    return 0
+  fi
+  enddate=$(printf '%s' "$out" | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2) || true
+  if [ -n "$enddate" ]; then
+    say "  expires      : ${enddate}"
+    say "  issuer       : $(printf '%s' "$out" | openssl x509 -noout -issuer 2>/dev/null | sed 's/^issuer=//')"
+  else
+    warn "TLS handshake produced no certificate" "check ./trove logs traefik for ACME errors"
+  fi
+}
+
+cmd_doctor() {
+  head1 "Versions"
+  say "  trove CLI  : $(basename "$0") in ${SCRIPT_DIR}"
+  say "  bash       : ${BASH_VERSION}"
+  if have docker; then
+    say "  docker     : $(docker --version 2>/dev/null || echo '?')"
+    say "  compose    : $(docker compose version --short 2>/dev/null || echo '?')"
+  else
+    bad "docker installed" "install Docker, then re-run"
+  fi
+  have openssl && say "  openssl    : $(openssl version)" || warn "openssl missing" "needed for secrets and backups"
+  have age && say "  age        : $(age --version 2>/dev/null || echo present)"
+  if git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+    say "  source     : $(git -C "$REPO_ROOT" describe --tags --always --dirty 2>/dev/null)"
+  fi
+
+  head1 "Configuration"
+  if [ -f "$ENV_FILE" ]; then
+    ok "deploy/.env present ($(ls -l "$ENV_FILE" | cut -c1-10))"
+    load_env
+    derive_tls_vars
+    say "  domain     : ${TROVE_DOMAIN:-unset}"
+    say "  tls mode   : ${TROVE_TLS_MODE:-acme-http} -> entrypoint ${TROVE_ROUTER_ENTRYPOINT}, label ${TROVE_ROUTER_TLS_LABEL}"
+    say "  profiles   : ${COMPOSE_PROFILES:-<none>}"
+    for v in POSTGRES_PASSWORD TROVE_JWT_SECRET TROVE_ENCRYPTION_KEY TROVE_ADMIN_PASSWORD TROVE_BACKUP_PASSPHRASE; do
+      if is_placeholder "$(printf '%s' "${!v:-}")"; then
+        bad "${v} set" "./trove bootstrap, or generate it by hand (see deploy/.env.example)"
+      fi
+    done
+  else
+    bad "deploy/.env present" "run: ./trove bootstrap"
+  fi
+  if [ -f "$TRAEFIK_RUNTIME" ]; then
+    ok "traefik.runtime.yml rendered"
+  else
+    warn "traefik.runtime.yml not rendered yet" "./trove up renders it from traefik/traefik.yml"
+  fi
+  if [ -f "${REPO_ROOT}/core/Dockerfile" ]; then
+    ok "core/Dockerfile present"
+  else
+    bad "core/Dockerfile present" "this checkout cannot build the trove-core image"
+  fi
+  if [ -n "$(core_jar)" ]; then
+    ok "trove-core jar built ($(basename "$(core_jar)"))"
+  else
+    warn "trove-core jar not built yet" "./trove up packages it (host JDK, or a Maven container)"
+  fi
+
+  head1 "Host"
+  say "  disk free  : $(free_gb "$SCRIPT_DIR") GB on $(df -Ph "$SCRIPT_DIR" 2>/dev/null | awk 'NR==2 {print $6}')"
+  for p in "${TROVE_HTTP_PORT:-80}" "${TROVE_HTTPS_PORT:-443}"; do
+    if port_in_use "$p"; then printf '  port %-6s : in use\n' "$p"; else printf '  port %-6s : free\n' "$p"; fi
+  done
+
+  head1 "Containers"
+  if have docker && docker info >/dev/null 2>&1 && [ -f "$ENV_FILE" ]; then
+    compose ps 2>/dev/null || warn "compose ps failed" "check deploy/.env"
+  else
+    warn "docker not available or .env missing — skipping container checks"
+  fi
+
+  head1 "Backups"
+  report_backup_age
+
+  head1 "Certificate"
+  [ -f "$ENV_FILE" ] && report_cert_expiry || warn "skipped (no .env)"
+
+  head1 "Recent trove-core errors"
+  if have docker && docker info >/dev/null 2>&1 && [ -f "$ENV_FILE" ] && core_running; then
+    compose logs --tail=500 --no-color trove-core 2>/dev/null \
+      | grep -Ei '(error|exception|fatal|caused by)' | tail -n 15 \
+      || say "  none in the last 500 lines"
+  else
+    say "  trove-core is not running"
+  fi
+
+  say ""
+  if [ "$FAILED_CHECKS" -gt 0 ]; then
+    die "${FAILED_CHECKS} check(s) failed"
+  fi
+  ok "no blocking problems found"
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+# support-bundle
+# ═════════════════════════════════════════════════════════════════════════
+cmd_support_bundle() {
+  require_env_file
+  local stamp out secrets_file
+  stamp=$(date -u +%Y%m%dT%H%M%SZ)
+  out=$(mktemp -d "${TMPDIR:-/tmp}/trove-support.XXXXXX")
+  # shellcheck disable=SC2064
+  trap "rm -rf '${out}'" EXIT
+  mkdir -p "${out}/bundle"
+
+  # Every non-trivial value from .env becomes a literal to scrub, so a
+  # secret that leaks into a log line is caught even without a key name.
+  secrets_file="${out}/secrets.list"
+  : > "$secrets_file"
+  awk -F= '
+    /^[A-Za-z_]/ && NF > 1 {
+      v = substr($0, index($0, "=") + 1)
+      gsub(/^["'\'']|["'\'']$/, "", v)
+      if (length(v) >= 8) print v
+    }' "$ENV_FILE" >> "$secrets_file"
+
+  scrub() {
+    awk -v sf="$secrets_file" '
+      BEGIN {
+        while ((getline s < sf) > 0) { if (length(s) >= 8) sec[++n] = s }
+      }
+      {
+        line = $0
+        for (i = 1; i <= n; i++) {
+          while ((p = index(line, sec[i])) > 0) {
+            line = substr(line, 1, p - 1) "***REDACTED***" substr(line, p + length(sec[i]))
+          }
+        }
+        print line
+      }' \
+    | sed -E 's/([A-Za-z_]*(PASSWORD|SECRET|TOKEN|PASSPHRASE|API_KEY|_KEY))([":= ]+)[^",[:space:]]+/\1\3***REDACTED***/g'
+  }
+
+  head1 "Collecting"
+  { docker version 2>&1; docker compose version 2>&1; uname -a; } > "${out}/bundle/host.txt" 2>&1 || true
+  df -Ph > "${out}/bundle/disk.txt" 2>&1 || true
+  compose ps -a > "${out}/bundle/compose-ps.txt" 2>&1 || true
+  compose config 2>&1 | scrub > "${out}/bundle/compose-config.yml" || true
+  scrub < "$TRAEFIK_RUNTIME" > "${out}/bundle/traefik.runtime.yml" 2>/dev/null || true
+  cp "$SCRIPT_DIR/traefik/dynamic/middlewares.yml" "${out}/bundle/middlewares.yml" 2>/dev/null || true
+  awk -F= '/^[A-Za-z_]/ { print $1 "=<set>" } /^#|^$/ { print }' "$ENV_FILE" > "${out}/bundle/env.keys.txt"
+
+  local svc
+  for svc in traefik web trove-core postgres; do
+    compose logs --no-color --tail=2000 "$svc" 2>&1 | scrub > "${out}/bundle/logs-${svc}.txt" || true
+  done
+  ok "logs and config collected, secrets redacted"
+
+  local archive="${SCRIPT_DIR}/trove-support-${stamp}.tar.gz"
+  tar -czf "$archive" -C "${out}" bundle
+  ok "wrote ${archive}"
+  say ""
+  say "Read it before you send it: it contains hostnames, email addresses and"
+  say "IP addresses from your access log."
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+usage() {
+  sed -n '3,20p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+main() {
+  local cmd="${1:-}"
+  [ $# -gt 0 ] && shift || true
+  case "$cmd" in
+    up)             cmd_up "$@" ;;
+    down)           cmd_down "$@" ;;
+    status)         cmd_status "$@" ;;
+    logs)           cmd_logs "$@" ;;
+    backup)         cmd_backup "$@" ;;
+    restore)        cmd_restore "$@" ;;
+    update)         cmd_update "$@" ;;
+    reset)          cmd_reset "$@" ;;
+    doctor)         cmd_doctor "$@" ;;
+    support-bundle) cmd_support_bundle "$@" ;;
+    bootstrap)      cmd_bootstrap "$@" ;;
+    ''|-h|--help|help) usage ;;
+    *) usage; die "unknown command: ${cmd}" ;;
+  esac
+}
+
+main "$@"

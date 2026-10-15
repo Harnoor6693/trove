@@ -1,0 +1,95 @@
+# Traefik DYNAMIC configuration — middlewares and TLS policy.
+#
+# Hot-reloaded; no restart needed after an edit. Routers live in the
+# compose service labels, not here.
+
+http:
+  middlewares:
+
+    # ─── Baseline security headers (both routers) ───────────────────────
+    # HSTS is one year WITHOUT preload (owner decision 10: no public domain
+    # yet — a preload submission is effectively irreversible, and this
+    # install may still move hosts/domains).
+    security-headers:
+      headers:
+        frameDeny: true
+        contentTypeNosniff: true
+        referrerPolicy: strict-origin-when-cross-origin
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: false
+        customResponseHeaders:
+          Server: ""
+          X-Powered-By: ""
+          # Minimal: everything the app does not use is switched off.
+          # `camera=(self)` is kept only because receipt capture on mobile
+          # web uses a file input with `capture`; drop it to `()` if you
+          # never photograph receipts from the browser.
+          Permissions-Policy: "accelerometer=(), autoplay=(), camera=(self), display-capture=(), encrypted-media=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), usb=(), xr-spatial-tracking=()"
+
+    # ─── CSP for the SPA (plan 5.1, verbatim) ───────────────────────────
+    # 'unsafe-inline' for style-src only: Vite emits inline <style> for
+    # critical CSS. Scripts are file-only, connect-src is same-origin, so
+    # an injected script cannot exfiltrate to a third party.
+    csp-web:
+      headers:
+        customResponseHeaders:
+          Content-Security-Policy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+
+    # ─── CSP for /api (JSON, CSV, PDF — never a document that runs) ─────
+    csp-api:
+      headers:
+        customResponseHeaders:
+          Content-Security-Policy: "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+
+    # ─── Rate limiting (outer layer; trove-core has its own per-user one) ─
+    # sourceCriterion defaults to the real remote IP because
+    # forwardedHeaders.trustedIPs is unset in traefik.yml — Traefik
+    # overwrites X-Forwarded-For, so a client cannot spoof its bucket.
+    ratelimit-general:
+      rateLimit:
+        average: 100
+        burst: 200
+        period: 1s
+
+    # Everything under /api/v1/auth: login, register, refresh, TOTP,
+    # password reset. Tight enough to make online guessing pointless
+    # without breaking a normal login page.
+    ratelimit-auth:
+      rateLimit:
+        average: 5
+        burst: 10
+        period: 1s
+
+    # ─── Compression ────────────────────────────────────────────────────
+    # text/event-stream MUST stay excluded: compressing it buffers the
+    # coach's SSE frames and the stream arrives all at once at the end.
+    compress:
+      compress:
+        minResponseBodyBytes: 1024
+        excludedContentTypes:
+          - text/event-stream
+          - application/pdf
+          - application/zip
+          - image/jpeg
+          - image/png
+          - image/webp
+
+# ─── TLS policy ──────────────────────────────────────────────────────────
+tls:
+  options:
+    default:
+      minVersion: VersionTLS12
+      sniStrict: true
+      # TLS 1.3 suites are not configurable in Go and are always on; this
+      # list is the TLS 1.2 fallback set — forward secrecy + AEAD only.
+      cipherSuites:
+        - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305
+        - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305
+      curvePreferences:
+        - X25519
+        - CurveP256

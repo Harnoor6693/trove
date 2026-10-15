@@ -1,0 +1,42 @@
+/* Every value below is a token from src/styles/tokens.css — no hex, no raw px
+   font size, no spacing literal. */
+
+.page { display: flex; flex-direction: column; gap: var(--space-5); padding: var(--space-8); box-sizing: border-box; }
+.header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-5); flex-wrap: wrap; }
+.heading { font-family: Fraunces, Georgia, serif; font-size: var(--font-2xl); font-weight: 400; color: var(--ink); margin: 0; letter-spacing: -0.02em; }
+.lede { font-family: Inter, sans-serif; font-size: var(--font-sm); color: var(--ink-2); max-width: 46rem; line-height: 1.5; margin: var(--space-2) 0 0; }
+.hint { font-family: Inter, sans-serif; font-size: var(--font-xs); color: var(--ink-3); line-height: 1.5; margin: 0; }
+
+.stack { display: flex; flex-direction: column; gap: var(--space-4); }
+.dialogActions { display: flex; gap: var(--space-3); justify-content: flex-end; flex-wrap: wrap; }
+
+.error { font-family: Inter, sans-serif; font-size: var(--font-sm); color: var(--red); margin: 0; line-height: 1.5; }
+.success { font-family: Inter, sans-serif; font-size: var(--font-sm); color: var(--sage); margin: 0; line-height: 1.5; }
+
+.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: var(--space-4); align-items: end; }
+.filterField { display: flex; flex-direction: column; gap: var(--space-1); }
+.selectLabel { font-family: Inter, sans-serif; font-size: var(--font-sm); font-weight: 500; color: var(--ink-2); }
+.select { font-family: Inter, sans-serif; font-size: var(--font-sm); color: var(--ink); background: var(--card); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3); width: 100%; box-sizing: border-box; }
+
+.tableWrap { overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; font-family: Inter, sans-serif; font-size: var(--font-sm); }
+.caption { text-align: left; padding: var(--space-4) var(--space-5); font-size: var(--font-xs); color: var(--ink-3); }
+.table th { text-align: left; padding: var(--space-3) var(--space-4); font-weight: 500; color: var(--ink-3); font-size: var(--font-xs); letter-spacing: 0.05em; text-transform: uppercase; border-bottom: 1px solid var(--line); background: var(--paper); }
+.table td { padding: var(--space-3) var(--space-4); color: var(--ink); border-bottom: 1px solid var(--line); vertical-align: middle; }
+.table tbody tr:last-child td { border-bottom: none; }
+.right { text-align: right; }
+
+.pager { display: flex; align-items: center; justify-content: center; gap: var(--space-4); }
+.pagerStatus { font-family: Inter, sans-serif; font-size: var(--font-sm); color: var(--ink-2); }
+
+.detailHead { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.detailMeta { font-family: Inter, sans-serif; font-size: var(--font-xs); color: var(--ink-3); }
+.fieldset { border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-4); margin: 0; display: flex; flex-direction: column; gap: var(--space-3); align-items: flex-start; }
+.legend { font-family: Inter, sans-serif; font-size: var(--font-sm); font-weight: 500; color: var(--ink-2); padding: 0 var(--space-2); }
+
+.srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+@media (max-width: 759px) {
+  .page { padding: var(--space-4); }
+  .filters { grid-template-columns: 1fr; }
+}

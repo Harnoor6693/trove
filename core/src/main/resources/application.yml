@@ -1,0 +1,386 @@
+# trove-core — the monolith's only application.yml.
+#
+# Rule (collapse plan §1.6): NO DEFAULT FOR ANY SECRET. A secret is written as a bare ${VAR}
+# placeholder so that an unset variable can never resolve to a shipped, known value.
+#
+# Spring has no ${VAR:?message} syntax, and Boot's relaxed binder does NOT fail on an
+# unresolvable placeholder — it hands the literal "${TROVE_DB_PASSWORD}" through, so the boot
+# dies further on (Postgres: "password authentication failed") rather than with a clear message.
+# The clear message therefore lives on the operator's side of the boundary: compose uses
+# ${VAR:?…} for every required row and refuses to create the container at all, and
+# core/.env.example documents each one. From collapse step 3 the values that are read by a
+# @ConfigurationProperties bean (trove.jwt.secret, trove.crypto.key) additionally get a
+# validate() that rejects a short or placeholder value at startup.
+#
+# Non-secrets may carry a default. Dev-only conveniences live in application-dev.yml.
+
+server:
+  port: 8080
+  # Every client (web axios baseURL "/api", mobile, nginx, Traefik) already assumes this
+  # prefix; controllers therefore map /v1/... and never /api/v1/... (§1.4).
+  servlet:
+    context-path: /api
+  # Gap P1-2: finish in-flight requests before exiting, paired with compose
+  # stop_grace_period: 30s on this container.
+  shutdown: graceful
+
+  # TRUSTED PROXIES (§1.5, §5.1; gap P2-5). This is what makes request.getRemoteAddr() — and
+  # therefore ClientIpResolver, and therefore the login gate, every security_event row, every
+  # audit_log row and the rate limiter — the REAL client address behind Traefik.
+  #
+  # `native` turns on Tomcat's RemoteIpValve. The valve walks X-Forwarded-For from the RIGHT and
+  # stops at the first hop that is not in internal-proxies, so a caller who prefixes its own
+  # X-Forwarded-For: 10.0.0.1 achieves nothing: Traefik appends the address it really saw to the
+  # right of that lie, and the valve takes the appended one. Reading the header by hand takes the
+  # LEFTMOST value instead, which is why the pre-collapse limiter was spoofable by any client.
+  #
+  # The regex must list the deployment's proxies AND NOTHING ELSE. Widening it to a public range
+  # hands the spoof straight back: every per-address control in the application rests on this one
+  # value. The default is loopback plus the RFC 1918 ranges a docker bridge network is allocated
+  # from; with no proxy in front, no X-Forwarded-For is trusted at all and the socket peer is used.
+  # The regex deliberately spells the octets as `.*` rather than `\d{1,3}`: Spring's placeholder
+  # parser counts `{` and `}` while looking for the end of a ${...} default, so a quantifier inside
+  # one is a brace-balancing accident waiting to happen. `.*` after a fixed prefix is no looser
+  # here — every one of these prefixes is unambiguously private, and Tomcat only ever matches this
+  # pattern against a syntactically valid address it has already parsed.
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      internal-proxies: ${TROVE_TRUSTED_PROXIES:127\..*|10\..*|192\.168\..*|172\.1[6-9]\..*|172\.2[0-9]\..*|172\.3[01]\..*|::1|0:0:0:0:0:0:0:1}
+      remote-ip-header: x-forwarded-for
+      protocol-header: x-forwarded-proto
+
+spring:
+  application:
+    name: trove-core
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+  datasource:
+    # The postgres container is configured with POSTGRES_USER/POSTGRES_DB/POSTGRES_PASSWORD;
+    # compose passes the same values to the app as TROVE_DB_* (see core/.env.example).
+    url: ${TROVE_DB_URL}
+    username: ${TROVE_DB_USER:trove}
+    password: ${TROVE_DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 20
+      pool-name: trove-core-pool
+
+  jpa:
+    hibernate:
+      # Flyway owns the schema; Hibernate only checks the mapping against it.
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  # Gap P1-3 — forward-only Flyway policy. Community Flyway has no undo, so:
+  #   baseline-on-migrate=false  a non-empty database is never silently adopted at V1
+  #   out-of-order=false         a migration that arrives late fails instead of interleaving
+  #   validate-on-migrate=true   an edited, already-applied migration fails the boot
+  #   clean-disabled=true        `flyway clean` can never be reached from this application
+  # out-of-order is relaxed under the dev profile only (see application-dev.yml, §7).
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+    out-of-order: false
+    validate-on-migrate: true
+    clean-disabled: true
+
+  # UPLOADS (§1.6, gaps P2-11 and P2-12). There was NO spring.servlet.multipart block in this
+  # file before collapse step 7, which meant Boot's 1 MB default was live and every CSV or OFX
+  # statement larger than that answered 413 out of the box. This is the CONTAINER's ceiling: it
+  # refuses an oversized body before any handler runs, so a 200 MB upload is never buffered.
+  # The import's own, smaller ceiling is trove.import.max-file-bytes below, and both answer the
+  # same `upload-too-large` slug — from a client's point of view there is one refusal with two
+  # gates behind it.
+  #
+  # max-request-size is deliberately larger than max-file-size: the request also carries the
+  # accountId and sourceKind parts and the multipart boundaries, and a request-size limit equal
+  # to the file limit would refuse a file that is exactly at the file limit.
+  servlet:
+    multipart:
+      max-file-size: ${TROVE_MAX_UPLOAD_SIZE:20MB}
+      max-request-size: ${TROVE_MAX_REQUEST_SIZE:25MB}
+
+  # SMTP for the EMAIL notification channel (collapse plan §2.8, §6 D3), landed here in collapse
+  # step 25 rather than step 11 because three steps of that wave (11, 15, 17) ran in parallel
+  # worktrees and none of them owned this file (see finance.trove.notifications.send.EmailChannel
+  # and NotificationProperties). Deferred, not cut — no owner decision has ever cut EMAIL; decision
+  # 8 of 2026-09-03 cuts PUSH only. A blank host still counts as present to Spring Boot's mail
+  # autoconfiguration (its condition has no havingValue), so every install gets an idle
+  # JavaMailSender; nothing uses it until SMTP_ENABLED=true creates EmailChannel. Set SMTP_HOST
+  # whenever SMTP_ENABLED is true, or sends fail at delivery time. The mail health indicator
+  # follows the same switch (management.health.mail below).
+  #
+  # Variable names here are SMTP_* / NOTIFICATION_FROM_ADDRESS, not the TROVE_ prefix the rest of
+  # this file uses, because deploy/docker-compose.yml (collapse step 19, outside this step's
+  # scope) already wires the trove-core container's environment with exactly these names; matching
+  # them is what makes ./trove bootstrap's SMTP variables actually reach the JVM.
+  mail:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USER:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+  # §5.4: camelCase (Jackson's default — no naming strategy is configured anywhere in the
+  # monolith), ISO-8601 timestamps, unknown properties ignored. The same three settings are
+  # restated in finance.trove.app.JacksonConfig, which also installs the global
+  # BigDecimal-as-plain-decimal-string serializer that has no YAML equivalent.
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: false
+    datatype:
+      # Jackson 3 moved WRITE_DATES_AS_TIMESTAMPS out of SerializationFeature into
+      # DateTimeFeature; spring.jackson.serialization.write-dates-as-timestamps no longer
+      # binds and fails the context outright.
+      datetime:
+        write-dates-as-timestamps: false
+
+trove:
+  # Receipts, exports and uploads; created and checked for writability on boot.
+  storage:
+    root: ${TROVE_DATA_DIR:/data}
+
+  # Field encryption for the columns that hold a secret: the SimpleFIN access URL, a user's AI
+  # API key, TOTP secrets, the OIDC state cookie (§1.5). Secret — no default, by policy.
+  # Unlike TROVE_JWT_SECRET this one IS read at startup by FieldEncryptionService, so an unset
+  # or malformed value fails the boot immediately with a sentence naming the two accepted forms
+  # (64 hex characters, or base64 of exactly 32 bytes).
+  crypto:
+    key: ${TROVE_ENCRYPTION_KEY}
+
+  # Per-user "today"/"this month" boundaries (gap P2-15). NOT the container clock: TZ stays UTC
+  # and every @Scheduled trigger fires on UTC (§5.6). This is only the fallback zone for a user
+  # who has not chosen one — from collapse step 3, users.timezone wins.
+  time:
+    default-timezone: ${TROVE_DEFAULT_TIMEZONE:UTC}
+
+  # Timeouts every outbound HTTP call inherits (§5.5). The named per-purpose builders (AI 120 s
+  # read, webhooks 10 s) derive from this pair rather than carrying their own literals.
+  http:
+    connect-timeout-ms: ${TROVE_HTTP_CONNECT_TIMEOUT_MS:5000}
+    read-timeout-ms: ${TROVE_HTTP_READ_TIMEOUT_MS:30000}
+
+  # File imports (§1.6, gap P2-12). Smaller than the multipart cap above on purpose: the
+  # container's limit is about what may be buffered at all, and this one is about what this
+  # feature will actually read. max-file-bytes is checked against the part's DECLARED size before
+  # a byte is read, and again against what was actually read, because the declared size is the
+  # caller's claim about the body and not the body.
+  #
+  # parse-budget bounds one whole file; each individual header-guess regex is bounded separately
+  # by CsvHeaderSniffer's step budget, so a crafted header cannot pin a request thread.
+  #
+  # The last two bound the VOLUME rather than one file. An upload is stored before it is committed,
+  # and a batch abandoned in PREVIEW would otherwise keep its bytes for ever: household-upload-
+  # quota-bytes refuses the upload that would take a household past its allowance, and
+  # preview-retention is what ImportRetentionJob deletes an abandoned batch and its file after.
+  # Without them any authenticated member can grow the shared data volume without bound, ten
+  # megabytes at a time — the same volume the readiness probe watches for free space.
+  import:
+    max-file-bytes: ${TROVE_IMPORT_MAX_FILE_BYTES:10485760}
+    max-rows: ${TROVE_IMPORT_MAX_ROWS:50000}
+    max-field-chars: ${TROVE_IMPORT_MAX_FIELD_CHARS:1000}
+    parse-budget: ${TROVE_IMPORT_PARSE_BUDGET:PT60S}
+    preview-rows: 10
+    preview-sample-values: 3
+    household-upload-quota-bytes: ${TROVE_IMPORT_HOUSEHOLD_QUOTA_BYTES:268435456}
+    preview-retention: ${TROVE_IMPORT_PREVIEW_RETENTION:P7D}
+
+  # SimpleFIN (§5.5, gap P2-10). These two timeouts existed in the pre-collapse plugin's
+  # properties class and were never attached to its HTTP client at all, so a bridge that accepted
+  # a connection and never answered pinned a request thread indefinitely. max-response-bytes is
+  # new: a bridge is a third party on the public internet, and an answer that never ends must fail
+  # the call rather than exhaust the heap of the process that holds the ledger.
+  simplefin:
+    connect-timeout-ms: ${TROVE_SIMPLEFIN_CONNECT_TIMEOUT_MS:5000}
+    read-timeout-ms: ${TROVE_SIMPLEFIN_READ_TIMEOUT_MS:30000}
+    max-response-bytes: ${TROVE_SIMPLEFIN_MAX_RESPONSE_BYTES:8388608}
+
+  # Request-rate ceiling (§5.8, gap P2-5). The LIMITS are not here: they live in the
+  # rate_limit_config table (V12) so an admin can retune one on a running install. Only the
+  # machinery is configured here.
+  #
+  # `enabled` is the master switch the pre-collapse gateway declared and never read (gateway
+  # finding NEW-1). RateLimitFilter reads it on every request. Leave it true: /v1/auth/** is
+  # fail-closed, so switching the limiter off is the one change that makes the sign-in surface
+  # cheaper to attack.
+  rate-limit:
+    enabled: ${TROVE_RATE_LIMIT_ENABLED:true}
+    # Also the worst-case delay before an admin's edit to rate_limit_config takes effect, and the
+    # trigger interval of the rate-limit-reload job (§5.6). ISO-8601, because @Scheduled and the
+    # properties binder must read the same string.
+    reload-interval: ${TROVE_RATE_LIMIT_RELOAD:PT5M}
+    # An idle bucket is dropped after this; it comes back full, which is what a caller silent for
+    # ten minutes would have refilled to anyway.
+    bucket-ttl: PT10M
+    # Ceiling on live buckets, so a flood from many addresses cannot turn the limiter into the
+    # memory exhaustion it exists to prevent.
+    max-buckets: 100000
+    retry-after-seconds: 60
+
+  # Who may read the metrics surface on the management port (§5.1, §5.9). The liveness and
+  # readiness probes are NOT covered by this and stay reachable with no credential — the Docker
+  # HEALTHCHECK polls them, and a probe that needs a secret reports "unhealthy" the day the secret
+  # rotates. /actuator/prometheus and /actuator/metrics are different: request counts, timings and
+  # every meter tag are reconnaissance, not a liveness answer.
+  management:
+    # CIDR blocks, comma-separated. Deliberately a separate setting from TROVE_TRUSTED_PROXIES:
+    # "I believe this peer's forwarding headers" and "I will show this peer my metrics" are
+    # different grants that only happen to have the same answer today.
+    allowed-networks: ${TROVE_METRICS_NETWORKS:127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+    # For a scrape from outside those networks. Blank by default, and blank means the header route
+    # is CLOSED — an empty configured secret must never mean "everybody matches".
+    token: ${TROVE_METRICS_TOKEN:}
+
+  # Whether ANY private/loopback/link-local outbound target may be opted into on this install
+  # (§1.6, gap P2-10). False by default. Even when true, an individual member must additionally
+  # opt their own endpoint in — both keys are required, because a LAN Ollama is the primary AI
+  # story but the AI endpoint is per-user (owner decision 9).
+  egress:
+    allow-private: ${TROVE_EGRESS_ALLOW_PRIVATE:false}
+
+  # The EMAIL notification channel (§2.8). smtp-enabled is the switch EmailChannel's
+  # @ConditionalOnProperty reads; false (the default whether the key is absent, blank or literally
+  # unresolved) means the bean does not exist at all. from-address has its own default in
+  # NotificationProperties' canonical constructor (trove@localhost) and is restated here, matching
+  # deploy/docker-compose.yml's NOTIFICATION_FROM_ADDRESS, so an operator can set it without
+  # reading the source. from-name, digest-page-size, webhook-batch-size and max-webhooks-per-user
+  # are NOT restated: they carry safe defaults (Trove / 200 / 20 / 20) in the same record and need
+  # no yml entry to work — nor does deploy/docker-compose.yml wire an env var for any of them.
+  notifications:
+    smtp-enabled: ${SMTP_ENABLED:false}
+    from-address: ${NOTIFICATION_FROM_ADDRESS:trove@localhost}
+
+  jwt:
+    # Secret — no default, by policy. JwtProperties' canonical constructor runs during context
+    # refresh and rejects an absent value, an unsubstituted ${...} literal, anything under 32
+    # bytes, and the placeholder that shipped in the pre-collapse .env.example files (§9 risk 16).
+    secret: ${TROVE_JWT_SECRET}
+    key-id: k1
+    issuer: trove-core
+    expiry-seconds: 900
+    refresh-expiry-seconds: 86400
+    # The token issued between the password step and the TOTP step (§1.5).
+    totp-challenge-seconds: 60
+    # How long a step-up re-authentication stays good for.
+    step-up-seconds: 300
+
+  auth:
+    # Seed only, copied onto households.registration_open the one time FirstRunBootstrap runs.
+    # The live value is the household row, so an admin's runtime decision survives a restart.
+    registration-open: ${TROVE_REGISTRATION_OPEN:false}
+    # Origin for generated links: invites and password resets. Absolute because an admin pastes
+    # them into a chat, and derived from configuration rather than the request's Host header,
+    # which is attacker-influenceable and would be a link-poisoning vector.
+    public-url: ${TROVE_PUBLIC_URL:http://localhost:5173}
+
+    # argon2id, readiness gap P2-4: m=64 MiB, t=3, p=1, 16-byte salt, 32-byte hash. Stated here
+    # rather than left to the record's defaults so the numbers are visible to an operator, and
+    # so PasswordPropertiesTest can assert that production has not quietly been made cheaper.
+    password:
+      min-length: 12
+      max-length: 128
+      salt-length: 16
+      hash-length: 32
+      parallelism: 1
+      memory-kib: 65536
+      iterations: 3
+
+    # Account-side brute-force control (gap P2-5). ip-* is the per-address gate, which is what
+    # makes credential stuffing expensive — per-account locking alone never trips for an attacker
+    # who guesses once each against a thousand addresses.
+    lockout:
+      threshold: 5
+      window: 15m
+      base-backoff: 30s
+      max-backoff: 15m
+      hard-threshold: 10
+      hard-lock: 24h
+      ip-threshold: 20
+      ip-window: 10m
+
+    # RFC 6238 defaults; changing these on a live install invalidates every enrolled
+    # authenticator, because the secret alone does not tell the app which digest to use.
+    totp:
+      issuer: Trove
+      digits: 6
+      period-seconds: 30
+      allowed-drift: 1
+      recovery-codes: 10
+
+    # The two session limits that are not the token's own expiry (§1.5). reuse-grace is what
+    # stops two browser tabs racing a refresh from looking like token theft.
+    refresh:
+      idle-timeout: 12h
+      reuse-grace: 30s
+
+    # Optional single sign-on. Off unless enabled with a complete issuer/client-id/client-secret
+    # block; when off, no bean in finance.trove.auth.oidc is created and /oauth2/** is not routed.
+    oidc:
+      enabled: ${TROVE_OIDC_ENABLED:false}
+      issuer-uri: ${TROVE_OIDC_ISSUER_URI:}
+      client-id: ${TROVE_OIDC_CLIENT_ID:}
+      client-secret: ${TROVE_OIDC_CLIENT_SECRET:}
+      display-name: ${TROVE_OIDC_DISPLAY_NAME:Single sign-on}
+
+  # Read once, on a boot where the users table is empty, and ignored for ever after (gap P2-7).
+  # Leaving these in the environment file afterwards is normal and harmless: re-applying them on
+  # every restart would silently undo a password the owner has since changed.
+  bootstrap:
+    email: ${TROVE_ADMIN_EMAIL:}
+    password: ${TROVE_ADMIN_PASSWORD:}
+    household-name: ${TROVE_HOUSEHOLD_NAME:Household}
+
+management:
+  server:
+    # Internal only: Traefik never routes 9090 and it has no context path (§1.4).
+    port: 9090
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      # The management port is not reachable from outside the compose network, and an
+      # operator needs to see *which* component is down — that is the whole point of P1-1.
+      show-details: always
+      show-components: always
+      group:
+        # db proves the pool and a live query; flyway (a Trove indicator — Boot ships only a
+        # Flyway *endpoint*) proves the schema matches the jar; diskSpace proves the receipts
+        # volume still has room to accept an upload.
+        readiness:
+          include: readinessState,db,flyway,diskSpace
+        liveness:
+          include: livenessState,ping
+  health:
+    diskspace:
+      path: ${trove.storage.root}/receipts
+      threshold: 1GB
+    # Spring Boot's mail autoconfiguration activates on ANY present spring.mail.host property,
+    # including the empty string ${SMTP_HOST:} resolves to when SMTP_HOST is unset — a present
+    # empty value still satisfies the bare @ConditionalOnProperty MailSenderCondition uses (no
+    # havingValue). That registers a MailHealthIndicator which then fails to connect on a stock,
+    # SMTP-less install, dragging GET /v1/status from UP to DEGRADED. The indicator therefore
+    # follows the EMAIL channel's own switch (SMTP_ENABLED, which also drives
+    # trove.notifications.smtp-enabled below): an install that has not turned email on has no mail
+    # health to report, and one that has gets DEGRADED when its SMTP server is unreachable.
+    mail:
+      enabled: ${SMTP_ENABLED:false}
+
+logging:
+  level:
+    root: INFO
+    finance.trove: INFO

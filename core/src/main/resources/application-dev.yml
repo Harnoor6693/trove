@@ -1,0 +1,46 @@
+# Dev profile — local workstation only. Never activated by core/Dockerfile, which defaults
+# SPRING_PROFILES_ACTIVE to "prod".
+#
+# Defaults here cover convenience values only. Secrets still have no default: TROVE_JWT_SECRET
+# must be exported even in dev, because a shipped dev secret is exactly the "known value"
+# failure that §9 risk 16 and JwtProperties.validate() exist to prevent.
+
+spring:
+  datasource:
+    url: ${TROVE_DB_URL:jdbc:postgresql://localhost:5432/trove}
+    username: ${TROVE_DB_USER:trove}
+    password: ${TROVE_DB_PASSWORD:trove}
+
+  flyway:
+    # §7 migration-numbering note: parallel collapse steps merge V-numbers out of order, so a
+    # persistent local database can legitimately have applied V21 before V19 lands. Relaxed
+    # HERE ONLY — never in prod, where an out-of-order migration must fail the boot.
+    # The standing local reset is `docker compose down -v`.
+    out-of-order: true
+
+  jpa:
+    properties:
+      hibernate:
+        format_sql: true
+
+trove:
+  storage:
+    root: ${TROVE_DATA_DIR:./target/trove-data}
+
+  crypto:
+    # Dev convenience, and a deliberate exception to "no default for any secret": this key
+    # protects nothing but a developer's own throwaway Postgres, the dev profile is never
+    # activated by core/Dockerfile (which defaults SPRING_PROFILES_ACTIVE to prod), and the
+    # alternative — every developer exporting a 64-hex string before `mvn spring-boot:run` —
+    # is the friction that ends with a real key in a shell history. TROVE_JWT_SECRET keeps no
+    # default even here, because a JWT signed with a known key is a live authentication bypass
+    # whereas this key only makes a local ciphertext readable.
+    key: ${TROVE_ENCRYPTION_KEY:0000000000000000000000000000000000000000000000000000000000000000}
+
+  egress:
+    # A LAN Ollama at http://localhost:11434 is the normal dev AI setup.
+    allow-private: ${TROVE_EGRESS_ALLOW_PRIVATE:true}
+
+logging:
+  level:
+    finance.trove: DEBUG

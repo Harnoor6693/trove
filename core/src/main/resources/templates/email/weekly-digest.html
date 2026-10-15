@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<!--
+  The weekly digest email (collapse plan §2.8).
+
+  The ONLY template that survives the collapse, and the only one any producer names. The source
+  carried five: `tax-reminder.html` is deleted with the tax engine (owner decision 2, defect
+  D-N3), and `budget-alert.html`, `subscription-alert.html` and `sync-status.html` are not ported
+  because their producers no longer name a template — a threshold crossing, a price change and a
+  sync failure are each one sentence, and NotificationService's escaped plain-text fallback
+  renders them correctly with nothing to keep in step. `layout.html` goes with them: one
+  self-contained file has no fragment resolution to get wrong.
+
+  Every value here comes from WeeklyDigestBuilder.contentFor's model. There is no `currency`
+  variable holding the literal "CAD" — that was finding F1, and it was wrong for every US
+  household and silently wrong for a household holding both. Figures are listed PER CURRENCY,
+  never converted and never blended, because no exchange rate exists anywhere in this system.
+
+  Thymeleaf escapes with `th:text` throughout. Merchant and category names reach this template
+  from a bank feed or an uploaded CSV, so unescaped output would be markup in a mail client.
+-->
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <title th:text="${subject}">Your week</title>
+</head>
+<body style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; color: #1a1a1a;">
+<h1 style="font-size: 18px; margin: 0 0 4px;" th:text="${subject}">Your week</h1>
+<p style="margin: 0 0 16px; color: #555;">
+    <span th:text="${weekStart}">2026-08-31</span> to <span th:text="${weekEnd}">2026-09-06</span>
+</p>
+
+<p th:if="${#lists.isEmpty(summaries)}" th:text="${body}">
+    No transactions were recorded this week.
+</p>
+
+<table th:unless="${#lists.isEmpty(summaries)}" cellpadding="6" cellspacing="0"
+       style="border-collapse: collapse; width: 100%; max-width: 520px;">
+    <thead>
+    <tr style="text-align: left; border-bottom: 1px solid #ddd;">
+        <th>Currency</th>
+        <th>Spent</th>
+        <th>Received</th>
+        <th>Net</th>
+        <th>Transactions</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="summary : ${summaries}" style="border-bottom: 1px solid #f0f0f0;">
+        <td th:text="${summary.currency()}">CAD</td>
+        <td th:text="${summary.spent()}">0.00</td>
+        <td th:text="${summary.income()}">0.00</td>
+        <td th:text="${summary.net()}">0.00</td>
+        <td th:text="${summary.transactionCount()}">0</td>
+    </tr>
+    </tbody>
+</table>
+
+<p style="margin-top: 20px; font-size: 12px; color: #777;">
+    Amounts are shown in the currency each transaction was recorded in. Trove never converts
+    between currencies.
+</p>
+</body>
+</html>

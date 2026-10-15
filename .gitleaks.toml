@@ -1,0 +1,50 @@
+# .gitleaks.toml
+# Suppress false positives that are intentional development placeholders.
+# Real secrets must NEVER be added to this allowlist — rotate them instead and
+# rewrite git history (see docs/adr/0011-threat-model.md).
+#
+# GITLEAKS_CONFIG *replaces* the built-in ruleset. Without this [extend] block
+# zero rules load and the scan can never fail.
+[extend]
+  useDefault = true
+
+[allowlist]
+  description = "Intentional test/example placeholder values"
+  regexes = [
+    '''^change-me-minimum-32-chars-in-production!!$''',
+    '''^change-me-in-production$''',
+    '''^dev-ai-service-token$''',
+    '''^dev-internal-service-token$''',
+    '''^dev-litellm-key$''',
+    '''^integration-test-secret-minimum-32-chars-long(!!)?$''',
+    '''^build-time-placeholder-not-used-at-least-32chars!!$''',
+    '''^release-build-placeholder-minimum-32-chars$''',
+    '''^codeql-build-secret-minimum-32-chars$''',
+    '''^owasp-check-secret-minimum-32-chars$''',
+    '''^trivy-build-secret-minimum-32-chars$''',
+    '''^smoke-test-secret-minimum-32-chars$''',
+    '''^0{64}$'''
+  ]
+
+# Exact path + regex pairs for known non-secret fixtures. Both must match (AND), so a new
+# file or a new value is still scanned. These hang off the rule that fires on them:
+# top-level [[allowlists]] is not supported by the pinned gitleaks v8.24.2.
+[[rules]]
+  id = "generic-api-key"
+[[rules.allowlists]]
+  description = "OpenAPI/generated-type/docs example tokens (base64 of readable words)"
+  condition = "AND"
+  paths = ['''(?:^|/)(openapi/trove-core\.yaml|apps/(web|mobile)/src/api/generated/schema\.d\.ts|docs-site/api/index\.md)$''']
+  regexes = ['''^(aHR0|cmVm|aW52|cmVz|eyJh)[A-Za-z0-9+/=._-]*$''']
+
+[[rules.allowlists]]
+  description = "Common-password blocklist entry that looks like a key"
+  condition = "AND"
+  paths = ['''(?:^|/)core/src/main/resources/security/common-passwords\.txt$''']
+  regexes = ['''^qwertyuiop123$''']
+
+[[rules.allowlists]]
+  description = "Test constants"
+  condition = "AND"
+  paths = ['''(?:^|/)(core/src/test/java/finance/trove/(ai/AiCoachSecrecyTest|ai/AiSettingsIT|common/observability/RequestPathTest|auth/totp/TotpGeneratorTest)\.java|apps/mobile/src/lib/sanitise\.test\.ts|apps/web/src/test/handlers/auth\.ts|apps/web/src/pages/Login/Login\.test\.tsx)$''']
+  regexes = ['''^(sk-coach-secret-key-9f2c|sk-integration-test-key-9f2c|Zm9vYmFy[A-Za-z0-9+/=]*|GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ|abcd[A-Za-z0-9]*|eyJhbGciOiJIUzI1NiJ9\.[A-Za-z0-9._-]+)$''']

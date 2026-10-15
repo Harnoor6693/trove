@@ -1,0 +1,80 @@
+name: CI
+
+# Monolith gate: one Maven module ('core') covers unit + Testcontainers-backed
+# integration tests + checkstyle + JaCoCo in a single ./mvnw invocation. There is
+# no service topology left to build images for, docker-compose for, or run a
+# separate "integration"/"performance" job against (plan step 22; the old
+# services/* / tests/* / docker/docker-compose.integration.yml tree is deleted
+# wholesale in step 24 — nothing in it is built, tested, imaged or scanned here
+# any more). apps/web and apps/mobile have their own path-filtered workflows
+# (web-ci.yml, mobile-ci.yml) — running the same npm suites again here would be
+# exactly the duplicated-minutes waste this rewrite exists to remove.
+
+on:
+  push:
+    branches: [master, develop, canary]
+    paths:
+      - 'core/**'
+      - 'pom.xml'
+      - '.mvn/**'
+      - 'mvnw'
+      - 'mvnw.cmd'
+      - 'config/checkstyle/**'
+      - 'openapi/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    branches: [master, develop, canary]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'core/**'
+      - 'pom.xml'
+      - '.mvn/**'
+      - 'mvnw'
+      - 'mvnw.cmd'
+      - 'config/checkstyle/**'
+      - 'openapi/**'
+      - '.github/workflows/ci.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least-privilege default: test-backend only checks out, builds/tests, and
+# uploads artifacts — it never needs write access to repo contents or packages.
+permissions:
+  contents: read
+
+jobs:
+  test-backend:
+    name: Backend (core) — build, checkstyle, unit+integration tests, coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+      # Testcontainers starts and owns its own Postgres for every IT (BaseIT) —
+      # no service containers, no GATEWAY_/INGESTION_/CATEGORISATION_/MODEL_/
+      # VALKEY_/AUTHENTIK_ env vars. checkstyle:check + the coverage profile's
+      # jacoco-check ride inside this one verify (root pom.xml moved the jacoco
+      # `report` execution to the verify phase this step, so the HTML/XML site
+      # under core/target/site/jacoco is the same merged unit+IT number the
+      # jacoco-check gate reads, not a unit-only number as before).
+      - name: Build, test, and verify (core)
+        run: ./mvnw --batch-mode -pl core -am clean verify checkstyle:check -Pintegration,coverage
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-test-results
+          path: |
+            core/target/surefire-reports/**/*.xml
+            core/target/failsafe-reports/**/*.xml
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: core/target/site/jacoco/**

@@ -1,0 +1,67 @@
+:root {
+  /* Surface */
+  --paper: #f6f3ec;
+  --paper-dim: #eeeadf;
+  --card: #fffdf7;
+
+  /* Ink */
+  --ink: #1b1a17;
+  --ink-2: #4a453d;
+  --ink-3: #8c8578;
+
+  /* Accent — Sage */
+  --sage: #4a6b4f;
+  --sage-soft: #dfe7dc;
+
+  /* Accent — Amber */
+  --amber: #a06a1e;
+  --amber-soft: #f3e6cc;
+
+  /* Accent — Red */
+  --red: #9b3a2a;
+  --red-soft: #efd9d0;
+
+  /* Accent — Blue */
+  --blue: #3c5a7a;
+
+  /* Border */
+  --line: rgba(27, 26, 23, 0.10);
+  --line-strong: rgba(27, 26, 23, 0.20);
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Layout */
+  --sidebar-width: 220px;
+  --rail-width: 64px;
+  --right-rail-width: 340px;
+
+  /* Typography scale */
+  --font-xs: 11px;
+  --font-sm: 13px;
+  --font-base: 15px;
+  --font-md: 17px;
+  --font-lg: 20px;
+  --font-xl: 24px;
+  --font-2xl: 32px;
+  --font-3xl: 42px;
+
+  /* Shadow */
+  --shadow-sm: 0 1px 3px rgba(27,26,23,0.08);
+  --shadow-md: 0 4px 12px rgba(27,26,23,0.10);
+}

@@ -1,0 +1,20 @@
+# Defense-in-depth gitignore for the mobile app.
+# Root .gitignore already excludes these globally; this file makes the
+# rules explicit at the apps/mobile/ scope so accidental commits inside
+# this directory are rejected even if root rules change.
+
+# Google Play / Firebase service account keys (never commit)
+google-service-account.json
+*-service-account.json
+google-services.json
+GoogleService-Info.plist
+
+# Apple App Store Connect signing keys (never commit)
+*.p8
+*.p12
+*.mobileprovision
+
+# Expo / EAS local artefacts
+.expo/
+.expo-shared/
+junit.xml
