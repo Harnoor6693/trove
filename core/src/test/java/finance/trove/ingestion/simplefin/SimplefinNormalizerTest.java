@@ -61,6 +61,21 @@ class SimplefinNormalizerTest {
     }
 
     @Test
+    @DisplayName("B1-22: a row is dated in the member's zone; a midnight-UTC stamp is a date")
+    void aRowIsDatedWhereTheMemberLives() {
+        java.time.ZoneId toronto = java.time.ZoneId.of("America/Toronto");
+
+        assertThat(normalizer.normalize(ACCOUNT, transaction("evening", BigDecimal.ONE,
+            Instant.parse("2026-02-01T00:30:00Z"), null), toronto).date())
+            .as("19:30 on the 31st in Toronto; read in UTC it landed on the 1st, in February")
+            .isEqualTo(LocalDate.of(2026, 1, 31));
+        assertThat(normalizer.normalize(ACCOUNT, transaction("dateOnly", BigDecimal.ONE,
+            Instant.parse("2026-02-01T00:00:00Z"), null), toronto).date())
+            .as("most bridges send a bare date as midnight UTC, and that is the 1st everywhere")
+            .isEqualTo(LocalDate.of(2026, 2, 1));
+    }
+
+    @Test
     @DisplayName("a null posted time means pending")
     void pendingIsDerivedFromPosted() {
         assertThat(normalizer.normalize(ACCOUNT, transaction("a", BigDecimal.ONE,

@@ -34,6 +34,13 @@ import java.util.Map;
  */
 public interface BankSource {
 
+    /**
+     * The {@code config} key {@code SyncOrchestrator} puts the syncing member's time zone under,
+     * as a {@link java.time.ZoneId} id. A source that reports instants dates its rows in it, so a
+     * purchase at 20:00 in Toronto on the 31st stays on the 31st (B1-22).
+     */
+    String MEMBER_ZONE = "trove.memberZone";
+
     /** Which kind of account this source serves. One implementation per kind. */
     SourceKind sourceKind();
 
