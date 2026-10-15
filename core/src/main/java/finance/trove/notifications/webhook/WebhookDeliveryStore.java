@@ -1,6 +1,7 @@
 package finance.trove.notifications.webhook;
 
 import jakarta.persistence.EntityManager;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,6 +33,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 public class WebhookDeliveryStore {
 
+    /**
+     * How long a row may sit {@code IN_FLIGHT} before it is taken to be orphaned (B3-01).
+     *
+     * <p>One attempt takes at most twenty seconds (ten to connect, ten to read) and a pass is
+     * bounded by the retry job's 29-second lock, so a row still {@code IN_FLIGHT} after ten minutes
+     * belongs to a process that crashed, was killed, or was interrupted between claim and outcome.
+     */
+    static final Duration STALE_IN_FLIGHT = Duration.ofMinutes(10);
+
     private final EntityManager entityManager;
 
     public WebhookDeliveryStore(EntityManager entityManager) {
@@ -60,6 +70,12 @@ public class WebhookDeliveryStore {
      * twenty seconds per row on somebody else's network, and a managed entity would keep this
      * transaction's persistence context alive for the whole of it.
      *
+     * <p>A row left {@code IN_FLIGHT} for longer than {@link #STALE_IN_FLIGHT} is claimed again
+     * (B3-01). Without that, a crash, a kill or a deploy between claim and outcome dropped the
+     * event for good, with nothing to show it was lost. The cost is that a receiver can see the
+     * same delivery twice when the first call did land; the delivery id header is stable across
+     * attempts, so the receiver can drop the duplicate.
+     *
      * @return the claimed rows, in due order; empty when nothing is due
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -67,9 +83,11 @@ public class WebhookDeliveryStore {
         @SuppressWarnings("unchecked")
         List<UUID> ids = entityManager.createNativeQuery(
                 "SELECT id FROM webhook_delivery_log "
-                    + "WHERE status IN ('PENDING', 'FAILED') AND next_attempt_at <= :now "
+                    + "WHERE (status IN ('PENDING', 'FAILED') AND next_attempt_at <= :now) "
+                    + "OR (status = 'IN_FLIGHT' AND updated_at <= :staleBefore) "
                     + "ORDER BY next_attempt_at ASC LIMIT :batchSize FOR UPDATE SKIP LOCKED")
             .setParameter("now", now)
+            .setParameter("staleBefore", now.minus(STALE_IN_FLIGHT))
             .setParameter("batchSize", batchSize)
             .getResultList();
         if (ids.isEmpty()) {

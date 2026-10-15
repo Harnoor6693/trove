@@ -133,8 +133,8 @@ public class WebhookDeliveryService {
      * One pass of the retry loop: claim, call, persist.
      *
      * <p>Interruption is checked between rows (§5 item 13, graceful shutdown): a deploy during a
-     * batch of slow receivers must be able to stop, and a row already claimed stays
-     * {@code IN_FLIGHT} rather than being retried by the instance that is coming up.
+     * batch of slow receivers must be able to stop. A row already claimed stays {@code IN_FLIGHT}
+     * until it is stale, and then a later pass claims it again (B3-01).
      *
      * @return how many deliveries this pass attempted
      */
@@ -144,7 +144,8 @@ public class WebhookDeliveryService {
         int attempted = 0;
         for (WebhookDeliveryLog row : claimed) {
             if (Thread.currentThread().isInterrupted()) {
-                LOG.info("webhook retry interrupted after {} deliveries; {} rows stay IN_FLIGHT",
+                LOG.info("webhook retry interrupted after {} deliveries; {} rows stay IN_FLIGHT "
+                    + "until a later pass reclaims them",
                     attempted, claimed.size() - attempted);
                 break;
             }
