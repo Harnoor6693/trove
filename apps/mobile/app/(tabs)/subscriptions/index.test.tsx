@@ -59,9 +59,9 @@ const SUMMARY: SubscriptionSummaryResponse = {
   next14Days: [],
 };
 
-function renderScreen() {
+async function renderScreen() {
   const client = createTestQueryClient();
-  render(
+  await render(
     <QueryClientProvider client={client}>
       <SubscriptionsScreen />
     </QueryClientProvider>
@@ -76,7 +76,7 @@ it('renders the summary with each currency in its own card — never one blended
   mockList.mockResolvedValue([SUBSCRIPTION]);
   mockSummary.mockResolvedValue(SUMMARY);
   mockAlerts.mockResolvedValue([]);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('subscriptions-summary-CAD')).toBeTruthy());
   expect(screen.getByTestId('subscriptions-summary-USD')).toBeTruthy();
   expect(screen.queryByText(/total/i)).toBeNull();
@@ -86,7 +86,7 @@ it('lists detected subscriptions with signal and amount', async () => {
   mockList.mockResolvedValue([SUBSCRIPTION]);
   mockSummary.mockResolvedValue(SUMMARY);
   mockAlerts.mockResolvedValue([]);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('subscription-row-s1')).toBeTruthy());
 });
 
@@ -95,10 +95,10 @@ it('triggers a manual scan', async () => {
   mockSummary.mockResolvedValue({ ...SUMMARY, byCurrency: [] });
   mockAlerts.mockResolvedValue([]);
   mockScan.mockResolvedValue([SUBSCRIPTION]);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('subscriptions-scan-btn')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('subscriptions-scan-btn'));
+  await fireEvent.press(screen.getByTestId('subscriptions-scan-btn'));
 
   await waitFor(() => expect(mockScan).toHaveBeenCalled());
 });
@@ -119,7 +119,7 @@ it('renders next14Days upcoming charges, grouped by date with per-currency total
       },
     ],
   });
-  renderScreen();
+  await renderScreen();
 
   await waitFor(() => expect(screen.getByTestId('subscriptions-upcoming-2026-09-12')).toBeTruthy());
   expect(screen.getByTestId('subscriptions-upcoming-2026-09-12-sub-s1')).toBeTruthy();
@@ -133,7 +133,7 @@ it('renders no upcoming-charges section when next14Days is empty', async () => {
   mockList.mockResolvedValue([]);
   mockAlerts.mockResolvedValue([]);
   mockSummary.mockResolvedValue({ ...SUMMARY, byCurrency: [], next14Days: [] });
-  renderScreen();
+  await renderScreen();
 
   await waitFor(() => expect(screen.getByTestId('subscriptions-list-empty')).toBeTruthy());
   expect(screen.queryByTestId('subscriptions-upcoming')).toBeNull();
@@ -154,7 +154,7 @@ it('shows the unread alert count as a badge', async () => {
       createdAt: '2026-09-05T02:00:00Z',
     },
   ]);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('subscriptions-alert-badge')).toBeTruthy());
   expect(screen.getByText('1')).toBeTruthy();
 });

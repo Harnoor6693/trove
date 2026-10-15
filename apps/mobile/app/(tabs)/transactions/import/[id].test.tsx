@@ -89,7 +89,7 @@ async function renderScreen(batch: ImportPreviewResponse = preview()) {
   mockPreview.mockResolvedValue(batch);
   const qc = createTestQueryClient();
   clients.push(qc);
-  const utils = render(
+  const utils = await render(
     <QueryClientProvider client={qc}>
       <ImportBatchScreen />
     </QueryClientProvider>
@@ -98,11 +98,11 @@ async function renderScreen(batch: ImportPreviewResponse = preview()) {
   return utils;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   jest.clearAllMocks();
   [mockPreview, mockCommit, mockUndo].forEach((mock) => mock.mockReset());
   mockParams.mockReturnValue({ id: '33333333-3333-4333-8333-333333333333' });
-  act(() => {
+  await act(() => {
     useAuthStore.getState().setMe(ME);
   });
 });
@@ -184,10 +184,10 @@ describe('the ambiguous date format', () => {
     mockCommit.mockResolvedValue(LOG);
     await renderScreen(AMBIGUOUS);
     await act(async () => {
-      fireEvent.press(screen.getByTestId('import-date-format-dd/MM/yyyy'));
+      await fireEvent.press(screen.getByTestId('import-date-format-dd/MM/yyyy'));
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('import-commit'));
+      await fireEvent.press(screen.getByTestId('import-commit'));
     });
     expect(mockCommit).toHaveBeenCalledWith('33333333-3333-4333-8333-333333333333', {
       mapping: { dateFormat: 'dd/MM/yyyy' },
@@ -208,7 +208,7 @@ describe('commit', () => {
     mockCommit.mockResolvedValue(LOG);
     await renderScreen();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('import-commit'));
+      await fireEvent.press(screen.getByTestId('import-commit'));
     });
     expect(mockCommit).toHaveBeenCalledWith('33333333-3333-4333-8333-333333333333', undefined);
   });
@@ -217,10 +217,10 @@ describe('commit', () => {
     mockCommit.mockResolvedValue(LOG);
     await renderScreen();
     await act(async () => {
-      fireEvent.changeText(screen.getByTestId('import-map-amount-column'), 'Debit');
+      await fireEvent.changeText(screen.getByTestId('import-map-amount-column'), 'Debit');
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('import-commit'));
+      await fireEvent.press(screen.getByTestId('import-commit'));
     });
     expect(mockCommit).toHaveBeenCalledWith('33333333-3333-4333-8333-333333333333', {
       mapping: { amountColumn: 'Debit' },
@@ -231,7 +231,7 @@ describe('commit', () => {
     mockCommit.mockResolvedValue(LOG);
     await renderScreen();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('import-commit'));
+      await fireEvent.press(screen.getByTestId('import-commit'));
     });
     await waitFor(() => expect(screen.getByTestId('import-commit-result')).toBeTruthy());
     const text = screen.getByTestId('import-commit-result').props.children.join('');
@@ -263,7 +263,7 @@ describe('commit', () => {
     );
     await renderScreen();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('import-commit'));
+      await fireEvent.press(screen.getByTestId('import-commit'));
     });
     await waitFor(() => expect(screen.getByTestId('import-commit-error')).toBeTruthy());
     expect(screen.getByTestId('import-commit-error').props.children).toContain(
@@ -287,7 +287,7 @@ describe('undo', () => {
   it('asks first, and says edited rows are kept', async () => {
     await renderScreen(preview({ status: 'COMMITTED', rows: [] }));
     await act(async () => {
-      fireEvent.press(screen.getByTestId('import-undo'));
+      await fireEvent.press(screen.getByTestId('import-undo'));
     });
     expect(screen.getByTestId('import-undo-confirm-copy').props.children).toContain(
       'Rows you have changed by hand are kept.'
@@ -299,10 +299,10 @@ describe('undo', () => {
     mockUndo.mockResolvedValue(undefined);
     await renderScreen(preview({ status: 'COMMITTED', rows: [] }));
     await act(async () => {
-      fireEvent.press(screen.getByTestId('import-undo'));
+      await fireEvent.press(screen.getByTestId('import-undo'));
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('import-undo-confirm'));
+      await fireEvent.press(screen.getByTestId('import-undo-confirm'));
     });
     expect(mockUndo).toHaveBeenCalledWith('33333333-3333-4333-8333-333333333333');
   });
@@ -341,10 +341,10 @@ describe('undo', () => {
     );
     await renderScreen(preview({ status: 'COMMITTED', rows: [] }));
     await act(async () => {
-      fireEvent.press(screen.getByTestId('import-undo'));
+      await fireEvent.press(screen.getByTestId('import-undo'));
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('import-undo-confirm'));
+      await fireEvent.press(screen.getByTestId('import-undo-confirm'));
     });
     await waitFor(() => expect(screen.getByTestId('import-undo-error')).toBeTruthy());
     expect(screen.getByTestId('import-undo-error').props.children).toContain('nothing to undo');
@@ -356,7 +356,7 @@ describe('a batch that cannot be read', () => {
     mockPreview.mockRejectedValue(new Error('boom'));
     const qc = createTestQueryClient();
     clients.push(qc);
-    render(
+    await render(
       <QueryClientProvider client={qc}>
         <ImportBatchScreen />
       </QueryClientProvider>

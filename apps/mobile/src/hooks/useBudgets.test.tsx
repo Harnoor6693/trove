@@ -134,7 +134,7 @@ describe('budgetKeys', () => {
 describe('useBudgetPeriods', () => {
   it('returns the bare array — not paged', async () => {
     mockList.mockResolvedValue([PERIOD]);
-    const { result } = renderHook(() => useBudgetPeriods(), { wrapper });
+    const { result } = await renderHook(() => useBudgetPeriods(), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual([PERIOD]));
   });
 });
@@ -142,7 +142,7 @@ describe('useBudgetPeriods', () => {
 describe('useCurrentBudgetPeriod', () => {
   it('resolves the period when one exists', async () => {
     mockCurrent.mockResolvedValue(PERIOD);
-    const { result } = renderHook(() => useCurrentBudgetPeriod(), { wrapper });
+    const { result } = await renderHook(() => useCurrentBudgetPeriod(), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual(PERIOD));
   });
 
@@ -152,7 +152,7 @@ describe('useCurrentBudgetPeriod', () => {
       response: { status: 404, data: {} },
     });
     mockCurrent.mockRejectedValue(notFound);
-    const { result } = renderHook(() => useCurrentBudgetPeriod(), { wrapper });
+    const { result } = await renderHook(() => useCurrentBudgetPeriod(), { wrapper });
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(mockCurrent).toHaveBeenCalledTimes(1);
   });
@@ -161,10 +161,10 @@ describe('useCurrentBudgetPeriod', () => {
 describe('useBudgetPeriod', () => {
   it('fetches by id and stays idle without one', async () => {
     mockOne.mockResolvedValue(PERIOD);
-    const { result } = renderHook(() => useBudgetPeriod('p1'), { wrapper });
+    const { result } = await renderHook(() => useBudgetPeriod('p1'), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual(PERIOD));
 
-    const idle = renderHook(() => useBudgetPeriod(''), { wrapper });
+    const idle = await renderHook(() => useBudgetPeriod(''), { wrapper });
     expect(idle.result.current.fetchStatus).toBe('idle');
   });
 });
@@ -173,7 +173,7 @@ describe('useCreateBudgetPeriod', () => {
   it('creates and invalidates the whole budgets root, reaching current and list', async () => {
     mockCreate.mockResolvedValue(PERIOD);
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useCreateBudgetPeriod(), { wrapper: provider });
+    const { result } = await renderHook(() => useCreateBudgetPeriod(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync({ month: '2026-09-01', totalIncome: '5000.00' });
     });
@@ -185,7 +185,7 @@ describe('useUpdateBudgetPeriod', () => {
   it('PUTs against the id it was built for', async () => {
     mockUpdate.mockResolvedValue({ ...PERIOD, totalIncome: '5200.0000' });
     const { provider } = withClient();
-    const { result } = renderHook(() => useUpdateBudgetPeriod('p1'), { wrapper: provider });
+    const { result } = await renderHook(() => useUpdateBudgetPeriod('p1'), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync({ totalIncome: '5200.00', budgetType: 'ROLLOVER' });
     });
@@ -200,7 +200,7 @@ describe('useDeleteBudgetPeriod', () => {
   it('invalidates the budgets root', async () => {
     mockDelete.mockResolvedValue(undefined);
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useDeleteBudgetPeriod(), { wrapper: provider });
+    const { result } = await renderHook(() => useDeleteBudgetPeriod(), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync('p1');
     });
@@ -213,21 +213,21 @@ describe('useEnvelopes / useEnvelope', () => {
     mockEnvelopes.mockResolvedValue([ENVELOPE]);
     mockEnvelope.mockResolvedValue(ENVELOPE);
 
-    const list = renderHook(() => useEnvelopes('p1'), { wrapper });
+    const list = await renderHook(() => useEnvelopes('p1'), { wrapper });
     await waitFor(() => expect(list.result.current.data).toEqual([ENVELOPE]));
 
-    const one = renderHook(() => useEnvelope('p1', 'e1'), { wrapper });
+    const one = await renderHook(() => useEnvelope('p1', 'e1'), { wrapper });
     await waitFor(() => expect(one.result.current.data).toEqual(ENVELOPE));
 
-    const idleList = renderHook(() => useEnvelopes(''), { wrapper });
-    const idleOne = renderHook(() => useEnvelope('p1', ''), { wrapper });
+    const idleList = await renderHook(() => useEnvelopes(''), { wrapper });
+    const idleOne = await renderHook(() => useEnvelope('p1', ''), { wrapper });
     expect(idleList.result.current.fetchStatus).toBe('idle');
     expect(idleOne.result.current.fetchStatus).toBe('idle');
   });
 
   it('carries the server’s own health verbatim — no client-side recomputation', async () => {
     mockEnvelopes.mockResolvedValue([ENVELOPE]);
-    const { result } = renderHook(() => useEnvelopes('p1'), { wrapper });
+    const { result } = await renderHook(() => useEnvelopes('p1'), { wrapper });
     await waitFor(() => expect(result.current.data).toBeDefined());
     expect(result.current.data?.[0].health).toEqual(ENVELOPE.health);
   });
@@ -237,7 +237,7 @@ describe('useCreateEnvelope / useUpdateEnvelope / useDeleteEnvelope', () => {
   it('create invalidates only this period’s envelope list', async () => {
     mockCreateEnvelope.mockResolvedValue(ENVELOPE);
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useCreateEnvelope('p1'), { wrapper: provider });
+    const { result } = await renderHook(() => useCreateEnvelope('p1'), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync({ categoryId: 'c1', allocated: '400.00' });
     });
@@ -255,7 +255,7 @@ describe('useCreateEnvelope / useUpdateEnvelope / useDeleteEnvelope', () => {
   it('update PUTs allocated only against the period/envelope pair it was built for', async () => {
     mockUpdateEnvelope.mockResolvedValue({ ...ENVELOPE, allocated: '450.0000' });
     const { provider } = withClient();
-    const { result } = renderHook(() => useUpdateEnvelope('p1', 'e1'), { wrapper: provider });
+    const { result } = await renderHook(() => useUpdateEnvelope('p1', 'e1'), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync({ allocated: '450.00' });
     });
@@ -265,7 +265,7 @@ describe('useCreateEnvelope / useUpdateEnvelope / useDeleteEnvelope', () => {
   it('delete takes the envelope id and invalidates that period’s envelope list', async () => {
     mockDeleteEnvelope.mockResolvedValue(undefined);
     const { invalidate, provider } = withClient();
-    const { result } = renderHook(() => useDeleteEnvelope('p1'), { wrapper: provider });
+    const { result } = await renderHook(() => useDeleteEnvelope('p1'), { wrapper: provider });
     await act(async () => {
       await result.current.mutateAsync('e1');
     });

@@ -42,9 +42,9 @@ const ENVELOPE: EnvelopeResponse = {
   updatedAt: '2026-09-04T14:00:00Z',
 };
 
-function renderScreen() {
+async function renderScreen() {
   const client = createTestQueryClient();
-  render(
+  await render(
     <QueryClientProvider client={client}>
       <EnvelopeDetailScreen />
     </QueryClientProvider>
@@ -58,7 +58,7 @@ beforeEach(() => {
 
 it('renders allocated/spent/remaining and health exactly as the response carries them', async () => {
   mockFetch.mockResolvedValue(ENVELOPE);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('envelope-category')).toBeTruthy());
 
   // The figures shown come only from the response — no client-computed
@@ -90,12 +90,12 @@ it('edits allocated only, and surfaces the zero-based invariant on that field', 
       },
     })
   );
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('envelope-edit')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('envelope-edit'));
-  fireEvent.changeText(screen.getByTestId('envelope-allocated-input'), '999999.00');
-  fireEvent.press(screen.getByTestId('envelope-save'));
+  await fireEvent.press(screen.getByTestId('envelope-edit'));
+  await fireEvent.changeText(screen.getByTestId('envelope-allocated-input'), '999999.00');
+  await fireEvent.press(screen.getByTestId('envelope-save'));
 
   await waitFor(() =>
     expect(screen.getByText('Envelopes must sum to your total income.')).toBeTruthy()
@@ -106,19 +106,19 @@ it('edits allocated only, and surfaces the zero-based invariant on that field', 
 it('removes the envelope after a confirmed delete and goes back', async () => {
   mockFetch.mockResolvedValue(ENVELOPE);
   mockDelete.mockResolvedValue(undefined);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('envelope-delete')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('envelope-delete'));
-  fireEvent.press(screen.getByTestId('envelope-delete-confirm'));
+  await fireEvent.press(screen.getByTestId('envelope-delete'));
+  await fireEvent.press(screen.getByTestId('envelope-delete-confirm'));
 
   await waitFor(() => expect(mockDelete).toHaveBeenCalledWith(PERIOD_ID, ENVELOPE_ID));
   await waitFor(() => expect(router.back).toHaveBeenCalled());
 });
 
-it('treats a non-uuid envelopeId as not-found rather than querying the server', () => {
+it('treats a non-uuid envelopeId as not-found rather than querying the server', async () => {
   mockParams.mockReturnValue({ id: PERIOD_ID, envelopeId: '../accounts/1' });
-  renderScreen();
+  await renderScreen();
   expect(screen.getByText('That envelope could not be found.')).toBeTruthy();
   expect(mockFetch).not.toHaveBeenCalled();
 });

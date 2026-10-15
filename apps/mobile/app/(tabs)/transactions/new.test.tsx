@@ -76,7 +76,7 @@ let clients: ReturnType<typeof createTestQueryClient>[] = [];
 async function renderScreen() {
   const qc = createTestQueryClient();
   clients.push(qc);
-  const utils = render(
+  const utils = await render(
     <QueryClientProvider client={qc}>
       <NewTransactionScreen />
     </QueryClientProvider>
@@ -85,11 +85,11 @@ async function renderScreen() {
   return utils;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   jest.clearAllMocks();
   mockAccounts.mockReset();
   mockCreate.mockReset();
-  act(() => {
+  await act(() => {
     useAuthStore.getState().setMe(ME);
   });
 });
@@ -142,10 +142,13 @@ describe('recording a transaction', () => {
     mockAccounts.mockResolvedValue([account('manual-1', { displayName: 'Cash' })]);
     await renderScreen();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('new-transaction-account-manual-1'));
-      fireEvent.changeText(screen.getByTestId('new-transaction-amount'), '4.75');
-      fireEvent.changeText(screen.getByTestId('new-transaction-date'), '2026-09-04');
-      fireEvent.changeText(screen.getByTestId('new-transaction-merchant'), 'Blue Door Coffee');
+      await fireEvent.press(screen.getByTestId('new-transaction-account-manual-1'));
+      await fireEvent.changeText(screen.getByTestId('new-transaction-amount'), '4.75');
+      await fireEvent.changeText(screen.getByTestId('new-transaction-date'), '2026-09-04');
+      await fireEvent.changeText(
+        screen.getByTestId('new-transaction-merchant'),
+        'Blue Door Coffee'
+      );
     });
   }
 
@@ -153,7 +156,7 @@ describe('recording a transaction', () => {
     mockCreate.mockResolvedValue(CREATED);
     await fillForm();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('new-transaction-submit'));
+      await fireEvent.press(screen.getByTestId('new-transaction-submit'));
     });
 
     expect(mockCreate).toHaveBeenCalledWith({
@@ -172,10 +175,10 @@ describe('recording a transaction', () => {
     mockCreate.mockResolvedValue({ ...CREATED, type: 'CREDIT' });
     await fillForm();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('new-transaction-type-CREDIT'));
+      await fireEvent.press(screen.getByTestId('new-transaction-type-CREDIT'));
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('new-transaction-submit'));
+      await fireEvent.press(screen.getByTestId('new-transaction-submit'));
     });
     expect(mockCreate.mock.calls[0][0].type).toBe('CREDIT');
   });
@@ -213,7 +216,7 @@ describe('recording a transaction', () => {
     );
     await fillForm();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('new-transaction-submit'));
+      await fireEvent.press(screen.getByTestId('new-transaction-submit'));
     });
     await waitFor(() => expect(screen.getByTestId('new-transaction-amount-error')).toBeTruthy());
     expect(screen.getByTestId('new-transaction-amount-error').props.children).toBe(

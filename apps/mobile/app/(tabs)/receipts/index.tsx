@@ -68,6 +68,7 @@ export default function ReceiptsScreen() {
         testID="receipts"
       >
         <FlatList
+          testID="receipts-list"
           data={rows}
           keyExtractor={(receipt) => receipt.id}
           onEndReachedThreshold={0.4}

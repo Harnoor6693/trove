@@ -107,7 +107,7 @@ describe('nextTransactionPage', () => {
 describe('useTransactions', () => {
   it('consumes data AND meta from the first page', async () => {
     mockList.mockResolvedValue(page([transaction('t1')], { total: 1, page: 0, limit: 50 }));
-    const { result } = renderHook(() => useTransactions(), { wrapper });
+    const { result } = await renderHook(() => useTransactions(), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.pages[0].data).toHaveLength(1);
     expect(result.current.data?.pages[0].meta.total).toBe(1);
@@ -119,7 +119,7 @@ describe('useTransactions', () => {
       .mockResolvedValueOnce(page([transaction('t1')], { total: 2, page: 0, limit: 1 }))
       .mockResolvedValueOnce(page([transaction('t2')], { total: 2, page: 1, limit: 1 }));
 
-    const { result } = renderHook(() => useTransactions({ sort: 'date,desc' }), { wrapper });
+    const { result } = await renderHook(() => useTransactions({ sort: 'date,desc' }), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.hasNextPage).toBe(true);
 
@@ -139,7 +139,7 @@ describe('useTransactions', () => {
 
   it('passes the declared filters straight through and keys the query by them', async () => {
     mockList.mockResolvedValue(page([], { total: 0, page: 0, limit: 50 }));
-    const { result } = renderHook(() => useTransactions({ q: 'coffee', type: 'DEBIT' }), {
+    const { result } = await renderHook(() => useTransactions({ q: 'coffee', type: 'DEBIT' }), {
       wrapper,
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -153,7 +153,7 @@ describe('useTransactions', () => {
 
   it('surfaces a failure rather than an empty page', async () => {
     mockList.mockRejectedValue(new Error('boom'));
-    const { result } = renderHook(() => useTransactions(), { wrapper });
+    const { result } = await renderHook(() => useTransactions(), { wrapper });
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.data).toBeUndefined();
   });
@@ -162,13 +162,13 @@ describe('useTransactions', () => {
 describe('useTransaction', () => {
   it('fetches one row by id', async () => {
     mockOne.mockResolvedValue(transaction('t1'));
-    const { result } = renderHook(() => useTransaction('t1'), { wrapper });
+    const { result } = await renderHook(() => useTransaction('t1'), { wrapper });
     await waitFor(() => expect(result.current.data?.id).toBe('t1'));
     expect(mockOne).toHaveBeenCalledWith('t1');
   });
 
-  it('stays idle without an id', () => {
-    const { result } = renderHook(() => useTransaction(''), { wrapper });
+  it('stays idle without an id', async () => {
+    const { result } = await renderHook(() => useTransaction(''), { wrapper });
     expect(result.current.fetchStatus).toBe('idle');
     expect(mockOne).not.toHaveBeenCalled();
   });
@@ -177,7 +177,7 @@ describe('useTransaction', () => {
 describe('usePatchTransaction', () => {
   it('sends the patch verbatim — only the changed field reaches the wire', async () => {
     mockPatch.mockResolvedValue(transaction('t1', { notes: 'Reimbursable' }));
-    const { result } = renderHook(() => usePatchTransaction('t1'), { wrapper });
+    const { result } = await renderHook(() => usePatchTransaction('t1'), { wrapper });
     await act(async () => {
       await result.current.mutateAsync({ notes: 'Reimbursable' });
     });
@@ -186,7 +186,7 @@ describe('usePatchTransaction', () => {
 
   it('preserves an explicit null so a transfer can actually be unlinked', async () => {
     mockPatch.mockResolvedValue(transaction('t1', { transferGroupId: null }));
-    const { result } = renderHook(() => usePatchTransaction('t1'), { wrapper });
+    const { result } = await renderHook(() => usePatchTransaction('t1'), { wrapper });
     await act(async () => {
       await result.current.mutateAsync({ transferGroupId: null });
     });
@@ -205,7 +205,7 @@ describe('usePatchTransaction', () => {
     // under `createTestQueryClient`'s `gcTime: 0`, so reading the cache
     // directly would be asserting on the garbage collector rather than on the
     // hook. An observer is also what the real screen has.
-    const { result } = renderHook(
+    const { result } = await renderHook(
       () => ({ detail: useTransaction('t1'), patch: usePatchTransaction('t1') }),
       { wrapper }
     );
@@ -228,7 +228,7 @@ describe('useCreateManualTransaction', () => {
     const qc = createTestQueryClient();
     clients.push(qc);
     const invalidate = jest.spyOn(qc, 'invalidateQueries');
-    const { result } = renderHook(() => useCreateManualTransaction(), {
+    const { result } = await renderHook(() => useCreateManualTransaction(), {
       wrapper: ({ children }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>,
     });
     await act(async () => {
@@ -252,7 +252,7 @@ describe('useDeleteTransaction', () => {
     const qc = createTestQueryClient();
     clients.push(qc);
     const invalidate = jest.spyOn(qc, 'invalidateQueries');
-    const { result } = renderHook(() => useDeleteTransaction(), {
+    const { result } = await renderHook(() => useDeleteTransaction(), {
       wrapper: ({ children }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>,
     });
     await act(async () => {

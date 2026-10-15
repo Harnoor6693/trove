@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import * as Linking from 'expo-linking';
@@ -77,24 +77,24 @@ afterEach(() => {
 });
 
 describe('ReceiptCapture', () => {
-  it('renders camera and library options with labels a screen reader can use', () => {
-    const { getByTestId } = render(<ReceiptCapture />, { wrapper: createWrapper() });
+  it('renders camera and library options with labels a screen reader can use', async () => {
+    const { getByTestId } = await render(<ReceiptCapture />, { wrapper: createWrapper() });
     expect(getByTestId('camera-btn').props.accessibilityLabel).toBe('Take a photo of a receipt');
     expect(getByTestId('library-btn').props.accessibilityLabel).toBe(
       'Choose a receipt from your photo library'
     );
   });
 
-  it('states the size ceiling BEFORE the member shoots', () => {
-    const { getByTestId } = render(<ReceiptCapture />, { wrapper: createWrapper() });
+  it('states the size ceiling BEFORE the member shoots', async () => {
+    const { getByTestId } = await render(<ReceiptCapture />, { wrapper: createWrapper() });
     expect(getByTestId('receipt-capture-limit').props.children).toEqual(
       expect.arrayContaining([expect.stringContaining('JPEG or PNG')])
     );
   });
 
   it('camera option captures and uploads as a SCAN', async () => {
-    const { getByTestId } = render(<ReceiptCapture />, { wrapper: createWrapper() });
-    fireEvent.press(getByTestId('camera-btn'));
+    const { getByTestId } = await render(<ReceiptCapture />, { wrapper: createWrapper() });
+    await fireEvent.press(getByTestId('camera-btn'));
     await waitFor(() =>
       expect(mockUpload).toHaveBeenCalledWith('file://cam.jpg', 'SCAN', 'image/jpeg')
     );
@@ -104,8 +104,8 @@ describe('ReceiptCapture', () => {
     // The detail screen renders this value as fact ("Uploaded file" vs "Phone
     // camera") and no later request can correct it, so the button the member
     // pressed is what decides it.
-    const { getByTestId } = render(<ReceiptCapture />, { wrapper: createWrapper() });
-    fireEvent.press(getByTestId('library-btn'));
+    const { getByTestId } = await render(<ReceiptCapture />, { wrapper: createWrapper() });
+    await fireEvent.press(getByTestId('library-btn'));
     await waitFor(() =>
       expect(mockUpload).toHaveBeenCalledWith('file://lib.jpg', 'UPLOAD', 'image/jpeg')
     );
@@ -116,8 +116,8 @@ describe('ReceiptCapture', () => {
       canceled: false,
       assets: [{ uri: 'file://receipt.png', mimeType: 'image/png' }],
     });
-    const { getByTestId } = render(<ReceiptCapture />, { wrapper: createWrapper() });
-    fireEvent.press(getByTestId('library-btn'));
+    const { getByTestId } = await render(<ReceiptCapture />, { wrapper: createWrapper() });
+    await fireEvent.press(getByTestId('library-btn'));
     await waitFor(() =>
       expect(mockUpload).toHaveBeenCalledWith('file://receipt.png', 'UPLOAD', 'image/png')
     );
@@ -125,17 +125,17 @@ describe('ReceiptCapture', () => {
 
   it('reports the accepted receipt id to the caller', async () => {
     const onCaptured = jest.fn();
-    const { getByTestId } = render(<ReceiptCapture onCaptured={onCaptured} />, {
+    const { getByTestId } = await render(<ReceiptCapture onCaptured={onCaptured} />, {
       wrapper: createWrapper(),
     });
-    fireEvent.press(getByTestId('camera-btn'));
+    await fireEvent.press(getByTestId('camera-btn'));
     await waitFor(() => expect(onCaptured).toHaveBeenCalledWith('r1'));
   });
 
   it('does not upload when the picker is cancelled', async () => {
     (ImagePicker.launchCameraAsync as jest.Mock).mockResolvedValue({ canceled: true });
-    const { getByTestId } = render(<ReceiptCapture />, { wrapper: createWrapper() });
-    fireEvent.press(getByTestId('camera-btn'));
+    const { getByTestId } = await render(<ReceiptCapture />, { wrapper: createWrapper() });
+    await fireEvent.press(getByTestId('camera-btn'));
     await waitFor(() => expect(ImagePicker.launchCameraAsync).toHaveBeenCalled());
     expect(mockUpload).not.toHaveBeenCalled();
   });
@@ -145,18 +145,16 @@ describe('ReceiptCapture', () => {
       status: 'denied',
       granted: false,
     });
-    const { getByTestId } = render(<ReceiptCapture />, { wrapper: createWrapper() });
-    fireEvent.press(getByTestId('camera-btn'));
+    const { getByTestId } = await render(<ReceiptCapture />, { wrapper: createWrapper() });
+    await fireEvent.press(getByTestId('camera-btn'));
 
     const notice = await waitFor(() => getByTestId('receipt-capture-permission-denied'));
     expect(notice).toBeTruthy();
     // The explanation is a real sentence, announced as an alert.
-    const message = getByTestId('receipt-capture-permission-denied').findByProps({
-      accessibilityRole: 'alert',
-    });
+    const message = within(getByTestId('receipt-capture-permission-denied')).getByRole('alert');
     expect(message.props.children).toContain('camera');
 
-    fireEvent.press(getByTestId('receipt-capture-open-settings'));
+    await fireEvent.press(getByTestId('receipt-capture-open-settings'));
     await waitFor(() => expect(Linking.openSettings).toHaveBeenCalled());
   });
 
@@ -165,10 +163,10 @@ describe('ReceiptCapture', () => {
       status: 'denied',
       granted: false,
     });
-    const { getByTestId } = render(<ReceiptCapture />, { wrapper: createWrapper() });
-    fireEvent.press(getByTestId('library-btn'));
+    const { getByTestId } = await render(<ReceiptCapture />, { wrapper: createWrapper() });
+    await fireEvent.press(getByTestId('library-btn'));
     const message = await waitFor(() =>
-      getByTestId('receipt-capture-permission-denied').findByProps({ accessibilityRole: 'alert' })
+      within(getByTestId('receipt-capture-permission-denied')).getByRole('alert')
     );
     expect(message.props.children).toContain('photo library');
   });
@@ -177,11 +175,11 @@ describe('ReceiptCapture', () => {
     mockUpload.mockRejectedValue(
       refusal(413, 'upload-too-large', 'That image is larger than this server accepts.')
     );
-    const { getByTestId } = render(<ReceiptCapture />, { wrapper: createWrapper() });
-    fireEvent.press(getByTestId('camera-btn'));
+    const { getByTestId } = await render(<ReceiptCapture />, { wrapper: createWrapper() });
+    await fireEvent.press(getByTestId('camera-btn'));
 
     const shown = await waitFor(() =>
-      getByTestId('receipt-capture-error').findByProps({ accessibilityRole: 'alert' })
+      within(getByTestId('receipt-capture-error')).getByRole('alert')
     );
     // The server's own sentence, and the app's own guidance about the ceiling,
     // are both there: one says the upload was refused, the other says by how
@@ -195,10 +193,10 @@ describe('ReceiptCapture', () => {
     mockUpload.mockRejectedValue(
       refusal(400, 'validation-error', 'Those bytes are not the format they claim to be.')
     );
-    const { getByTestId } = render(<ReceiptCapture />, { wrapper: createWrapper() });
-    fireEvent.press(getByTestId('library-btn'));
+    const { getByTestId } = await render(<ReceiptCapture />, { wrapper: createWrapper() });
+    await fireEvent.press(getByTestId('library-btn'));
     const shown = await waitFor(() =>
-      getByTestId('receipt-capture-error').findByProps({ accessibilityRole: 'alert' })
+      within(getByTestId('receipt-capture-error')).getByRole('alert')
     );
     expect(shown.props.children).toBe('Those bytes are not the format they claim to be.');
   });

@@ -21,25 +21,25 @@ beforeEach(() => {
 });
 
 describe('useTheme', () => {
-  it('follows the OS scheme on "system"', () => {
+  it('follows the OS scheme on "system"', async () => {
     mockScheme.mockReturnValue('dark');
-    expect(renderHook(() => useTheme()).result.current).toBe(DarkColors);
+    expect((await renderHook(() => useTheme())).result.current).toBe(DarkColors);
 
     mockScheme.mockReturnValue('light');
-    expect(renderHook(() => useTheme()).result.current).toBe(Colors);
+    expect((await renderHook(() => useTheme())).result.current).toBe(Colors);
   });
 
   // The Settings toggle used to write `uiStore.theme` while this hook read
   // only `useColorScheme()`, so the control changed a value nothing consumed.
-  it('honours an explicit dark preference over a light OS scheme', () => {
+  it('honours an explicit dark preference over a light OS scheme', async () => {
     mockScheme.mockReturnValue('light');
     setPreference('dark');
-    expect(renderHook(() => useTheme()).result.current).toBe(DarkColors);
+    expect((await renderHook(() => useTheme())).result.current).toBe(DarkColors);
   });
 
-  it('honours an explicit light preference over a dark OS scheme', () => {
+  it('honours an explicit light preference over a dark OS scheme', async () => {
     mockScheme.mockReturnValue('dark');
     setPreference('light');
-    expect(renderHook(() => useTheme()).result.current).toBe(Colors);
+    expect((await renderHook(() => useTheme())).result.current).toBe(Colors);
   });
 });

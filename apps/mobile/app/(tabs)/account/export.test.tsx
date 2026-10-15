@@ -84,7 +84,7 @@ function textOf(testID: string): string {
 
 let client: ReturnType<typeof createTestQueryClient>;
 
-function renderScreen() {
+async function renderScreen() {
   client = createTestQueryClient();
   return render(
     <QueryClientProvider client={client}>
@@ -105,17 +105,17 @@ afterEach(() => {
 
 describe('what the screen says before it asks for anything', () => {
   it('states that the archive holds the household’s ledger, not only this member’s rows', async () => {
-    renderScreen();
+    await renderScreen();
     expect(textOf('export-household-note')).toMatch(/household/);
   });
 
   it('states that receipts are metadata only — the photographs are not in the archive', async () => {
-    renderScreen();
+    await renderScreen();
     expect(textOf('export-receipts-note')).toMatch(/photographs themselves are not in the archive/);
   });
 
   it('states the one-a-day cap and the 24-hour link', async () => {
-    renderScreen();
+    await renderScreen();
     const limits = textOf('export-limits-note');
     expect(limits).toMatch(/One export a day/);
     expect(limits).toMatch(/24 hours/);
@@ -126,10 +126,13 @@ describe('starting a run', () => {
   it('sends the step-up body and then polls the returned run to completion', async () => {
     mockCreate.mockResolvedValue(RUN);
     mockGet.mockResolvedValueOnce({ ...RUN, status: 'GENERATING' }).mockResolvedValue(COMPLETE);
-    renderScreen();
+    await renderScreen();
 
-    fireEvent.changeText(screen.getByTestId('export-step-up-password'), 'correct-horse-battery');
-    fireEvent.press(screen.getByTestId('export-step-up-submit'));
+    await fireEvent.changeText(
+      screen.getByTestId('export-step-up-password'),
+      'correct-horse-battery'
+    );
+    await fireEvent.press(screen.getByTestId('export-step-up-submit'));
 
     await waitFor(() =>
       expect(mockCreate).toHaveBeenCalledWith({ password: 'correct-horse-battery' })
@@ -144,10 +147,13 @@ describe('starting a run', () => {
   it('never writes the step-up credential to the secure store, and never leaves it in the tree', async () => {
     mockCreate.mockResolvedValue(RUN);
     mockGet.mockResolvedValue(RUN);
-    renderScreen();
+    await renderScreen();
 
-    fireEvent.changeText(screen.getByTestId('export-step-up-password'), 'correct-horse-battery');
-    fireEvent.press(screen.getByTestId('export-step-up-submit'));
+    await fireEvent.changeText(
+      screen.getByTestId('export-step-up-password'),
+      'correct-horse-battery'
+    );
+    await fireEvent.press(screen.getByTestId('export-step-up-submit'));
     await waitFor(() => expect(mockCreate).toHaveBeenCalled());
 
     expect(SecureStore.setItemAsync as jest.Mock).not.toHaveBeenCalled();
@@ -168,9 +174,9 @@ describe('starting a run', () => {
     mockCreate.mockRejectedValue(
       refused(403, 'step-up-required', 'Step-up authentication required.')
     );
-    renderScreen();
-    fireEvent.changeText(screen.getByTestId('export-step-up-password'), 'wrong');
-    fireEvent.press(screen.getByTestId('export-step-up-submit'));
+    await renderScreen();
+    await fireEvent.changeText(screen.getByTestId('export-step-up-password'), 'wrong');
+    await fireEvent.press(screen.getByTestId('export-step-up-submit'));
     await waitFor(() =>
       expect(screen.getByTestId('export-step-up-error').props.children).toBe(
         'That password or code was not accepted.'
@@ -182,9 +188,12 @@ describe('starting a run', () => {
     mockCreate.mockRejectedValue(
       refused(409, 'conflict', 'You can ask for another export after 2026-09-19.')
     );
-    renderScreen();
-    fireEvent.changeText(screen.getByTestId('export-step-up-password'), 'correct-horse-battery');
-    fireEvent.press(screen.getByTestId('export-step-up-submit'));
+    await renderScreen();
+    await fireEvent.changeText(
+      screen.getByTestId('export-step-up-password'),
+      'correct-horse-battery'
+    );
+    await fireEvent.press(screen.getByTestId('export-step-up-submit'));
     await waitFor(() =>
       expect(screen.getByTestId('export-create-conflict').props.children).toBe(
         'You can ask for another export after 2026-09-19.'
@@ -201,12 +210,15 @@ describe('starting a run', () => {
     useAuthStore.setState({ me: null });
     mockCreate.mockResolvedValue(RUN);
     mockGet.mockResolvedValue(RUN);
-    renderScreen();
+    await renderScreen();
 
     expect(screen.getByTestId('export-step-up-code')).toBeTruthy();
-    fireEvent.changeText(screen.getByTestId('export-step-up-password'), 'correct-horse-battery');
-    fireEvent.changeText(screen.getByTestId('export-step-up-code'), '000000');
-    fireEvent.press(screen.getByTestId('export-step-up-submit'));
+    await fireEvent.changeText(
+      screen.getByTestId('export-step-up-password'),
+      'correct-horse-battery'
+    );
+    await fireEvent.changeText(screen.getByTestId('export-step-up-code'), '000000');
+    await fireEvent.press(screen.getByTestId('export-step-up-submit'));
     await waitFor(() =>
       expect(mockCreate).toHaveBeenCalledWith({
         password: 'correct-horse-battery',
@@ -219,11 +231,14 @@ describe('starting a run', () => {
     useAuthStore.setState({ me: { ...ME, totpEnabled: true } });
     mockCreate.mockResolvedValue(RUN);
     mockGet.mockResolvedValue(RUN);
-    renderScreen();
+    await renderScreen();
 
-    fireEvent.changeText(screen.getByTestId('export-step-up-password'), 'correct-horse-battery');
-    fireEvent.changeText(screen.getByTestId('export-step-up-code'), '000000');
-    fireEvent.press(screen.getByTestId('export-step-up-submit'));
+    await fireEvent.changeText(
+      screen.getByTestId('export-step-up-password'),
+      'correct-horse-battery'
+    );
+    await fireEvent.changeText(screen.getByTestId('export-step-up-code'), '000000');
+    await fireEvent.press(screen.getByTestId('export-step-up-submit'));
     await waitFor(() =>
       expect(mockCreate).toHaveBeenCalledWith({
         password: 'correct-horse-battery',
@@ -235,7 +250,7 @@ describe('starting a run', () => {
 
 describe('the run list and the download', () => {
   it('shows an empty state when there are no runs', async () => {
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('export-runs-empty')).toBeTruthy());
   });
 
@@ -244,7 +259,7 @@ describe('the run list and the download', () => {
       data: [{ ...RUN, status: 'FAILED', errorMessage: 'The export could not be queued' }],
       meta: { page: 0, limit: 20, total: 1 },
     });
-    renderScreen();
+    await renderScreen();
     await waitFor(() =>
       expect(screen.getByTestId('export-failed').props.children).toBe(
         'The export could not be queued'
@@ -259,7 +274,7 @@ describe('the run list and the download', () => {
   // next test).
   it('never downloads the archive to report a size the run row already carries', async () => {
     mockList.mockResolvedValue({ data: [COMPLETE], meta: { page: 0, limit: 20, total: 1 } });
-    renderScreen();
+    await renderScreen();
 
     await waitFor(() => expect(screen.getByTestId('export-ready')).toBeTruthy());
     expect(screen.getByTestId('export-ready').props.children).toContain(' · 20 KB');
@@ -275,10 +290,10 @@ describe('the run list and the download', () => {
       byteLength: 4,
       bytes: new Uint8Array([80, 75, 3, 4]).buffer,
     });
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('data-export-share')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('data-export-share'));
+    await fireEvent.press(screen.getByTestId('data-export-share'));
 
     await waitFor(() => expect(Sharing.shareAsync).toHaveBeenCalledTimes(1));
     expect(mockArchive).toHaveBeenCalledWith('e1');
@@ -296,7 +311,7 @@ describe('the run list and the download', () => {
   it('offers no "Save or share" for a run that is not COMPLETE', async () => {
     mockList.mockResolvedValue({ data: [RUN], meta: { page: 0, limit: 20, total: 1 } });
     mockGet.mockResolvedValue(RUN);
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('export-generating')).toBeTruthy());
     expect(screen.queryByTestId('data-export-share')).toBeNull();
   });
@@ -306,10 +321,10 @@ describe('the run list and the download', () => {
     mockArchive.mockRejectedValue(
       refused(409, 'conflict', 'That export has expired. Start a new one.')
     );
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('data-export-share')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('data-export-share'));
+    await fireEvent.press(screen.getByTestId('data-export-share'));
 
     await waitFor(() =>
       expect(screen.getByTestId('data-export-share-error').props.children).toBe(

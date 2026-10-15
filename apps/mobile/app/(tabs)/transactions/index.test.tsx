@@ -86,7 +86,7 @@ async function flush(passes = 3): Promise<void> {
 async function renderScreen() {
   const qc = createTestQueryClient();
   clients.push(qc);
-  const utils = render(
+  const utils = await render(
     <QueryClientProvider client={qc}>
       <TransactionsScreen />
     </QueryClientProvider>
@@ -97,12 +97,12 @@ async function renderScreen() {
   return utils;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   jest.clearAllMocks();
   mockList.mockReset();
   mockAccount.mockReset();
   mockParams.mockReturnValue({});
-  act(() => {
+  await act(() => {
     useAuthStore.getState().setMe(ME);
   });
 });
@@ -148,7 +148,7 @@ describe('Transactions list', () => {
     expect(screen.queryByTestId('transaction-row-t2')).toBeNull();
 
     await act(async () => {
-      fireEvent(screen.getByTestId('transactions-list'), 'endReached');
+      await fireEvent(screen.getByTestId('transactions-list'), 'endReached');
     });
     await flush();
 
@@ -161,7 +161,7 @@ describe('Transactions list', () => {
     mockList.mockResolvedValue(page(['t1'], { total: 1, page: 0, limit: 50 }));
     await renderScreen();
     await act(async () => {
-      fireEvent(screen.getByTestId('transactions-list'), 'endReached');
+      await fireEvent(screen.getByTestId('transactions-list'), 'endReached');
     });
     await flush();
     expect(mockList).toHaveBeenCalledTimes(1);
@@ -171,7 +171,7 @@ describe('Transactions list', () => {
     mockList.mockResolvedValue(page([], { total: 0, page: 0, limit: 50 }));
     await renderScreen();
     await act(async () => {
-      fireEvent.changeText(screen.getByTestId('transactions-search'), 'coffee');
+      await fireEvent.changeText(screen.getByTestId('transactions-search'), 'coffee');
     });
     await flush();
     expect(mockList).toHaveBeenLastCalledWith({ q: 'coffee', sort: 'date,desc', page: 0 });
@@ -181,7 +181,7 @@ describe('Transactions list', () => {
     mockList.mockResolvedValue(page([], { total: 0, page: 0, limit: 50 }));
     await renderScreen();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('transactions-type-CREDIT'));
+      await fireEvent.press(screen.getByTestId('transactions-type-CREDIT'));
     });
     await flush();
     expect(mockList).toHaveBeenLastCalledWith({ type: 'CREDIT', sort: 'date,desc', page: 0 });
@@ -240,7 +240,7 @@ describe('one account\u2019s own ledger', () => {
     await renderScreen();
     await flush();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('transactions-account-filter'));
+      await fireEvent.press(screen.getByTestId('transactions-account-filter'));
     });
     expect(mockReplace).toHaveBeenCalledWith('/(tabs)/transactions');
   });

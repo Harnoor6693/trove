@@ -65,9 +65,9 @@ const RULE_1 = rule({ id: 'r1', merchant: 'STARBUCKS', priority: 0 });
 const RULE_2 = rule({ id: 'r2', merchant: 'BLUE BOTTLE', priority: 1 });
 const RULE_3 = rule({ id: 'r3', merchant: 'PEETS', priority: 2 });
 
-function renderScreen() {
+async function renderScreen() {
   const client = createTestQueryClient();
-  render(
+  await render(
     <QueryClientProvider client={client}>
       <RulesScreen />
     </QueryClientProvider>
@@ -83,7 +83,7 @@ beforeEach(() => {
 describe('rules render in the order the server returns', () => {
   it('lists them top to bottom exactly as listCategoryRules answered', async () => {
     mockRules.mockResolvedValue([RULE_1, RULE_2, RULE_3]);
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('rule-row-r1')).toBeTruthy());
 
     const serialised = JSON.stringify(screen.toJSON());
@@ -98,7 +98,7 @@ describe('rules render in the order the server returns', () => {
 describe('move up/down — reachable without a drag gesture', () => {
   it('gives each control an accessible name naming the merchant and direction', async () => {
     mockRules.mockResolvedValue([RULE_1, RULE_2, RULE_3]);
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('rule-row-r2')).toBeTruthy());
 
     const up = screen.getByTestId('rule-move-up-r2');
@@ -109,7 +109,7 @@ describe('move up/down — reachable without a drag gesture', () => {
 
   it('disables the top row’s up control and the bottom row’s down control', async () => {
     mockRules.mockResolvedValue([RULE_1, RULE_2, RULE_3]);
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('rule-row-r1')).toBeTruthy());
 
     expect(screen.getByTestId('rule-move-up-r1').props.accessibilityState.disabled).toBe(true);
@@ -120,10 +120,10 @@ describe('move up/down — reachable without a drag gesture', () => {
   it('sends the declared ReorderRulesRequest body with the new order', async () => {
     mockRules.mockResolvedValue([RULE_1, RULE_2, RULE_3]);
     mockReorder.mockResolvedValue(undefined);
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('rule-move-down-r1')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('rule-move-down-r1'));
+    await fireEvent.press(screen.getByTestId('rule-move-down-r1'));
 
     await waitFor(() =>
       expect(mockReorder).toHaveBeenCalledWith({ orderedIds: ['r2', 'r1', 'r3'] })
@@ -135,13 +135,13 @@ describe('creating and editing a rule', () => {
   it('creates with merchant/matchType/categoryId/confidence', async () => {
     mockRules.mockResolvedValue([]);
     mockCreate.mockResolvedValue(RULE_1);
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('rules-new-toggle')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('rules-new-toggle'));
-    fireEvent.changeText(screen.getByTestId('rule-create-form-merchant'), 'Starbucks');
-    fireEvent.press(screen.getByTestId('rule-create-form-category-c1'));
-    fireEvent.press(screen.getByTestId('rule-create-form-submit'));
+    await fireEvent.press(screen.getByTestId('rules-new-toggle'));
+    await fireEvent.changeText(screen.getByTestId('rule-create-form-merchant'), 'Starbucks');
+    await fireEvent.press(screen.getByTestId('rule-create-form-category-c1'));
+    await fireEvent.press(screen.getByTestId('rule-create-form-submit'));
 
     await waitFor(() =>
       expect(mockCreate).toHaveBeenCalledWith({
@@ -172,12 +172,12 @@ describe('creating and editing a rule', () => {
         },
       })
     );
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('rules-new-toggle')).toBeTruthy());
-    fireEvent.press(screen.getByTestId('rules-new-toggle'));
-    fireEvent.changeText(screen.getByTestId('rule-create-form-merchant'), 'Starbucks');
-    fireEvent.press(screen.getByTestId('rule-create-form-category-c1'));
-    fireEvent.press(screen.getByTestId('rule-create-form-submit'));
+    await fireEvent.press(screen.getByTestId('rules-new-toggle'));
+    await fireEvent.changeText(screen.getByTestId('rule-create-form-merchant'), 'Starbucks');
+    await fireEvent.press(screen.getByTestId('rule-create-form-category-c1'));
+    await fireEvent.press(screen.getByTestId('rule-create-form-submit'));
 
     await waitFor(() =>
       expect(
@@ -191,12 +191,12 @@ describe('creating and editing a rule', () => {
   it('edits an existing rule', async () => {
     mockRules.mockResolvedValue([RULE_1]);
     mockUpdate.mockResolvedValue({ ...RULE_1, confidence: '0.900' });
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('rule-edit-r1')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('rule-edit-r1'));
-    fireEvent.changeText(screen.getByTestId('rule-edit-form-r1-confidence'), '0.900');
-    fireEvent.press(screen.getByTestId('rule-edit-form-r1-submit'));
+    await fireEvent.press(screen.getByTestId('rule-edit-r1'));
+    await fireEvent.changeText(screen.getByTestId('rule-edit-form-r1-confidence'), '0.900');
+    await fireEvent.press(screen.getByTestId('rule-edit-form-r1-submit'));
 
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith('r1', {
@@ -211,11 +211,11 @@ describe('creating and editing a rule', () => {
   it('deletes a rule after a confirm press', async () => {
     mockRules.mockResolvedValue([RULE_1]);
     mockDelete.mockResolvedValue(undefined);
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('rule-delete-r1')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('rule-delete-r1'));
-    fireEvent.press(screen.getByTestId('rule-delete-confirm-r1'));
+    await fireEvent.press(screen.getByTestId('rule-delete-r1'));
+    await fireEvent.press(screen.getByTestId('rule-delete-confirm-r1'));
     await waitFor(() => expect(mockDelete).toHaveBeenCalledWith('r1'));
   });
 });
@@ -229,11 +229,11 @@ describe('dry run — a preview that saves nothing', () => {
       confidence: '0.990',
       source: 'RULE',
     });
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('rules-dry-run-input')).toBeTruthy());
 
-    fireEvent.changeText(screen.getByTestId('rules-dry-run-input'), 'STARBUCKS');
-    fireEvent.press(screen.getByTestId('rules-dry-run-submit'));
+    await fireEvent.changeText(screen.getByTestId('rules-dry-run-input'), 'STARBUCKS');
+    await fireEvent.press(screen.getByTestId('rules-dry-run-submit'));
 
     await waitFor(() => expect(screen.getByTestId('rules-dry-run-result')).toBeTruthy());
     expect(screen.getByText('Coffee Shops')).toBeTruthy();
@@ -250,10 +250,10 @@ describe('dry run — a preview that saves nothing', () => {
       confidence: '0.100',
       source: null,
     });
-    renderScreen();
+    await renderScreen();
     await waitFor(() => expect(screen.getByTestId('rules-dry-run-input')).toBeTruthy());
-    fireEvent.changeText(screen.getByTestId('rules-dry-run-input'), 'UNKNOWN MERCHANT');
-    fireEvent.press(screen.getByTestId('rules-dry-run-submit'));
+    await fireEvent.changeText(screen.getByTestId('rules-dry-run-input'), 'UNKNOWN MERCHANT');
+    await fireEvent.press(screen.getByTestId('rules-dry-run-submit'));
 
     await waitFor(() => expect(screen.getByText('Built-in default')).toBeTruthy());
   });

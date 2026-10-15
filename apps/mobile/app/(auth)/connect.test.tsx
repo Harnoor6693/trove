@@ -29,9 +29,9 @@ beforeEach(() => {
 
 describe('ConnectScreen', () => {
   it('probes and stores a valid https server, then moves on to sign-in', async () => {
-    const { getByTestId } = render(<ConnectScreen />);
-    fireEvent.changeText(getByTestId('connect-url-input'), 'trove.example.com');
-    fireEvent.press(getByTestId('connect-submit-btn'));
+    const { getByTestId } = await render(<ConnectScreen />);
+    await fireEvent.changeText(getByTestId('connect-url-input'), 'trove.example.com');
+    await fireEvent.press(getByTestId('connect-submit-btn'));
 
     await waitFor(() => expect(mockProbe).toHaveBeenCalledWith('https://trove.example.com'));
     await waitFor(() => expect(getServerConnection()?.baseUrl).toBe('https://trove.example.com'));
@@ -40,9 +40,9 @@ describe('ConnectScreen', () => {
   });
 
   it('refuses http to a public host without ever dialling it', async () => {
-    const { getByTestId } = render(<ConnectScreen />);
-    fireEvent.changeText(getByTestId('connect-url-input'), 'http://trove.example.com');
-    fireEvent.press(getByTestId('connect-submit-btn'));
+    const { getByTestId } = await render(<ConnectScreen />);
+    await fireEvent.changeText(getByTestId('connect-url-input'), 'http://trove.example.com');
+    await fireEvent.press(getByTestId('connect-submit-btn'));
 
     await waitFor(() => expect(getByTestId('connect-error-text')).toBeTruthy());
     expect(mockProbe).not.toHaveBeenCalled();
@@ -50,17 +50,17 @@ describe('ConnectScreen', () => {
   });
 
   it('refuses http to a LAN host until the user opts in, then allows it', async () => {
-    const { getByTestId } = render(<ConnectScreen />);
-    fireEvent.changeText(getByTestId('connect-url-input'), 'http://192.168.1.9:8080');
-    fireEvent.press(getByTestId('connect-submit-btn'));
+    const { getByTestId } = await render(<ConnectScreen />);
+    await fireEvent.changeText(getByTestId('connect-url-input'), 'http://192.168.1.9:8080');
+    await fireEvent.press(getByTestId('connect-submit-btn'));
 
     await waitFor(() =>
       expect(getByTestId('connect-error-text').props.children).toMatch(/Allow http on my network/)
     );
     expect(mockProbe).not.toHaveBeenCalled();
 
-    fireEvent(getByTestId('connect-allow-http-toggle'), 'onToggle', true);
-    fireEvent.press(getByTestId('connect-submit-btn'));
+    await fireEvent(getByTestId('connect-allow-http-toggle'), 'onToggle', true);
+    await fireEvent.press(getByTestId('connect-submit-btn'));
 
     await waitFor(() => expect(mockProbe).toHaveBeenCalledWith('http://192.168.1.9:8080'));
     await waitFor(() => expect(getServerConnection()?.allowInsecureLan).toBe(true));
@@ -73,9 +73,9 @@ describe('ConnectScreen', () => {
       message: 'Something answered at that address, but it isn’t a Trove server.',
     });
 
-    const { getByTestId } = render(<ConnectScreen />);
-    fireEvent.changeText(getByTestId('connect-url-input'), 'https://blog.example.com');
-    fireEvent.press(getByTestId('connect-submit-btn'));
+    const { getByTestId } = await render(<ConnectScreen />);
+    await fireEvent.changeText(getByTestId('connect-url-input'), 'https://blog.example.com');
+    await fireEvent.press(getByTestId('connect-submit-btn'));
 
     await waitFor(() =>
       expect(getByTestId('connect-error-text').props.children).toMatch(/isn’t a Trove server/)
@@ -91,9 +91,9 @@ describe('ConnectScreen', () => {
       message: 'That server is version 9.0.0. This app only speaks 1.x — update the app.',
     });
 
-    const { getByTestId } = render(<ConnectScreen />);
-    fireEvent.changeText(getByTestId('connect-url-input'), 'https://trove.example.com');
-    fireEvent.press(getByTestId('connect-submit-btn'));
+    const { getByTestId } = await render(<ConnectScreen />);
+    await fireEvent.changeText(getByTestId('connect-url-input'), 'https://trove.example.com');
+    await fireEvent.press(getByTestId('connect-submit-btn'));
 
     await waitFor(() =>
       expect(getByTestId('connect-error-text').props.children).toMatch(/only speaks 1\.x/)
@@ -108,9 +108,9 @@ describe('ConnectScreen', () => {
       message: 'That server’s certificate isn’t trusted. Use Let’s Encrypt or Tailscale.',
     });
 
-    const { getByTestId, queryByText } = render(<ConnectScreen />);
-    fireEvent.changeText(getByTestId('connect-url-input'), 'https://trove.example.com');
-    fireEvent.press(getByTestId('connect-submit-btn'));
+    const { getByTestId, queryByText } = await render(<ConnectScreen />);
+    await fireEvent.changeText(getByTestId('connect-url-input'), 'https://trove.example.com');
+    await fireEvent.press(getByTestId('connect-submit-btn'));
 
     await waitFor(() =>
       expect(getByTestId('connect-error-text').props.children).toMatch(/certificate/)
@@ -119,8 +119,8 @@ describe('ConnectScreen', () => {
   });
 
   it('rejects an empty address', async () => {
-    const { getByTestId } = render(<ConnectScreen />);
-    fireEvent.press(getByTestId('connect-submit-btn'));
+    const { getByTestId } = await render(<ConnectScreen />);
+    await fireEvent.press(getByTestId('connect-submit-btn'));
     await waitFor(() => expect(getByTestId('connect-error-text')).toBeTruthy());
     expect(mockProbe).not.toHaveBeenCalled();
   });

@@ -78,7 +78,7 @@ async function renderScreen(accounts: AccountResponse[] = [account()]) {
   mockAccounts.mockResolvedValue(accounts);
   const qc = createTestQueryClient();
   clients.push(qc);
-  const utils = render(
+  const utils = await render(
     <QueryClientProvider client={qc}>
       <NewImportScreen />
     </QueryClientProvider>
@@ -127,10 +127,10 @@ describe('the account the rows go into', () => {
     mockCreate.mockResolvedValue(preview());
     await renderScreen();
     await act(async () => {
-      fireEvent.press(screen.getByTestId(`new-import-account-${CSV_ACCOUNT_ID}`));
+      await fireEvent.press(screen.getByTestId(`new-import-account-${CSV_ACCOUNT_ID}`));
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('new-import-choose'));
+      await fireEvent.press(screen.getByTestId('new-import-choose'));
     });
     expect(mockCreate).toHaveBeenCalledWith({
       file: { uri: 'file://a.csv', name: 'a.csv', type: 'text/csv' },
@@ -146,10 +146,10 @@ describe('the account the rows go into', () => {
     mockCreate.mockResolvedValue(preview());
     await renderScreen();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('new-import-account-from-file'));
+      await fireEvent.press(screen.getByTestId('new-import-account-from-file'));
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('new-import-choose'));
+      await fireEvent.press(screen.getByTestId('new-import-choose'));
     });
     expect(mockCreate).toHaveBeenCalledWith({
       file: { uri: 'file://a.ofx', name: 'a.ofx', type: 'application/x-ofx' },
@@ -160,7 +160,7 @@ describe('the account the rows go into', () => {
     await renderScreen([account({ id: MANUAL_ACCOUNT_ID, sourceKind: 'MANUAL' })]);
     expect(screen.getByTestId('new-import-accounts-empty')).toBeTruthy();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('new-import-to-accounts'));
+      await fireEvent.press(screen.getByTestId('new-import-to-accounts'));
     });
     expect(mockPush).toHaveBeenCalledWith('/(tabs)/transactions/accounts');
   });
@@ -170,10 +170,10 @@ describe('choosing a file', () => {
   it('a canceled pick shows nothing and uploads nothing', async () => {
     await renderScreen();
     await act(async () => {
-      fireEvent.press(screen.getByTestId(`new-import-account-${CSV_ACCOUNT_ID}`));
+      await fireEvent.press(screen.getByTestId(`new-import-account-${CSV_ACCOUNT_ID}`));
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('new-import-choose'));
+      await fireEvent.press(screen.getByTestId('new-import-choose'));
     });
     expect(mockPick).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId('new-import-picker-refused')).toBeNull();
@@ -185,10 +185,10 @@ describe('choosing a file', () => {
     mockPick.mockRejectedValue(new Error(IMPORT_FILE_REFUSED_MESSAGE));
     await renderScreen();
     await act(async () => {
-      fireEvent.press(screen.getByTestId(`new-import-account-${CSV_ACCOUNT_ID}`));
+      await fireEvent.press(screen.getByTestId(`new-import-account-${CSV_ACCOUNT_ID}`));
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('new-import-choose'));
+      await fireEvent.press(screen.getByTestId('new-import-choose'));
     });
     const notice = screen.getByTestId('new-import-picker-refused');
     expect(notice.props.children).toBe(IMPORT_FILE_REFUSED_MESSAGE);
@@ -217,10 +217,10 @@ describe('the picked file after the upload', () => {
   async function upload() {
     await renderScreen();
     await act(async () => {
-      fireEvent.press(screen.getByTestId(`new-import-account-${CSV_ACCOUNT_ID}`));
+      await fireEvent.press(screen.getByTestId(`new-import-account-${CSV_ACCOUNT_ID}`));
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('new-import-choose'));
+      await fireEvent.press(screen.getByTestId('new-import-choose'));
     });
   }
 
@@ -281,7 +281,7 @@ describe('picking up a batch started elsewhere', () => {
   it('refuses a pasted value that is not a batch id, so it never reaches a path', async () => {
     await renderScreen();
     await act(async () => {
-      fireEvent.changeText(
+      await fireEvent.changeText(
         screen.getByTestId('new-import-batch-id'),
         `../accounts/${CSV_ACCOUNT_ID}`
       );
@@ -289,7 +289,7 @@ describe('picking up a batch started elsewhere', () => {
     expect(screen.getByTestId('new-import-batch-id-error')).toBeTruthy();
     expect(screen.getByTestId('new-import-open').props.accessibilityState.disabled).toBe(true);
     await act(async () => {
-      fireEvent.press(screen.getByTestId('new-import-open'));
+      await fireEvent.press(screen.getByTestId('new-import-open'));
     });
     expect(mockPush).not.toHaveBeenCalled();
   });
@@ -297,10 +297,10 @@ describe('picking up a batch started elsewhere', () => {
   it('navigates to the batch, which is where commit and undo live', async () => {
     await renderScreen();
     await act(async () => {
-      fireEvent.changeText(screen.getByTestId('new-import-batch-id'), `  ${BATCH_ID}  `);
+      await fireEvent.changeText(screen.getByTestId('new-import-batch-id'), `  ${BATCH_ID}  `);
     });
     await act(async () => {
-      fireEvent.press(screen.getByTestId('new-import-open'));
+      await fireEvent.press(screen.getByTestId('new-import-open'));
     });
     expect(mockPush).toHaveBeenCalledWith(`/(tabs)/transactions/import/${BATCH_ID}`);
   });

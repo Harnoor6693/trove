@@ -50,9 +50,9 @@ const CREATED: EnvelopeResponse = {
   updatedAt: '2026-09-04T14:00:00Z',
 };
 
-function renderScreen() {
+async function renderScreen() {
   const client = createTestQueryClient();
-  render(
+  await render(
     <QueryClientProvider client={client}>
       <NewEnvelopeScreen />
     </QueryClientProvider>
@@ -67,12 +67,12 @@ beforeEach(() => {
 it('submits categoryId/allocated against the period from the path', async () => {
   mockCategories.mockResolvedValue([CATEGORY]);
   mockCreate.mockResolvedValue(CREATED);
-  renderScreen();
+  await renderScreen();
 
   await waitFor(() => expect(screen.getByTestId('new-envelope-category-c1')).toBeTruthy());
-  fireEvent.press(screen.getByTestId('new-envelope-category-c1'));
-  fireEvent.changeText(screen.getByTestId('new-envelope-allocated'), '400.00');
-  fireEvent.press(screen.getByTestId('new-envelope-submit'));
+  await fireEvent.press(screen.getByTestId('new-envelope-category-c1'));
+  await fireEvent.changeText(screen.getByTestId('new-envelope-allocated'), '400.00');
+  await fireEvent.press(screen.getByTestId('new-envelope-submit'));
 
   await waitFor(() => expect(router.back).toHaveBeenCalled());
   expect(mockCreate).toHaveBeenCalledWith(PERIOD_ID, {
@@ -101,11 +101,11 @@ it('reads the duplicate-envelope 409 in plain words', async () => {
       },
     })
   );
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('new-envelope-category-c1')).toBeTruthy());
-  fireEvent.press(screen.getByTestId('new-envelope-category-c1'));
-  fireEvent.changeText(screen.getByTestId('new-envelope-allocated'), '1.00');
-  fireEvent.press(screen.getByTestId('new-envelope-submit'));
+  await fireEvent.press(screen.getByTestId('new-envelope-category-c1'));
+  await fireEvent.changeText(screen.getByTestId('new-envelope-allocated'), '1.00');
+  await fireEvent.press(screen.getByTestId('new-envelope-submit'));
 
   await waitFor(() =>
     expect(
@@ -114,10 +114,10 @@ it('reads the duplicate-envelope 409 in plain words', async () => {
   );
 });
 
-it('treats a non-uuid periodId as not-found rather than rendering the create form', () => {
+it('treats a non-uuid periodId as not-found rather than rendering the create form', async () => {
   mockParams.mockReturnValue({ id: '../accounts/1' });
   mockCategories.mockResolvedValue([CATEGORY]);
-  renderScreen();
+  await renderScreen();
 
   expect(screen.getByText('That budget period could not be found.')).toBeTruthy();
   expect(screen.queryByTestId('new-envelope-submit')).toBeNull();
@@ -147,11 +147,11 @@ it('surfaces the zero-based invariant as a field error on allocated', async () =
       },
     })
   );
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('new-envelope-category-c1')).toBeTruthy());
-  fireEvent.press(screen.getByTestId('new-envelope-category-c1'));
-  fireEvent.changeText(screen.getByTestId('new-envelope-allocated'), '999999.00');
-  fireEvent.press(screen.getByTestId('new-envelope-submit'));
+  await fireEvent.press(screen.getByTestId('new-envelope-category-c1'));
+  await fireEvent.changeText(screen.getByTestId('new-envelope-allocated'), '999999.00');
+  await fireEvent.press(screen.getByTestId('new-envelope-submit'));
 
   await waitFor(() =>
     expect(screen.getByText('Envelopes must sum to your total income.')).toBeTruthy()

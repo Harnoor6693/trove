@@ -37,9 +37,9 @@ const ASSET: AssetResponse = {
   updatedAt: '2026-09-04T14:00:00Z',
 };
 
-function renderScreen() {
+async function renderScreen() {
   const client = createTestQueryClient();
-  render(
+  await render(
     <QueryClientProvider client={client}>
       <AssetsScreen />
     </QueryClientProvider>
@@ -52,7 +52,7 @@ beforeEach(() => {
 
 it('lists assets with value and currency', async () => {
   mockList.mockResolvedValue([ASSET]);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('asset-row-a1')).toBeTruthy());
   expect(screen.getByTestId('asset-value-a1')).toBeTruthy();
 });
@@ -60,14 +60,14 @@ it('lists assets with value and currency', async () => {
 it('creates an asset with the chosen type', async () => {
   mockList.mockResolvedValue([]);
   mockCreate.mockResolvedValue(ASSET);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('assets-new-toggle')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('assets-new-toggle'));
-  fireEvent.changeText(screen.getByTestId('assets-create-form-name'), 'Everyday Chequing');
-  fireEvent.press(screen.getByTestId('assets-create-form-type-INVESTMENT'));
-  fireEvent.changeText(screen.getByTestId('assets-create-form-value'), '5230.50');
-  fireEvent.press(screen.getByTestId('assets-create-form-submit'));
+  await fireEvent.press(screen.getByTestId('assets-new-toggle'));
+  await fireEvent.changeText(screen.getByTestId('assets-create-form-name'), 'Everyday Chequing');
+  await fireEvent.press(screen.getByTestId('assets-create-form-type-INVESTMENT'));
+  await fireEvent.changeText(screen.getByTestId('assets-create-form-value'), '5230.50');
+  await fireEvent.press(screen.getByTestId('assets-create-form-submit'));
 
   await waitFor(() =>
     expect(mockCreate).toHaveBeenCalledWith({
@@ -81,12 +81,12 @@ it('creates an asset with the chosen type', async () => {
 it('edits an asset without sending currency (not writable after creation)', async () => {
   mockList.mockResolvedValue([ASSET]);
   mockUpdate.mockResolvedValue({ ...ASSET, value: '5400.0000' });
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('asset-edit-a1')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('asset-edit-a1'));
-  fireEvent.changeText(screen.getByTestId('asset-edit-form-a1-value'), '5400.00');
-  fireEvent.press(screen.getByTestId('asset-edit-form-a1-submit'));
+  await fireEvent.press(screen.getByTestId('asset-edit-a1'));
+  await fireEvent.changeText(screen.getByTestId('asset-edit-form-a1-value'), '5400.00');
+  await fireEvent.press(screen.getByTestId('asset-edit-form-a1-submit'));
 
   await waitFor(() =>
     expect(mockUpdate).toHaveBeenCalledWith('a1', {
@@ -102,12 +102,12 @@ it('edits an asset that is linked to a connected account without unlinking it', 
   const linked: AssetResponse = { ...ASSET, id: 'a2', accountId: 'acct-1' };
   mockList.mockResolvedValue([linked]);
   mockUpdate.mockResolvedValue({ ...linked, value: '5400.0000' });
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('asset-edit-a2')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('asset-edit-a2'));
-  fireEvent.changeText(screen.getByTestId('asset-edit-form-a2-value'), '5400.00');
-  fireEvent.press(screen.getByTestId('asset-edit-form-a2-submit'));
+  await fireEvent.press(screen.getByTestId('asset-edit-a2'));
+  await fireEvent.changeText(screen.getByTestId('asset-edit-form-a2-value'), '5400.00');
+  await fireEvent.press(screen.getByTestId('asset-edit-form-a2-submit'));
 
   // `AssetUpdateRequest` is a full replace: omitting `accountId` here would
   // silently sever the link (spec: omit/null means "leave unlinked"). The
@@ -125,14 +125,14 @@ it('edits an asset that is linked to a connected account without unlinking it', 
 it('lets a create form record a manually-entered asset in the household other currency', async () => {
   mockList.mockResolvedValue([]);
   mockCreate.mockResolvedValue(ASSET);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('assets-new-toggle')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('assets-new-toggle'));
-  fireEvent.changeText(screen.getByTestId('assets-create-form-name'), 'US Brokerage');
-  fireEvent.changeText(screen.getByTestId('assets-create-form-value'), '900.00');
-  fireEvent.press(screen.getByTestId('assets-create-form-currency-USD'));
-  fireEvent.press(screen.getByTestId('assets-create-form-submit'));
+  await fireEvent.press(screen.getByTestId('assets-new-toggle'));
+  await fireEvent.changeText(screen.getByTestId('assets-create-form-name'), 'US Brokerage');
+  await fireEvent.changeText(screen.getByTestId('assets-create-form-value'), '900.00');
+  await fireEvent.press(screen.getByTestId('assets-create-form-currency-USD'));
+  await fireEvent.press(screen.getByTestId('assets-create-form-submit'));
 
   await waitFor(() =>
     expect(mockCreate).toHaveBeenCalledWith({
@@ -147,11 +147,11 @@ it('lets a create form record a manually-entered asset in the household other cu
 it('requires a second press to delete', async () => {
   mockList.mockResolvedValue([ASSET]);
   mockDelete.mockResolvedValue(undefined);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('asset-delete-a1')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('asset-delete-a1'));
+  await fireEvent.press(screen.getByTestId('asset-delete-a1'));
   expect(mockDelete).not.toHaveBeenCalled();
-  fireEvent.press(screen.getByTestId('asset-delete-confirm-a1'));
+  await fireEvent.press(screen.getByTestId('asset-delete-confirm-a1'));
   await waitFor(() => expect(mockDelete).toHaveBeenCalledWith('a1'));
 });

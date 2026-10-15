@@ -32,9 +32,9 @@ const ALERT: SubscriptionAlertResponse = {
   createdAt: '2026-09-05T02:00:00Z',
 };
 
-function renderScreen() {
+async function renderScreen() {
   const client = createTestQueryClient();
-  render(
+  await render(
     <QueryClientProvider client={client}>
       <SubscriptionAlertsScreen />
     </QueryClientProvider>
@@ -47,7 +47,7 @@ beforeEach(() => {
 
 it('lists unread alerts with the server’s own wording', async () => {
   mockAlerts.mockResolvedValue([ALERT]);
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('alert-row-al1')).toBeTruthy());
   expect(screen.getByText(ALERT.alertMessage)).toBeTruthy();
 });
@@ -55,10 +55,10 @@ it('lists unread alerts with the server’s own wording', async () => {
 it('marks an alert read', async () => {
   mockAlerts.mockResolvedValue([ALERT]);
   mockMarkRead.mockResolvedValue({ ...ALERT, isRead: true });
-  renderScreen();
+  await renderScreen();
   await waitFor(() => expect(screen.getByTestId('alert-row-al1-mark-read')).toBeTruthy());
 
-  fireEvent.press(screen.getByTestId('alert-row-al1-mark-read'));
+  await fireEvent.press(screen.getByTestId('alert-row-al1-mark-read'));
 
   await waitFor(() => expect(mockMarkRead).toHaveBeenCalledWith('al1'));
 });

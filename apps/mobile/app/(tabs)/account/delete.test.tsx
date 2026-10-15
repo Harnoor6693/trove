@@ -68,7 +68,7 @@ function textOf(testID: string): string {
 
 let client: ReturnType<typeof createTestQueryClient>;
 
-function renderScreen() {
+async function renderScreen() {
   client = createTestQueryClient();
   return render(
     <QueryClientProvider client={client}>
@@ -78,8 +78,8 @@ function renderScreen() {
 }
 
 /** Open the step-up form, which sits behind an explicit "I understand" step. */
-function reachStepUp() {
-  fireEvent.press(screen.getByTestId('delete-begin-btn'));
+async function reachStepUp() {
+  await fireEvent.press(screen.getByTestId('delete-begin-btn'));
 }
 
 beforeEach(async () => {
@@ -101,8 +101,8 @@ afterEach(() => {
 });
 
 describe('what it says before it asks', () => {
-  it('states every consequence the operation’s description commits to', () => {
-    renderScreen();
+  it('states every consequence the operation’s description commits to', async () => {
+    await renderScreen();
     expect(textOf('delete-immediate')).toMatch(/every session of it ends/);
     expect(textOf('delete-grace')).toMatch(/seven days/);
     expect(textOf('delete-grace')).toMatch(/erased permanently/);
@@ -110,17 +110,17 @@ describe('what it says before it asks', () => {
     expect(textOf('delete-goes-with-you')).toMatch(/two-factor secret/);
   });
 
-  it('does not invent a countdown or a member-facing restore — restore is the admin’s route', () => {
-    renderScreen();
+  it('does not invent a countdown or a member-facing restore — restore is the admin’s route', async () => {
+    await renderScreen();
     expect(screen.queryByTestId('delete-restore-btn')).toBeNull();
     expect(screen.queryByTestId('delete-countdown')).toBeNull();
   });
 
-  it('keeps the step-up behind an explicit acknowledgement, and makes "keep my account" the default action', () => {
-    renderScreen();
+  it('keeps the step-up behind an explicit acknowledgement, and makes "keep my account" the default action', async () => {
+    await renderScreen();
     expect(screen.queryByTestId('delete-step-up')).toBeNull();
     expect(screen.getByTestId('delete-cancel-btn')).toBeTruthy();
-    reachStepUp();
+    await reachStepUp();
     expect(screen.getByTestId('delete-step-up')).toBeTruthy();
   });
 });
@@ -128,11 +128,14 @@ describe('what it says before it asks', () => {
 describe('deleting', () => {
   it('uses the POST twin and, on success, clears the session and lands on login', async () => {
     mockDelete.mockResolvedValue(undefined);
-    renderScreen();
-    reachStepUp();
+    await renderScreen();
+    await reachStepUp();
 
-    fireEvent.changeText(screen.getByTestId('delete-step-up-password'), 'correct-horse-battery');
-    fireEvent.press(screen.getByTestId('delete-step-up-submit'));
+    await fireEvent.changeText(
+      screen.getByTestId('delete-step-up-password'),
+      'correct-horse-battery'
+    );
+    await fireEvent.press(screen.getByTestId('delete-step-up-submit'));
 
     await waitFor(() =>
       expect(mockDelete).toHaveBeenCalledWith({ password: 'correct-horse-battery' })
@@ -158,10 +161,13 @@ describe('deleting', () => {
     mockDelete.mockRejectedValue(
       refused(409, 'conflict', 'This is the household’s only administrator.')
     );
-    renderScreen();
-    reachStepUp();
-    fireEvent.changeText(screen.getByTestId('delete-step-up-password'), 'correct-horse-battery');
-    fireEvent.press(screen.getByTestId('delete-step-up-submit'));
+    await renderScreen();
+    await reachStepUp();
+    await fireEvent.changeText(
+      screen.getByTestId('delete-step-up-password'),
+      'correct-horse-battery'
+    );
+    await fireEvent.press(screen.getByTestId('delete-step-up-submit'));
 
     await waitFor(() => expect(screen.getByTestId('delete-last-admin')).toBeTruthy());
     expect(textOf('delete-last-admin')).toMatch(/Give another member the admin role first/);
@@ -174,10 +180,10 @@ describe('deleting', () => {
     mockDelete.mockRejectedValue(
       refused(403, 'step-up-required', 'Step-up authentication required.')
     );
-    renderScreen();
-    reachStepUp();
-    fireEvent.changeText(screen.getByTestId('delete-step-up-password'), 'wrong');
-    fireEvent.press(screen.getByTestId('delete-step-up-submit'));
+    await renderScreen();
+    await reachStepUp();
+    await fireEvent.changeText(screen.getByTestId('delete-step-up-password'), 'wrong');
+    await fireEvent.press(screen.getByTestId('delete-step-up-submit'));
 
     await waitFor(() =>
       expect(screen.getByTestId('delete-step-up-error').props.children).toBe(
@@ -191,10 +197,13 @@ describe('deleting', () => {
     mockDelete.mockRejectedValue(
       refused(403, 'step-up-required', 'Step-up authentication required.')
     );
-    renderScreen();
-    reachStepUp();
-    fireEvent.changeText(screen.getByTestId('delete-step-up-password'), 'correct-horse-battery');
-    fireEvent.press(screen.getByTestId('delete-step-up-submit'));
+    await renderScreen();
+    await reachStepUp();
+    await fireEvent.changeText(
+      screen.getByTestId('delete-step-up-password'),
+      'correct-horse-battery'
+    );
+    await fireEvent.press(screen.getByTestId('delete-step-up-submit'));
     await waitFor(() => expect(mockDelete).toHaveBeenCalled());
 
     const written = (SecureStore.setItemAsync as jest.Mock).mock.calls;

@@ -64,8 +64,8 @@ describe('failureMessage', () => {
 });
 
 describe('ScreenState', () => {
-  it('renders children on the happy path', () => {
-    render(
+  it('renders children on the happy path', async () => {
+    await render(
       <ScreenState isLoading={false} testID="s">
         <Text>Loaded content</Text>
       </ScreenState>
@@ -73,43 +73,45 @@ describe('ScreenState', () => {
     expect(screen.getByText('Loaded content')).toBeTruthy();
   });
 
-  it('announces loading rather than showing a bare spinner', () => {
-    render(<ScreenState isLoading testID="s" />);
+  it('announces loading rather than showing a bare spinner', async () => {
+    await render(<ScreenState isLoading testID="s" />);
     expect(screen.getByTestId('s-loading')).toBeTruthy();
     expect(screen.getByLabelText('Loading')).toBeTruthy();
   });
 
-  it('shows the empty message when the request succeeded with nothing in it', () => {
-    render(<ScreenState isLoading={false} isEmpty emptyMessage="No rows." testID="s" />);
+  it('shows the empty message when the request succeeded with nothing in it', async () => {
+    await render(<ScreenState isLoading={false} isEmpty emptyMessage="No rows." testID="s" />);
     expect(screen.getByTestId('s-empty')).toBeTruthy();
     expect(screen.getByText('No rows.')).toBeTruthy();
   });
 
-  it('shows a failure as an alert, and error wins over loading', () => {
+  it('shows a failure as an alert, and error wins over loading', async () => {
     const error = axiosFailure(500, { success: false, error: { status: 500, detail: 'Boom.' } });
-    render(<ScreenState isLoading error={error} testID="s" />);
+    await render(<ScreenState isLoading error={error} testID="s" />);
     expect(screen.queryByTestId('s-loading')).toBeNull();
     expect(screen.getByTestId('s-error-message')).toBeTruthy();
     expect(screen.getByText('Boom.')).toBeTruthy();
   });
 
-  it('offers a retry that calls back', () => {
+  it('offers a retry that calls back', async () => {
     const onRetry = jest.fn();
     const error = axiosFailure(500, { success: false, error: { status: 500, detail: 'Boom.' } });
-    render(<ScreenState isLoading={false} error={error} onRetry={onRetry} testID="s" />);
-    fireEvent.press(screen.getByTestId('s-retry'));
+    await render(<ScreenState isLoading={false} error={error} onRetry={onRetry} testID="s" />);
+    await fireEvent.press(screen.getByTestId('s-retry'));
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
-  it('omits the retry control when the caller offered no retry', () => {
+  it('omits the retry control when the caller offered no retry', async () => {
     const error = axiosFailure(500, { success: false, error: { status: 500, detail: 'Boom.' } });
-    render(<ScreenState isLoading={false} error={error} testID="s" />);
+    await render(<ScreenState isLoading={false} error={error} testID="s" />);
     expect(screen.queryByTestId('s-retry')).toBeNull();
   });
 
-  it('falls back to the caller’s message when the body carries none', () => {
+  it('falls back to the caller’s message when the body carries none', async () => {
     const error = axiosFailure(500, null);
-    render(<ScreenState isLoading={false} error={error} fallbackMessage="Nope." testID="s" />);
+    await render(
+      <ScreenState isLoading={false} error={error} fallbackMessage="Nope." testID="s" />
+    );
     expect(screen.getByText('Nope.')).toBeTruthy();
   });
 });
