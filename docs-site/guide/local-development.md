@@ -8,8 +8,8 @@ For a self-hosted install instead, see [Docker Compose](../self-hosting/docker-c
 - JDK 21 (`pom.xml`'s `<java.version>`/`<maven.compiler.release>`)
 - Node — two different versions, one per client, because neither `apps/web/package.json`
   nor `apps/mobile/package.json` declares an `engines` field; these are the versions each
-  app's own CI pins: **Node 20** for `apps/web` (`.github/workflows/web-ci.yml`
-  `node-version: '20'`) and **Node 22.13.0** for `apps/mobile`
+  app's own CI pins: **Node 22** for `apps/web` (`.github/workflows/web-ci.yml`
+  `node-version: '22'`) and **Node 22.13.0** for `apps/mobile`
   (`.github/workflows/mobile-ci.yml` `node-version: '22.13.0'`). Not a hard local
   requirement, though: step 27 ran both clients' full command lists (`npm ci`, generate,
   dev/start, unit tests, Playwright, Detox) on a single global **Node 22.23.3** (no `nvm`,
