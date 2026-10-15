@@ -227,7 +227,9 @@ public class CsvSource implements FileImportSource {
                 error = "this row's date could not be read as " + dateFormat;
             }
         } else if (amount == null) {
-            error = "this row has no amount that could be read as a number";
+            error = "this row has no amount that could be read as a number: write it like "
+                + "-1234.56, 1 234,56 or 45.00 DR, with no exponent, at most 15 digits before the "
+                + "decimal point and 4 after it";
         }
         if (error != null) {
             return new ParsedRow(ordinal, new RawTransaction(null, accountId.toString(), amount,

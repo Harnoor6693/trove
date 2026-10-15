@@ -30,6 +30,52 @@ class CsvValuesTest {
     }
 
     @Test
+    @DisplayName("B1-01: a decimal comma is a decimal point, never a thousands separator")
+    void readsADecimalComma() {
+        assertThat(CsvValues.amount("12,50")).isEqualByComparingTo("12.50");
+        assertThat(CsvValues.amount("12,5")).isEqualByComparingTo("12.5");
+        assertThat(CsvValues.amount("-4,99")).isEqualByComparingTo("-4.99");
+        assertThat(CsvValues.amount("12,50 $")).isEqualByComparingTo("12.50");
+        assertThat(CsvValues.amount("1.234,56")).isEqualByComparingTo("1234.56");
+        assertThat(CsvValues.amount("1 234,56")).isEqualByComparingTo("1234.56");
+        assertThat(CsvValues.amount("1 234,56")).isEqualByComparingTo("1234.56");
+        assertThat(CsvValues.amount("1,234"))
+            .as("three digits after the only comma: a thousands separator")
+            .isEqualByComparingTo("1234");
+        assertThat(CsvValues.amount("1,234,567")).isEqualByComparingTo("1234567");
+        assertThat(CsvValues.amount("1,234.56")).isEqualByComparingTo("1234.56");
+        assertThat(CsvValues.amount("1.234,567,89"))
+            .as("two decimal commas is not a number")
+            .isNull();
+    }
+
+    @Test
+    @DisplayName("B1-01: a trailing CR or DR is the sign, and a sign of its own as well is refused")
+    void readsCreditAndDebitSuffixes() {
+        assertThat(CsvValues.amount("45.00 DR")).isEqualByComparingTo("-45.00");
+        assertThat(CsvValues.amount("45.00DR")).isEqualByComparingTo("-45.00");
+        assertThat(CsvValues.amount("45.00 dr")).isEqualByComparingTo("-45.00");
+        assertThat(CsvValues.amount("45.00 CR")).isEqualByComparingTo("45.00");
+        assertThat(CsvValues.amount("$1,234.56 CR")).isEqualByComparingTo("1234.56");
+        assertThat(CsvValues.amount("-45.00 CR")).isNull();
+        assertThat(CsvValues.amount("(45.00) DR")).isNull();
+    }
+
+    @Test
+    @DisplayName("B1-01: letters are a currency code or nothing; an exponent is not an amount")
+    void refusesLettersThatAreNotACurrency() {
+        assertThat(CsvValues.amount("CAD 12.34")).isEqualByComparingTo("12.34");
+        assertThat(CsvValues.amount("US$12.34")).isEqualByComparingTo("12.34");
+        assertThat(CsvValues.amount("1.5e3")).isNull();
+        assertThat(CsvValues.amount("1E9999999")).isNull();
+        assertThat(CsvValues.amount("12abc34")).isNull();
+        assertThat(CsvValues.amount("12.34 CADX")).isNull();
+        assertThat(CsvValues.amount("1234567890123456"))
+            .as("sixteen integer digits: NUMERIC(19,4) cannot hold it")
+            .isNull();
+    }
+
+    @Test
     @DisplayName("a cell that is not money at all is null, not a guess")
     void refusesWhatIsNotMoney() {
         assertThat(CsvValues.amount(null)).isNull();
@@ -162,7 +208,11 @@ class CsvValuesTest {
     @Test
     @DisplayName("a big amount keeps every digit — it is a BigDecimal, not a double")
     void keepsPrecision() {
+        // Nineteen significant digits, the most NUMERIC(19,4) holds; a double keeps about sixteen.
+        assertThat(CsvValues.amount("999,999,999,999,999.9999"))
+            .isEqualByComparingTo(new BigDecimal("999999999999999.9999"));
         assertThat(CsvValues.amount("9,007,199,254,740,993.01"))
-            .isEqualByComparingTo(new BigDecimal("9007199254740993.01"));
+            .as("sixteen digits before the point: the column cannot hold it, so it is no amount (B1-04)")
+            .isNull();
     }
 }
