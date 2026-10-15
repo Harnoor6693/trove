@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/test/mswServer'
 import {
@@ -90,9 +90,19 @@ describe('api client — refresh behaviour', () => {
 
   it('coalesces concurrent 401s into a single refresh (single-flight)', async () => {
     let attempts = 0
+    // Hold the first three requests until all of them have arrived, so the three
+    // 401s are genuinely concurrent no matter how fast the mock network answers.
+    let arrived = 0
+    let release: () => void = () => {}
+    const allArrived = new Promise<void>((resolve) => (release = resolve))
     server.use(
-      http.get('*/v1/categories', () => {
+      http.get('*/v1/categories', async () => {
         attempts += 1
+        if (attempts <= 3) {
+          arrived += 1
+          if (arrived === 3) release()
+          await allArrived
+        }
         // Every request 401s until the refresh lands, then all replays succeed.
         return mswState.refreshCalls === 0 ? fail(401, 'unauthorized', 'Unauthorized') : ok([])
       })
@@ -216,12 +226,13 @@ describe('api client — sessionFetch, the fetch twin', () => {
     document.cookie = `${CSRF_COOKIE_NAME}=image-token`
     let requestedWith: string | null = null
     let csrf: string | null = null
-    let credentials: RequestCredentials | undefined
+    // msw 3 rebuilds intercepted requests from the wire in Node, so a handler always
+    // sees `credentials: 'same-origin'`. Observe what the app hands to `fetch` instead.
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
     server.use(
       http.get('*/v1/receipts/:id/thumbnail', ({ request }) => {
         requestedWith = request.headers.get('X-Requested-With')
         csrf = request.headers.get(CSRF_HEADER_NAME)
-        credentials = request.credentials
         return new HttpResponse(new Uint8Array([0xff, 0xd8, 0xff]), {
           status: 200,
           headers: { 'Content-Type': 'image/jpeg', 'X-Content-Type-Options': 'nosniff' },
@@ -234,7 +245,8 @@ describe('api client — sessionFetch, the fetch twin', () => {
     expect(requestedWith).toBe('XMLHttpRequest')
     expect(csrf).toBe('image-token')
     expect(file.contentType).toBe('image/jpeg')
-    expect(credentials).toBe('include')
+    expect(fetchSpy.mock.calls.at(-1)?.[1]?.credentials).toBe('include')
+    fetchSpy.mockRestore()
   })
 
   it('cannot have its CSRF header overridden by a caller', () => {
