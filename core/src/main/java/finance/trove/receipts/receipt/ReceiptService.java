@@ -5,9 +5,9 @@ import finance.trove.common.exception.ConflictException;
 import finance.trove.common.exception.ResourceNotFoundException;
 import finance.trove.common.exception.ValidationException;
 import finance.trove.common.storage.LocalDiskStorage;
+import finance.trove.common.time.Instants;
 import finance.trove.receipts.receipt.dto.ReceiptPatchRequest;
 import finance.trove.receipts.receipt.dto.ReceiptSummaryResponse;
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -122,7 +122,7 @@ public class ReceiptService {
             receipt.setReviewRequired(false);
             receipt.setErrorMessage("Rejected on review");
         }
-        receipt.setProcessingCompletedAt(Instant.now());
+        receipt.setProcessingCompletedAt(Instants.now());
         return receipts.save(receipt);
     }
 

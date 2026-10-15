@@ -12,8 +12,8 @@ import finance.trove.common.exception.ConflictException;
 import finance.trove.common.exception.ForbiddenException;
 import finance.trove.common.exception.ResourceNotFoundException;
 import finance.trove.common.exception.ValidationException;
+import finance.trove.common.time.Instants;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -68,7 +68,7 @@ public class CategoryRuleService {
         }
         MerchantCategoryMap rule = new MerchantCategoryMap(householdId, normalised,
             request.matchType(), request.categoryId(), confidenceOrDefault(request.confidence()),
-            MappingSource.RULE, nextPriority(householdId), userId, Instant.now());
+            MappingSource.RULE, nextPriority(householdId), userId, Instants.now());
         return mappings.save(rule);
     }
 

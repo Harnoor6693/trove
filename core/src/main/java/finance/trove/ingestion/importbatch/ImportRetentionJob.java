@@ -1,6 +1,6 @@
 package finance.trove.ingestion.importbatch;
 
-import java.time.Instant;
+import finance.trove.common.time.Instants;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,6 +66,6 @@ public class ImportRetentionJob {
      */
     public int runOnce() {
         return imports.purgeAbandonedPreviews(
-            Instant.now().minus(limits.previewRetention()));
+            Instants.now().minus(limits.previewRetention()));
     }
 }

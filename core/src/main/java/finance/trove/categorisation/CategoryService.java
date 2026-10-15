@@ -5,8 +5,8 @@ import finance.trove.common.exception.ConflictException;
 import finance.trove.common.exception.ForbiddenException;
 import finance.trove.common.exception.ResourceNotFoundException;
 import finance.trove.common.exception.ValidationException;
+import finance.trove.common.time.Instants;
 import java.text.Normalizer;
-import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -50,7 +50,7 @@ public class CategoryService {
         UUID parentId = validatedParent(householdId, request.parentId());
         String slug = uniqueSlug(householdId, name);
         Category category = new Category(householdId, slug, name, request.icon(), parentId,
-            userId, Instant.now());
+            userId, Instants.now());
         return categories.save(category);
     }
 
