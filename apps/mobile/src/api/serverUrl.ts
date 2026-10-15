@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 /**
  * Validation and normalisation for the user-supplied Trove server URL.
  *
@@ -27,6 +29,7 @@ export type ServerUrlErrorCode =
   | 'UNSUPPORTED_SCHEME'
   | 'INSECURE_PUBLIC_HOST'
   | 'INSECURE_LAN_NOT_ALLOWED'
+  | 'INSECURE_HOST_BLOCKED'
   | 'MISSING_HOST';
 
 export interface ServerUrlOk {
@@ -48,6 +51,7 @@ export interface ServerUrlErr {
 export type ServerUrlResult = ServerUrlOk | ServerUrlErr;
 
 const MESSAGES: Record<ServerUrlErrorCode, string> = {
+  INSECURE_HOST_BLOCKED: 'This device will not connect to that address over http. Use https.',
   EMPTY: 'Enter the address of your Trove server.',
   INVALID_URL: "That doesn't look like a web address.",
   UNSUPPORTED_SCHEME: 'Use an https:// address.',
@@ -57,6 +61,11 @@ const MESSAGES: Record<ServerUrlErrorCode, string> = {
   INSECURE_LAN_NOT_ALLOWED:
     'This looks like an address on your own network. Turn on “Allow http on my network” to connect without https.',
 };
+
+const ANDROID_BLOCKED_MESSAGE =
+  'Android only allows http for localhost and .local names. Use https, or a name ending in .local.';
+const IOS_BLOCKED_MESSAGE =
+  'iOS only allows http for IP addresses and .local names. Use https, or one of those.';
 
 function err(code: ServerUrlErrorCode): ServerUrlErr {
   return { ok: false, code, message: MESSAGES[code] };
@@ -109,6 +118,23 @@ export function isPrivateHost(rawHost: string): boolean {
 }
 
 /**
+ * True when the running platform will actually let an http request to `host`
+ * through, given the native config in `app.config.ts`:
+ *  - iOS `NSAllowsLocalNetworking`: IP addresses, `.local`.
+ *  - Android network security config: names, not ranges, so only `localhost`,
+ *    the emulator alias `10.0.2.2` and `.local`. Keep in step with
+ *    `plugins/withAndroidNetworkSecurityConfig.ts`.
+ * Anything else would pass the check on the connect screen and then fail at
+ * the OS with "Couldn't reach that address" (B5-03, B5-13).
+ */
+function platformAllowsCleartext(host: string): boolean {
+  const h = host.toLowerCase().replace(/^\[|\]$/g, '');
+  if (h === 'localhost' || h.endsWith('.local')) return true;
+  if (Platform.OS === 'android') return h === '10.0.2.2' || h === '127.0.0.1';
+  return parseIpv4(h) !== null || h.includes(':');
+}
+
+/**
  * Normalise and validate a user-typed server address.
  *
  * @param raw               what the user typed
@@ -140,6 +166,13 @@ export function normaliseServerUrl(raw: string, allowInsecureLan = false): Serve
   if (scheme === 'http') {
     if (!priv) return err('INSECURE_PUBLIC_HOST');
     if (!allowInsecureLan) return err('INSECURE_LAN_NOT_ALLOWED');
+    if (!platformAllowsCleartext(parsed.hostname)) {
+      return {
+        ok: false,
+        code: 'INSECURE_HOST_BLOCKED',
+        message: Platform.OS === 'android' ? ANDROID_BLOCKED_MESSAGE : IOS_BLOCKED_MESSAGE,
+      };
+    }
   }
 
   const port = parsed.port === '' ? '' : `:${parsed.port}`;

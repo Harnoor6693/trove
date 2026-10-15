@@ -216,11 +216,10 @@ describe('forced logout from the client', () => {
     // This drives the real path: a live refresh call that 401s.
     // `client.ts` built its axios instances at import, before any adapter could
     // be swapped in, so the stub sits one layer down, on the fetch they use.
-    const realFetch = global.fetch;
-    global.fetch = jest.fn().mockResolvedValue(new Response(null, { status: 401 }));
-    afterEachRestore = () => {
-      global.fetch = realFetch;
-    };
+    const fetchSpy = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 401 }));
+    afterEachRestore = () => fetchSpy.mockRestore();
 
     await useAuthStore.getState().connectServer(SERVER);
     await setSession(PAIR, USER);
