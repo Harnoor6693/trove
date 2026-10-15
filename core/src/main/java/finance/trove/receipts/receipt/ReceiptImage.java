@@ -1,5 +1,6 @@
 package finance.trove.receipts.receipt;
 
+import finance.trove.common.time.Instants;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -85,7 +86,7 @@ public class ReceiptImage {
         this.mimeType = mimeType;
         this.sizeBytes = sizeBytes;
         this.sha256 = sha256;
-        this.createdAt = Instant.now();
+        this.createdAt = Instants.now();
     }
 
     public UUID getId() {

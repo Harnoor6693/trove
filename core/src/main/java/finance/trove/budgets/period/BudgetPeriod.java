@@ -1,6 +1,7 @@
 package finance.trove.budgets.period;
 
 import finance.trove.common.domain.CurrencyCode;
+import finance.trove.common.time.Instants;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -107,7 +108,7 @@ public class BudgetPeriod {
 
     @PreUpdate
     void touch() {
-        this.updatedAt = Instant.now();
+        this.updatedAt = Instants.now();
     }
 
     public UUID getId() {

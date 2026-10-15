@@ -5,6 +5,7 @@ import finance.trove.common.crypto.FieldEncryptionService;
 import finance.trove.common.net.OutboundUrlPolicy;
 import finance.trove.common.net.OutboundUrlPolicyException;
 import finance.trove.common.net.ResolvedTarget;
+import finance.trove.common.time.Instants;
 import finance.trove.notifications.NotificationProperties;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
@@ -83,7 +84,7 @@ public class WebhookDeliveryService {
                                   FieldEncryptionService encryption,
                                   NotificationProperties properties) {
         this(subscriptions, deliveries, policy, clients, encryption, properties,
-            Clock.systemUTC());
+            Instants.CLOCK);
     }
 
     /** Test seam: a fixed clock makes the backoff schedule assertable. */

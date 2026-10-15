@@ -82,6 +82,25 @@ class InAppNotificationServiceTest {
     }
 
     @Test
+    @DisplayName("stamps are held at microsecond precision, as Postgres will store them")
+    void stampsAreTruncatedToWhatTheColumnStores() {
+        // timestamptz keeps microseconds. A Linux clock reads nanoseconds, so a stamp kept as-is
+        // is answered one way by the call that wrote it and another by every read after it.
+        Instant nanos = FIRST.plusNanos(123_456_789);
+        InAppNotification notification = row();
+        UUID id = UUID.randomUUID();
+        when(repository.findByIdAndUserId(id, USER)).thenReturn(Optional.of(notification));
+
+        serviceAt(nanos).markRead(USER, id);
+        assertThat(notification.getReadAt()).isEqualTo(FIRST.plusNanos(123_456_000));
+
+        InAppNotification other = row();
+        when(repository.findByIdAndUserId(id, USER)).thenReturn(Optional.of(other));
+        serviceAt(nanos).dismiss(USER, id);
+        assertThat(other.getDismissedAt()).isEqualTo(FIRST.plusNanos(123_456_000));
+    }
+
+    @Test
     @DisplayName("dismissing also marks read, so the badge cannot count a hidden row")
     void dismissingAlsoReads() {
         InAppNotification notification = row();

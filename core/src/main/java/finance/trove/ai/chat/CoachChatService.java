@@ -16,10 +16,10 @@ import finance.trove.common.exception.ErrorResponseFactory;
 import finance.trove.common.exception.ResourceNotFoundException;
 import finance.trove.common.exception.ValidationException;
 import finance.trove.common.net.OutboundUrlPolicyException;
+import finance.trove.common.time.Instants;
 import finance.trove.common.time.UserClock;
 import finance.trove.users.User;
 import finance.trove.users.UserRepository;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -154,7 +154,7 @@ public class CoachChatService {
         conversations.appendAssistantMessage(turn.audience().userId(), turn.conversationId(),
             content, completion.model());
         return new ChatCompletionResponse(turn.conversationId(), CoachRole.ASSISTANT, content,
-            completion.model(), Instant.now());
+            completion.model(), Instants.now());
     }
 
     /**

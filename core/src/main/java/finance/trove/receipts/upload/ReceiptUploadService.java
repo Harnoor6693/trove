@@ -5,6 +5,7 @@ import finance.trove.ai.AiHandle;
 import finance.trove.common.events.ReceiptProcessedEvent;
 import finance.trove.common.storage.LocalDiskStorage;
 import finance.trove.common.storage.StorageArea;
+import finance.trove.common.time.Instants;
 import finance.trove.receipts.ReceiptEventPublisher;
 import finance.trove.receipts.ReceiptProperties;
 import finance.trove.receipts.pipeline.ReceiptPipelineOrchestrator;
@@ -17,7 +18,6 @@ import finance.trove.receipts.receipt.ReceiptStatus;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.Instant;
 import java.util.HexFormat;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -199,7 +199,7 @@ public class ReceiptUploadService {
             // member enter the fields. Not an error, and not a FAILED row.
             receipt.setStatus(ReceiptStatus.COMPLETE);
             receipt.setReviewRequired(true);
-            receipt.setProcessingCompletedAt(Instant.now());
+            receipt.setProcessingCompletedAt(Instants.now());
         }
 
         Receipt saved = receipts.save(receipt);

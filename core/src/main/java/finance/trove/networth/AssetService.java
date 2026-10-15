@@ -4,11 +4,11 @@ import finance.trove.accounts.ConnectedAccountRepository;
 import finance.trove.common.domain.CurrencyCode;
 import finance.trove.common.exception.ResourceNotFoundException;
 import finance.trove.common.exception.ValidationException;
+import finance.trove.common.time.Instants;
 import finance.trove.networth.dto.AssetRequest;
 import finance.trove.networth.dto.AssetUpdateRequest;
 import finance.trove.users.User;
 import finance.trove.users.UserRepository;
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -53,7 +53,7 @@ public class AssetService {
             : requireCreatingUser(householdId, userId).getCurrency();
         UUID accountId = requireAccountInHousehold(householdId, request.accountId());
         Asset asset = new Asset(householdId, userId, request.name(), request.assetType(),
-            currency.normalise(request.value()), currency, accountId, Instant.now());
+            currency.normalise(request.value()), currency, accountId, Instants.now());
         return assets.save(asset);
     }
 

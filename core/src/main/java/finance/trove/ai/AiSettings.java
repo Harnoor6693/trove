@@ -1,5 +1,6 @@
 package finance.trove.ai;
 
+import finance.trove.common.time.Instants;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -111,7 +112,7 @@ public class AiSettings {
     @PrePersist
     @PreUpdate
     void touch() {
-        this.updatedAt = Instant.now();
+        this.updatedAt = Instants.now();
     }
 
     public UUID getUserId() {
@@ -192,21 +193,21 @@ public class AiSettings {
         this.privacyTier = newPrivacyTier;
         this.connectTimeoutMs = newConnectTimeoutMs;
         this.readTimeoutMs = newReadTimeoutMs;
-        this.updatedAt = Instant.now();
+        this.updatedAt = Instants.now();
     }
 
     /** Stores fresh ciphertext. Passing null leaves the stored key alone. */
     public void setApiKeyEnc(String ciphertext) {
         if (ciphertext != null) {
             this.apiKeyEnc = ciphertext;
-            this.updatedAt = Instant.now();
+            this.updatedAt = Instants.now();
         }
     }
 
     /** Forgets the stored key; the endpoint and the models stay as they are. */
     public void clearApiKey() {
         this.apiKeyEnc = null;
-        this.updatedAt = Instant.now();
+        this.updatedAt = Instants.now();
     }
 
     // There is deliberately no setter for lastTestAt/lastTestOk. The connection test reads this
