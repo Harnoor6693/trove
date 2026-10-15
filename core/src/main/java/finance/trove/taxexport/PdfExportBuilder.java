@@ -46,7 +46,7 @@ public class PdfExportBuilder {
     private static final float TABLE_SIZE = 7f;
 
     /** Relative widths for the ten columns; the wide text columns get the space. */
-    private static final float[] COLUMN_WIDTHS = {8, 14, 16, 14, 8, 5, 11, 8, 12, 4};
+    private static final float[] COLUMN_WIDTHS = {8, 13, 15, 13, 8, 5, 10, 7, 11, 4, 6};
 
     /** The scale every ledger amount is stored and summed at, from {@code NUMERIC(19,4)}. */
     private static final int LEDGER_SCALE = 4;
@@ -105,6 +105,7 @@ public class PdfExportBuilder {
             table.addCell(text(row.taxLineCode()));
             table.addCell(text(row.taxLineLabel()));
             table.addCell(text(row.receiptId()));
+            table.addCell(text(row.type()));
         }
         return table;
     }

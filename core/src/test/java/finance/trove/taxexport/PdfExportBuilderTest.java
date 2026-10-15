@@ -6,6 +6,7 @@ import com.itextpdf.kernel.pdf.PdfDocument;
 import com.itextpdf.kernel.pdf.PdfReader;
 import com.itextpdf.kernel.pdf.canvas.parser.PdfTextExtractor;
 import finance.trove.common.domain.CurrencyCode;
+import finance.trove.common.plugin.TransactionType;
 import finance.trove.common.domain.Jurisdiction;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -34,10 +35,10 @@ class PdfExportBuilderTest {
         return List.of(
             new ExportRow(LocalDate.of(2025, 6, 1), "Office Depot", "Printer paper", "For the desk",
                 new BigDecimal("42.5000"), CurrencyCode.CAD, "Office Supplies", "8810",
-                "T2125 line 8810 - Office expenses", null),
+                "T2125 line 8810 - Office expenses", null, TransactionType.DEBIT),
             new ExportRow(LocalDate.of(2025, 6, 2), "Corner Shop", "Milk", null,
                 new BigDecimal("3.2500"), CurrencyCode.USD, "Groceries", "NONE",
-                "No tax line - personal expense", null));
+                "No tax line - personal expense", null, TransactionType.DEBIT));
     }
 
     private static String textOf(byte[] pdf) {

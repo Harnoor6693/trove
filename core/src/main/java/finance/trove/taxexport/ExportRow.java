@@ -1,6 +1,7 @@
 package finance.trove.taxexport;
 
 import finance.trove.common.domain.CurrencyCode;
+import finance.trove.common.plugin.TransactionType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -32,9 +33,12 @@ import java.util.UUID;
  * NOT get one blended total (findings F1/F2), and there is no exchange rate anywhere in this
  * step.
  *
+ * @param type the transaction's direction. {@code amount} is always positive, so without this a
+ *     paycheque and a purchase look the same (B2-01)
  * @param receiptId the attached receipt's id, or null — no URL, no key, no figure
  */
 public record ExportRow(LocalDate date, String merchant, String description, String notes,
                         BigDecimal amount, CurrencyCode currency, String category,
-                        String taxLineCode, String taxLineLabel, UUID receiptId) {
+                        String taxLineCode, String taxLineLabel, UUID receiptId,
+                        TransactionType type) {
 }

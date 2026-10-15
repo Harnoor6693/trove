@@ -202,7 +202,7 @@ class DataExportIT extends LedgerSupport {
         assertThat(csv.lines().findFirst().orElse(""))
             .as("the transactions file is CsvExportBuilder's, with the column list step 15 fixed")
             .isEqualTo("date,merchant,description,notes,amount,currency,category,taxLineCode,"
-                + "taxLineLabel,receiptId");
+                + "taxLineLabel,receiptId,type");
         assertThat(csv)
             .as("gap row 16's named regression, proved through THIS pipeline rather than through "
                 + "the builder in isolation: the merchant is neutralised, not merely escaped "

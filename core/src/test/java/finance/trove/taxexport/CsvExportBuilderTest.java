@@ -3,6 +3,7 @@ package finance.trove.taxexport;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import finance.trove.common.domain.CurrencyCode;
+import finance.trove.common.plugin.TransactionType;
 import java.io.StringReader;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -30,7 +31,8 @@ class CsvExportBuilderTest {
                                  String amount, CurrencyCode currency, String category,
                                  String lineCode, String lineLabel) {
         return new ExportRow(LocalDate.of(2025, 3, 4), merchant, description, notes,
-            new BigDecimal(amount), currency, category, lineCode, lineLabel, null);
+            new BigDecimal(amount), currency, category, lineCode, lineLabel, null,
+            TransactionType.DEBIT);
     }
 
     private List<CSVRecord> parse(byte[] content) {
@@ -43,7 +45,7 @@ class CsvExportBuilderTest {
     }
 
     @Test
-    @DisplayName("The header set is exactly the ten columns §2.9 fixes, in order")
+    @DisplayName("The header set is exactly the columns §2.9 fixes (ten, plus type from B2-01), in order")
     void theHeaderSetIsExact() {
         List<CSVRecord> records = parse(builder.build(List.of()));
 
@@ -51,7 +53,7 @@ class CsvExportBuilderTest {
             .as("§2.9 fixes this column list and collapse step 18 reuses it; a column added or "
                 + "renamed here changes a file members already parse")
             .containsExactly("date", "merchant", "description", "notes", "amount", "currency",
-                "category", "taxLineCode", "taxLineLabel", "receiptId");
+                "category", "taxLineCode", "taxLineLabel", "receiptId", "type");
     }
 
     @Test
@@ -64,7 +66,7 @@ class CsvExportBuilderTest {
         UUID receiptId = UUID.fromString("00000000-0000-4000-8000-0000000000e1");
         byte[] content = builder.build(List.of(new ExportRow(LocalDate.of(2025, 3, 4), "Cafe",
             "Latte", "", new BigDecimal("11.30"), CurrencyCode.CAD, "Coffee Shops", "8523",
-            "Meals and entertainment", receiptId)));
+            "Meals and entertainment", receiptId, TransactionType.DEBIT)));
 
         List<CSVRecord> records = parse(content);
         assertThat(records.get(1).get(9))
@@ -180,6 +182,29 @@ class CsvExportBuilderTest {
                 List.of("", "", "CAD", "40.0000"),
                 List.of("8810", "Office expenses", "CAD", "30.0000"),
                 List.of("8810", "Office expenses", "USD", "30.0000"));
+    }
+
+    @Test
+    @DisplayName("Each row says its direction, and totals count spending only (B2-01)")
+    void rowsAreLabelledAndTotalsAreExpensesOnly() {
+        byte[] content = builder.build(List.of(
+            typed("DEBIT", "100.00", TransactionType.DEBIT),
+            typed("REFUND", "20.00", TransactionType.REFUND),
+            typed("PAYCHEQUE", "3000.00", TransactionType.CREDIT),
+            typed("BANK FEE", "5.00", TransactionType.FEE)));
+
+        List<CSVRecord> records = parse(content);
+        assertThat(records.subList(1, 5).stream().map(r -> r.get(10)).toList())
+            .as("every row carries its transaction type, so income is not mistaken for spend")
+            .containsExactly("DEBIT", "REFUND", "CREDIT", "FEE");
+        assertThat(totalsSection(records))
+            .as("income and fees stay out of the expense total; a refund reduces it")
+            .containsExactly(List.of("8810", "Office expenses", "CAD", "80.0000"));
+    }
+
+    private static ExportRow typed(String merchant, String amount, TransactionType type) {
+        return new ExportRow(LocalDate.of(2025, 3, 4), merchant, "", "", new BigDecimal(amount),
+            CurrencyCode.CAD, "Software", "8810", "Office expenses", null, type);
     }
 
     @Test

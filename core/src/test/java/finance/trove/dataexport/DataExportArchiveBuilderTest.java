@@ -3,6 +3,7 @@ package finance.trove.dataexport;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import finance.trove.common.domain.CurrencyCode;
+import finance.trove.common.plugin.TransactionType;
 import finance.trove.taxexport.CsvExportBuilder;
 import finance.trove.taxexport.ExportRow;
 import java.io.ByteArrayInputStream;
@@ -46,7 +47,7 @@ class DataExportArchiveBuilderTest {
 
     private static ExportRow row(String merchant, String amount, CurrencyCode currency) {
         return new ExportRow(LocalDate.of(2025, 3, 4), merchant, "a description", "private notes",
-            new BigDecimal(amount), currency, "groceries", "8523", "Meals", null);
+            new BigDecimal(amount), currency, "groceries", "8523", "Meals", null, TransactionType.DEBIT);
     }
 
     private byte[] archive(List<ExportRow> transactions, Map<String, Object> datasets) {
