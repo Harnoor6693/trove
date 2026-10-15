@@ -87,15 +87,11 @@ public class DataExportCollector {
     static final int LEDGER_SCALE = 4;
 
     /**
-     * How many coach turns one archive carries.
-     *
-     * <p>Bounded because the coach history is the one dataset with no natural ceiling — a member
-     * can ask questions for years — and this runs on a two-thread executor with the whole
-     * archive held in memory. Five thousand turns is far past any real conversation history and
-     * far short of a heap problem. A member with more than this gets their most recent turns and
-     * the manifest's entry count says how many.
+     * How many coach turns are read at a time. The history has no natural ceiling, so it is read
+     * a page at a time, but every page is read: an export that silently stops short is not a way
+     * to leave with your data (B2-15).
      */
-    static final int MAX_COACH_MESSAGES = 5000;
+    static final int COACH_PAGE_SIZE = 5000;
 
     private final ConnectedAccountRepository accounts;
     private final CategoryRepository categories;
@@ -434,13 +430,19 @@ public class DataExportCollector {
      * ownership check. This class never touches a ciphertext and holds no key.
      */
     private List<Map<String, Object>> coachConversations(UUID userId) {
-        PagedResult<CoachMessageResponse> page = coach.page(userId, null, 0, MAX_COACH_MESSAGES);
         Map<UUID, List<Map<String, Object>>> byConversation = new LinkedHashMap<>();
-        for (CoachMessageResponse message : page.content()) {
-            byConversation
-                .computeIfAbsent(message.sessionId(), key -> new ArrayList<>())
-                .add(coachMessage(message));
-        }
+        int pageNumber = 0;
+        PagedResult<CoachMessageResponse> page;
+        do {
+            page = coach.page(userId, null, pageNumber, COACH_PAGE_SIZE);
+            for (CoachMessageResponse message : page.content()) {
+                byConversation
+                    .computeIfAbsent(message.sessionId(), key -> new ArrayList<>())
+                    .add(coachMessage(message));
+            }
+            pageNumber++;
+        } while (!page.content().isEmpty()
+            && (long) pageNumber * COACH_PAGE_SIZE < page.totalElements());
         List<Map<String, Object>> conversations = new ArrayList<>(byConversation.size());
         for (Map.Entry<UUID, List<Map<String, Object>>> entry : byConversation.entrySet()) {
             Map<String, Object> conversation = new LinkedHashMap<>();

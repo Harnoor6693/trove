@@ -194,7 +194,7 @@ class DataExportCollectorTest {
                     "How much did I spend on groceries?", null, NOW),
                 new CoachMessageResponse(UUID.randomUUID(), conversation, CoachRole.ASSISTANT,
                     "Rather a lot.", "a-model", NOW)),
-            2L, 0, DataExportCollector.MAX_COACH_MESSAGES));
+            2L, 0, DataExportCollector.COACH_PAGE_SIZE));
         when(preferences.findByUserId(USER))
             .thenReturn(Optional.of(NotificationPreference.defaultsFor(USER)));
         when(taxLines.findAllByUserId(USER)).thenReturn(List.of(
@@ -270,6 +270,34 @@ class DataExportCollectorTest {
                 + "no key")
             .isEqualTo("How much did I spend on groceries?");
         assertThat(messages.get(0).path("role").asString()).isEqualTo(CoachRole.USER.name());
+    }
+
+    @Test
+    @DisplayName("A coach history longer than one page is exported whole (B2-15)")
+    void aLongCoachHistoryIsNotCut() {
+        int size = DataExportCollector.COACH_PAGE_SIZE;
+        UUID session = UUID.randomUUID();
+        when(preferences.findByUserId(USER)).thenReturn(Optional.empty());
+        when(coach.page(eq(USER), any(), eq(0), eq(size))).thenReturn(new PagedResult<>(
+            coachMessages(session, size), size + 1L, 0, size));
+        when(coach.page(eq(USER), any(), eq(1), eq(size))).thenReturn(new PagedResult<>(
+            coachMessages(session, 1), size + 1L, 1, size));
+
+        JsonNode conversations = objectMapper.valueToTree(collector.collect(USER, HOUSEHOLD))
+            .path("coach-conversations.json");
+
+        assertThat(conversations.get(0).path("messages").size())
+            .as("a member leaving with their data must not lose the turns past the first page")
+            .isEqualTo(size + 1);
+    }
+
+    private static List<CoachMessageResponse> coachMessages(UUID session, int count) {
+        List<CoachMessageResponse> messages = new java.util.ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            messages.add(new CoachMessageResponse(UUID.randomUUID(), session, CoachRole.USER,
+                "q" + i, null, NOW));
+        }
+        return messages;
     }
 
     @Test
