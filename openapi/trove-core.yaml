@@ -12167,7 +12167,7 @@ components:
           nullable: true
           description: |
             Defaults to zero (zero-interest debt) when omitted OR sent explicitly as `null`.
-          pattern: '^[0-9]{1,15}(\.[0-9]{1,4})?$'
+          pattern: '^(100(\.0{1,4})?|[0-9]{1,2}(\.[0-9]{1,4})?)$'
           example: '19.9900'
         currency:
           type: string
@@ -12219,7 +12219,7 @@ components:
           description: |
             A full replace, not a partial patch: omitted OR sent explicitly as `null` resets to
             zero, matching creation's own default.
-          pattern: '^[0-9]{1,15}(\.[0-9]{1,4})?$'
+          pattern: '^(100(\.0{1,4})?|[0-9]{1,2}(\.[0-9]{1,4})?)$'
           example: '21.9900'
         accountId:
           type: string

@@ -259,4 +259,20 @@ class NetWorthIT extends NetWorthTestSupport {
         assertThat(delete(appUrl("/v1/networth/assets/" + UUID.randomUUID()), null)
             .statusCode()).isEqualTo(401);
     }
+
+    @Test
+    @DisplayName("B2-13: a liability interest rate above 100 % is refused")
+    void anAbsurdInterestRateIsRefused() {
+        Session admin = freshHousehold("networth-interest-bound");
+
+        HttpResponse<String> response = withoutRequestValidation(
+            "sending an interestRate the schema pattern forbids, to prove the server refuses it",
+            () -> postJson(appUrl("/v1/networth/liabilities"),
+                Json.object("name", "Visa", "liabilityType", "CREDIT_CARD", "balance", "10.00",
+                    "interestRate", "1000000", "currency", "CAD", "accountId", null),
+                "Authorization", "Bearer " + admin.accessToken()));
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(Json.errorCode(response.body())).isEqualTo("validation-error");
+    }
 }
