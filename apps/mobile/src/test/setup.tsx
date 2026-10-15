@@ -164,7 +164,7 @@ jest.mock('victory-native', () => {
   return {
     VictoryLine: (props: object) => <View testID="victory-line" {...props} />,
     VictoryChart: (props: object) => <View testID="victory-chart" {...props} />,
-    VictoryAxis: () => null,
+    VictoryAxis: (props: object) => <View testID="victory-axis" {...props} />,
     VictoryBar: (props: object) => <View testID="victory-bar" {...props} />,
     VictoryArea: (props: object) => <View testID="victory-area" {...props} />,
   };
