@@ -1047,17 +1047,18 @@ export interface paths {
          * Household settings
          * @description **Requires the `ADMIN` role.**
          *
-         *     One flag in this version. It is read from the household row rather than
-         *     from configuration, so an admin's runtime decision — not the boot-time
-         *     environment variable — is what the sign-in page reflects.
+         *     Two flags. Both are read from the household row rather than from
+         *     configuration, so an admin's runtime decision — not the boot-time
+         *     environment variable — is what the sign-in page and the scheduled
+         *     bank sync obey.
          */
         get: operations["getAdminSettings"];
         /**
          * Update household settings
          * @description **Requires the `ADMIN` role.**
          *
-         *     A partial update: an absent or null `registrationOpen` leaves the flag
-         *     alone and the current settings come back unchanged. The value is written
+         *     A partial update: an absent or null field leaves that flag alone, and
+         *     an empty body returns the current settings unchanged. A value is written
          *     to the household row so it survives a restart; the environment variable
          *     is only ever a seed for the first boot.
          */
@@ -4430,9 +4431,10 @@ export interface components {
             createdAt: string;
         };
         /**
-         * @description The household's settings. One flag in this version.
+         * @description The household's settings.
          * @example {
-         *       "registrationOpen": false
+         *       "registrationOpen": false,
+         *       "scheduledSyncEnabled": false
          *     }
          */
         AdminSettingsResponse: {
@@ -4442,6 +4444,14 @@ export interface components {
              * @example false
              */
             registrationOpen: boolean;
+            /**
+             * @description Whether the server syncs every SimpleFIN-connected account on its
+             *     own, once a day (`trove.simplefin.scheduled-sync-cron`). Off by
+             *     default. A scheduled run that fails tells the account's owner once,
+             *     when the account goes from working to failing, not every day.
+             * @example false
+             */
+            scheduledSyncEnabled: boolean;
         };
         /**
          * @description One mutating request, as `GET /v1/audit` returns it. Written after the
@@ -4836,6 +4846,8 @@ export interface components {
         AdminSettingsRequest: {
             /** @example true */
             registrationOpen?: boolean | null;
+            /** @example true */
+            scheduledSyncEnabled?: boolean | null;
         };
         /**
          * @description A category, whether system-seeded or the household's own — one shape

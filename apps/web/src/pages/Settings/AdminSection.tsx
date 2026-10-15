@@ -381,6 +381,42 @@ function RegistrationPanel() {
   )
 }
 
+/**
+ * The scheduled bank sync switch (C-01r). Off by default; the server reads it on
+ * every run, so turning it off stops the next one.
+ */
+function ScheduledSyncPanel() {
+  const settings = useAdminSettings(true)
+  const update = useUpdateAdminSettingsMutation()
+
+  return (
+    <div className={styles.stack}>
+      <h3 className={styles.sectionTitle}>Bank sync</h3>
+      <p className={styles.note} data-testid="scheduled-sync-note">
+        When this is on, the server syncs every SimpleFIN-connected account once a day, so nobody
+        has to press Sync. If a connection stops working, the person who connected it is told
+        only once, not every day.
+      </p>
+      {settings.data && (
+        <label className={styles.row}>
+          <span className={styles.label}>Sync connected banks every day</span>
+          <input
+            type="checkbox"
+            checked={settings.data.scheduledSyncEnabled}
+            disabled={update.isPending}
+            onChange={(e) => update.mutate({ scheduledSyncEnabled: e.target.checked })}
+          />
+        </label>
+      )}
+      {update.isError && (
+        <p className={styles.error} role="alert">
+          {adminErrorCopy(update.error)}
+        </p>
+      )}
+    </div>
+  )
+}
+
 /* ------------------------------------------------------------- audit log */
 
 function AuditPanel() {
@@ -483,6 +519,7 @@ export function AdminSection() {
         <h2 className={styles.sectionTitle}>Administration</h2>
         <MembersPanel />
         <RegistrationPanel />
+        <ScheduledSyncPanel />
         <AuditPanel />
       </div>
     </QlCard>
