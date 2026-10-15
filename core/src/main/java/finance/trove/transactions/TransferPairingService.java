@@ -122,32 +122,70 @@ public class TransferPairingService {
         List<Transaction> changed = new ArrayList<>();
         Set<UUID> consumed = new HashSet<>();
 
-        for (int i = 0; i < legs.size(); i++) {
-            Transaction left = legs.get(i);
+        for (Transaction left : legs) {
             if (consumed.contains(left.getId()) || !isDirectional(left)) {
                 continue;
             }
-            for (int j = i + 1; j < legs.size(); j++) {
-                Transaction right = legs.get(j);
-                if (consumed.contains(right.getId()) || !pairs(left, right)) {
-                    continue;
-                }
-                UUID group = UUID.randomUUID();
-                left.setTransferGroupId(group);
-                right.setTransferGroupId(group);
-                consumed.add(left.getId());
-                consumed.add(right.getId());
-                changed.add(left);
-                changed.add(right);
-                break;
+            List<Transaction> forward = closestMatches(left, legs, consumed);
+            if (forward.size() != 1) {
+                continue;
             }
+            Transaction right = forward.get(0);
+            List<Transaction> back = closestMatches(right, legs, consumed);
+            if (back.size() != 1 || back.get(0) != left) {
+                // Ambiguous: another leg is just as plausible a partner. Pairing would hide one
+                // real transaction from every total, so it is left for a member (B1-09).
+                continue;
+            }
+            UUID group = UUID.randomUUID();
+            left.setTransferGroupId(group);
+            right.setTransferGroupId(group);
+            consumed.add(left.getId());
+            consumed.add(right.getId());
+            changed.add(left);
+            changed.add(right);
         }
         return changed;
+    }
+
+    /** The legs that pair with {@code leg} and are the nearest in date; more than one is a tie. */
+    private static List<Transaction> closestMatches(Transaction leg, List<Transaction> legs,
+                                                    Set<UUID> consumed) {
+        List<Transaction> best = new ArrayList<>();
+        long bestDistance = Long.MAX_VALUE;
+        for (Transaction other : legs) {
+            if (other == leg || consumed.contains(other.getId()) || !pairs(leg, other)) {
+                continue;
+            }
+            long distance = Math.abs(ChronoUnit.DAYS.between(leg.getDate(), other.getDate()));
+            if (distance < bestDistance) {
+                best.clear();
+                bestDistance = distance;
+            }
+            if (distance == bestDistance) {
+                best.add(other);
+            }
+        }
+        return best;
+    }
+
+    /**
+     * ponytail: a plain-text heuristic. Both legs must say they are a transfer or a payment; its
+     * ceiling is an institution that words one side differently (that pair is left for a member)
+     * or a payee whose name contains one of these words.
+     */
+    private static boolean looksLikeTransfer(Transaction transaction) {
+        String text = ((transaction.getDescription() == null ? "" : transaction.getDescription())
+            + " " + (transaction.getMerchantName() == null ? "" : transaction.getMerchantName()))
+            .toUpperCase(java.util.Locale.ROOT);
+        return text.contains("TRANSFER") || text.contains("XFER") || text.contains("PAYMENT")
+            || text.contains("PAIEMENT") || text.contains("VIREMENT");
     }
 
     /** Whether two legs describe one movement. Every clause is one of the rules above. */
     private static boolean pairs(Transaction left, Transaction right) {
         return isDirectional(right)
+            && looksLikeTransfer(left) && looksLikeTransfer(right)
             && left.getType() != right.getType()
             && !left.getAccountId().equals(right.getAccountId())
             && left.getHouseholdId().equals(right.getHouseholdId())

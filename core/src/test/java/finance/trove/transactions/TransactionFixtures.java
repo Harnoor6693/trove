@@ -33,8 +33,15 @@ public final class TransactionFixtures {
     public static Transaction stored(UUID householdId, UUID accountId, String amount,
                                      LocalDate date, TransactionType type,
                                      CurrencyCode currency) {
+        return stored(householdId, accountId, amount, date, type, currency, "CARD PAYMENT");
+    }
+
+    /** A stored transaction with a chosen description (the pairer reads it for a transfer marker). */
+    public static Transaction stored(UUID householdId, UUID accountId, String amount,
+                                     LocalDate date, TransactionType type,
+                                     CurrencyCode currency, String description) {
         Transaction transaction = new Transaction(householdId, accountId, UUID.randomUUID(), null,
-            new BigDecimal(amount), currency, type, "A description", "A Merchant", date,
+            new BigDecimal(amount), currency, type, description, "A Merchant", date,
             Instant.now(), false, false, Instant.now());
         withId(transaction, UUID.randomUUID());
         return transaction;
