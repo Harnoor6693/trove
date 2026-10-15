@@ -115,7 +115,8 @@ public class EnvelopeService {
         BigDecimal allocated = currency.normalise(request.allocated());
 
         BudgetPeriodService.requireZeroBasedInvariant(period,
-            envelopes.sumAllocatedByPeriodId(periodId).add(allocated));
+            envelopes.sumAllocatedByPeriodId(periodId, period.getCurrency())
+                .add(currency == period.getCurrency() ? allocated : BigDecimal.ZERO));
 
         Envelope saved = envelopes.save(new Envelope(householdId, periodId, category.getId(),
             allocated, currency, clock.now()));
@@ -139,7 +140,9 @@ public class EnvelopeService {
 
         BigDecimal allocated = envelope.getCurrency().normalise(request.allocated());
         BudgetPeriodService.requireZeroBasedInvariant(period,
-            envelopes.sumAllocatedByPeriodIdExcluding(periodId, envelopeId).add(allocated));
+            envelopes.sumAllocatedByPeriodIdExcluding(periodId, envelopeId, period.getCurrency())
+                .add(envelope.getCurrency() == period.getCurrency()
+                    ? allocated : BigDecimal.ZERO));
 
         envelope.setAllocated(allocated);
         Envelope saved = envelopes.save(envelope);

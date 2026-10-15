@@ -1,5 +1,6 @@
 package finance.trove.budgets.envelope;
 
+import finance.trove.common.domain.CurrencyCode;
 import finance.trove.common.repository.UserScopedRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -63,10 +64,13 @@ public interface EnvelopeRepository extends UserScopedRepository<Envelope, UUID>
      * against.
      *
      * <p>Returns {@code 0} rather than {@code null} for a period with no envelopes, so the caller
-     * never has to distinguish "no rows" from "sums to nothing".
+     * never has to distinguish "no rows" from "sums to nothing". Only envelopes in
+     * {@code currency} count: amounts in different currencies are never added together.
      */
-    @Query("select coalesce(sum(e.allocated), 0) from Envelope e where e.periodId = :periodId")
-    BigDecimal sumAllocatedByPeriodId(@Param("periodId") UUID periodId);
+    @Query("select coalesce(sum(e.allocated), 0) from Envelope e where e.periodId = :periodId "
+        + "and e.currency = :currency")
+    BigDecimal sumAllocatedByPeriodId(@Param("periodId") UUID periodId,
+                                      @Param("currency") CurrencyCode currency);
 
     /**
      * The same sum with one envelope left out — the form both envelope writes actually need.
@@ -77,7 +81,8 @@ public interface EnvelopeRepository extends UserScopedRepository<Envelope, UUID>
      * about to be measured against.
      */
     @Query("select coalesce(sum(e.allocated), 0) from Envelope e where e.periodId = :periodId "
-        + "and e.id <> :excludedId")
+        + "and e.id <> :excludedId and e.currency = :currency")
     BigDecimal sumAllocatedByPeriodIdExcluding(@Param("periodId") UUID periodId,
-                                               @Param("excludedId") UUID excludedId);
+                                               @Param("excludedId") UUID excludedId,
+                                               @Param("currency") CurrencyCode currency);
 }
