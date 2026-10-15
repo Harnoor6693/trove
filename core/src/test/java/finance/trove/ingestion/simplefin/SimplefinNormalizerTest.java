@@ -48,6 +48,19 @@ class SimplefinNormalizerTest {
     }
 
     @Test
+    @DisplayName("B1-10: a credit the bank calls a refund is a REFUND, so it is not income")
+    void aRefundIsNotIncome() {
+        Instant day = Instant.parse("2026-09-01T10:00:00Z");
+
+        assertThat(normalizer.normalize(ACCOUNT, new SimplefinTransaction("r",
+            new BigDecimal("19.99"), "AMAZON.CA REFUND", day, day)).type())
+            .isEqualTo(TransactionType.REFUND);
+        assertThat(normalizer.normalize(ACCOUNT, new SimplefinTransaction("p",
+            new BigDecimal("19.99"), "E-TRANSFER FROM SAM", day, day)).type())
+            .isEqualTo(TransactionType.CREDIT);
+    }
+
+    @Test
     @DisplayName("a null posted time means pending")
     void pendingIsDerivedFromPosted() {
         assertThat(normalizer.normalize(ACCOUNT, transaction("a", BigDecimal.ONE,

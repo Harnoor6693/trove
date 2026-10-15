@@ -5,6 +5,7 @@ import finance.trove.common.plugin.RawTransaction;
 import finance.trove.common.plugin.SourceKind;
 import finance.trove.common.plugin.TransactionType;
 import finance.trove.common.storage.LocalDiskStorage;
+import finance.trove.ingestion.Amounts;
 import finance.trove.ingestion.CsvColumnMapping;
 import finance.trove.ingestion.DateFormatCandidate;
 import finance.trove.ingestion.FileImportSource;
@@ -242,9 +243,7 @@ public class CsvSource implements FileImportSource {
                 currency, description, null, date, null, null, false, Map.of()), error);
         }
 
-        TransactionType type = amount.signum() >= 0
-            ? TransactionType.CREDIT
-            : TransactionType.DEBIT;
+        TransactionType type = Amounts.direction(amount, description);
         String id = deterministicId(accountId, date, amount, description, occurrences);
         return ParsedRow.of(ordinal, new RawTransaction(id, accountId.toString(), amount.abs(),
             currency, description, null, date, null, type, false, Map.of()));
