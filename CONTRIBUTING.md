@@ -59,7 +59,7 @@ is no root `package.json`):
 ```bash
 # apps/web
 npm ci
-npm run lint && npm run test:ci && npm run build   # build runs tsc and the CSP check
+npm run lint && npm run typecheck && npm run test:ci && npm run build   # build runs tsc and the CSP check
 npm run check:generated   # fails if generated API types drift from openapi/trove-core.yaml
 npm run e2e               # Playwright, needs a running server
 
