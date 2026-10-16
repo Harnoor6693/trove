@@ -2059,6 +2059,79 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /v1/admin/users/{id}/role:
+    put:
+      operationId: changeHouseholdMemberRole
+      tags: [Administration]
+      summary: Make a member an administrator, or a member again
+      description: |
+        **Requires the `ADMIN` role.**
+
+        Sets a member's role to `ADMIN` or `MEMBER`. This is how the last
+        administrator hands the household over before deleting their account
+        or leaving: `DELETE /v1/me` refuses the last `ADMIN` with 409.
+
+        **The household always keeps at least one active `ADMIN`.** Demoting
+        the household's last active administrator — another member or the
+        caller themselves — is **409 `conflict`**. The count is taken inside
+        one transaction behind a lock on the household row, the same lock
+        `DELETE /v1/admin/users/{id}` takes, so two administrators demoting
+        each other at the same instant cannot both succeed.
+
+        **A demotion revokes every session of the demoted member**, so the
+        `ADMIN` claim in their current access token stops working at once
+        rather than when it expires; they sign in again as a `MEMBER`. A
+        promotion revokes nothing: the new role reaches the member's token at
+        their next refresh or sign-in. Setting the role a member already has
+        changes nothing and answers 200.
+
+        A member of another household, or an unknown id, is **404**. A member
+        inside the deletion grace is **409**: restore them first.
+      x-trove-required-role: ADMIN
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+        - $ref: '#/components/parameters/RequestedWithHeader'
+        - $ref: '#/components/parameters/XsrfTokenHeader'
+        - $ref: '#/components/parameters/XsrfCookie'
+        - $ref: '#/components/parameters/AccessCookie'
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminRoleRequest'
+      responses:
+        '200':
+          description: The member, with their role after the write.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdminUserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /v1/admin/invites:
     get:
       operationId: listInvites
@@ -10203,6 +10276,16 @@ components:
           example: true
       example:
         registrationOpen: true
+
+    AdminRoleRequest:
+      type: object
+      description: The role to give the member.
+      required: [role]
+      properties:
+        role:
+          $ref: '#/components/schemas/UserRole'
+      example:
+        role: ADMIN
 
     # ---- categories ----------------------------------------------------------
     CategoryResponse:

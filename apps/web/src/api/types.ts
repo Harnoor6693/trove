@@ -960,6 +960,9 @@ export type AdminSettingsResponse = Data<Json<'getAdminSettings', 200>>
 /** `PUT /v1/admin/settings` body — a partial update; an absent or null field leaves the flag alone. */
 export type AdminSettingsRequest = Body<'updateAdminSettings'>
 
+/** `PUT /v1/admin/users/{id}/role` body — the role to give the member. */
+export type AdminRoleRequest = Body<'changeHouseholdMemberRole'>
+
 /**
  * One mutating request, as `GET /v1/audit` returns it. `path` is the matched
  * route TEMPLATE, never the raw URI — a table of URIs would be a second,

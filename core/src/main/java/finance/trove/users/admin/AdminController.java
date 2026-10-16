@@ -1,5 +1,6 @@
 package finance.trove.users.admin;
 
+import finance.trove.auth.dto.AdminRoleRequest;
 import finance.trove.auth.dto.AdminSettingsRequest;
 import finance.trove.auth.dto.AdminSettingsResponse;
 import finance.trove.auth.dto.AdminUserResponse;
@@ -134,6 +135,25 @@ public class AdminController {
                                         @PathVariable UUID id) {
         userAdmin.deleteMember(principal.getHouseholdId(), principal.getUserId(), id);
         return ApiResponse.<Void>ok(null);
+    }
+
+    /**
+     * {@code PUT /v1/admin/users/{id}/role} — makes a member an administrator, or a member again
+     * (journey bug F1-B2).
+     *
+     * <p>Before this route the last administrator's 409 on {@code DELETE /v1/me} told them to
+     * "give another member the administrator role" and nothing could. The last-ADMIN guard, the
+     * household lock and the session revocation on demotion are {@link UserAdminService}'s, for
+     * the same reason the delete's are: a guard made of a read followed by a write is not a guard
+     * when two requests arrive at once.
+     */
+    @PutMapping("/users/{id}/role")
+    public ApiResponse<AdminUserResponse> changeRole(
+        @AuthenticationPrincipal TroveUserDetails principal, @PathVariable UUID id,
+        @Valid @RequestBody AdminRoleRequest request) {
+
+        User member = userAdmin.changeRole(principal.getHouseholdId(), id, request.role());
+        return ApiResponse.ok(AdminUserResponse.of(member, totp.isEnabled(member.getId())));
     }
 
     /**

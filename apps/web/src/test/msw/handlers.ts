@@ -79,6 +79,7 @@ import type {
   ReorderRulesRequest,
 } from '@api/types'
 import type {
+  AdminRoleRequest,
   AdminSettingsRequest,
   CookieSession,
   PasswordResetLinkResponse,
@@ -388,6 +389,8 @@ export interface MswState {
   adminSettings: AdminSettingsResponse
   /** The exact body `PUT /v1/admin/settings` was last called with. */
   lastAdminSettingsBody: AdminSettingsRequest | null
+  /** The exact body `PUT /v1/admin/users/{id}/role` was last called with. */
+  lastMemberRoleBody: AdminRoleRequest | null
   /** `GET /v1/audit` — every row; the handler pages over this. */
   auditEntries: AuditLogEntry[]
 
@@ -708,6 +711,7 @@ export const mswState: MswState = {
   restoreOutsideGrace: false,
   adminSettings: { registrationOpen: false, scheduledSyncEnabled: false },
   lastAdminSettingsBody: null,
+  lastMemberRoleBody: null,
   auditEntries: makeAuditEntries(),
   lastResetLinkRequest: null,
   validResetToken: 'good-reset-token',
@@ -821,6 +825,7 @@ export function resetMswState(overrides: Partial<MswState> = {}): void {
     restoreOutsideGrace: false,
     adminSettings: { registrationOpen: false, scheduledSyncEnabled: false },
     lastAdminSettingsBody: null,
+    lastMemberRoleBody: null,
     auditEntries: makeAuditEntries(),
     lastResetLinkRequest: null,
     validResetToken: 'good-reset-token',
@@ -3940,6 +3945,26 @@ export const handlers = [
       m.id === params.id ? { ...m, active: false } : m
     )
     return okEmpty()
+  }),
+
+  /** The household always keeps one active ADMIN: demoting the last one is 409. */
+  http.put('*/v1/admin/users/:id/role', async ({ params, request }) => {
+    if (mswState.me.role !== 'ADMIN') return fail(403, 'forbidden', 'Forbidden')
+    const target = mswState.members.find((m) => m.id === params.id)
+    if (!target) return fail(404, 'not-found', 'Not Found')
+    const body = (await request.json()) as AdminRoleRequest
+    mswState.lastMemberRoleBody = body
+    const activeAdmins = mswState.members.filter((m) => m.role === 'ADMIN' && m.active).length
+    const demotingLast =
+      body.role === 'MEMBER' && target.role === 'ADMIN' && target.active && activeAdmins <= 1
+    if (mswState.lastAdminConflict || demotingLast) {
+      return fail(409, 'conflict', 'Conflict', {
+        detail: 'This household would be left without an administrator.',
+      })
+    }
+    const updated = { ...target, role: body.role }
+    mswState.members = mswState.members.map((m) => (m.id === params.id ? updated : m))
+    return ok<AdminUserResponse>(updated)
   }),
 
   http.get('*/v1/admin/settings', () => {
