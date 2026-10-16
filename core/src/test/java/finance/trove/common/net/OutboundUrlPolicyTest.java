@@ -216,6 +216,8 @@ class OutboundUrlPolicyTest {
             // reachable, so they stay allowed: anycast, AMT, AS112, ORCHIDv2 and DETs
             "2001:1::1", "2001:1::2", "2001:1::3", "2001:3::1", "2001:4:112::1",
             "2001:20::1", "2001:2f:ffff::1", "2001:30::1", "2001:3f:ffff::1",
+            // Unallocated but inside 2000::/3: RFC 4291 §2.4 says treat it as global unicast
+            "2000::1", "3ffe::1",
         })
         @DisplayName("a genuinely public address on either family is allowed")
         void publicAddressesAreAllowed(String address) throws UnknownHostException {

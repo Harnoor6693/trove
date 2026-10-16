@@ -262,8 +262,8 @@ trove:
   # because a LAN Ollama is the primary AI story but the AI endpoint is per-user (owner decision
   # 9). SimpleFIN and webhooks never use the opt-in, so this does not open a private target to
   # them. Link-local, the cloud metadata addresses, the unspecified, multicast and reserved
-  # ranges, and the IPv6 ranges IANA marks not globally reachable are always refused (§1.6, gap
-  # P2-10). False by default.
+  # ranges, every other IPv6 range IANA marks not globally reachable, and the IPv6 space outside
+  # 2000::/3 that the IETF reserves are always refused (§1.6, gap P2-10). False by default.
   egress:
     allow-private: ${TROVE_EGRESS_ALLOW_PRIVATE:false}
 

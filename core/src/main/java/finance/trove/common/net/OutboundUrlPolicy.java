@@ -49,9 +49,10 @@ import org.springframework.stereotype.Component;
  *       RFC 1918, loopback, CGNAT, ULA and the deprecated IPv6 site-local {@code fec0::/10}.
  *       Link-local (including {@code 169.254.169.254}), the cloud metadata addresses that sit
  *       inside those ranges (Alibaba's in CGNAT; AWS's, Google's, Oracle's, Akamai's and
- *       Scaleway's IPv6 ones in ULA), the unspecified, multicast and reserved ranges, and every
- *       IPv6 special-purpose range IANA marks not globally reachable stay refused whatever the
- *       keys say; see {@link #unconditionalBlockReason}.</li>
+ *       Scaleway's IPv6 ones in ULA), the unspecified, multicast and reserved ranges, every
+ *       other IPv6 special-purpose range IANA marks not globally reachable, and the IPv6 space
+ *       outside {@code 2000::/3} that the IETF reserves stay refused whatever the keys say; see
+ *       {@link #unconditionalBlockReason}.</li>
  * </ul>
  *
  * <p>Userinfo in the URL is refused outright: {@code https://evil.example@10.0.0.1/} reads as a
@@ -248,10 +249,11 @@ public class OutboundUrlPolicy {
      * the opt-in does lift, Alibaba's {@code 100.100.100.200} (in CGNAT) and the IPv6 ones in
      * {@link #METADATA_IPV6} (in ULA); and the ranges that are not private networks at all, which
      * no LAN model lives on: unspecified ({@code 0.0.0.0/8}, {@code ::}), multicast
-     * ({@code 224.0.0.0/4}, {@code ff00::/8}), reserved ({@code 240.0.0.0/4}, and IPv6 space IANA
-     * has not allocated, see {@link #isIetfReserved}) and the IPv6 special-purpose ranges IANA
-     * marks not globally reachable ({@link #NOT_GLOBALLY_REACHABLE}, and {@code 2001::/23} outside
-     * its globally reachable entries). The opt-in exists so a member can point at a LAN model on
+     * ({@code 224.0.0.0/4}, {@code ff00::/8}), reserved ({@code 240.0.0.0/4}, and the IPv6 space
+     * outside {@code 2000::/3} that the IETF reserves, see {@link #isIetfReserved}) and the other
+     * IPv6 special-purpose ranges IANA marks not globally reachable
+     * ({@link #NOT_GLOBALLY_REACHABLE}, and {@code 2001::/23} outside its globally reachable
+     * entries). The opt-in exists so a member can point at a LAN model on
      * RFC 1918, loopback, CGNAT, ULA or site-local; treating
      * the rest as one setting is what would turn a per-user endpoint into an SSRF primitive
      * against the install itself, with no administrator anywhere in the path, since every member
@@ -353,6 +355,13 @@ public class OutboundUrlPolicy {
      * {@code 64:ff9b::/96}), which {@link #embeddedIpv4s} judges. Like {@code 240.0.0.0/4}, none
      * of it holds a public endpoint or a LAN model. Unspecified, link-local, multicast and
      * local-use NAT64 are refused before this is asked.
+     *
+     * <p>ponytail: fail-closed on purpose, with a ceiling. RFC 4291 §2.4 says implementations
+     * "must treat all addresses that do not start with any of the above-listed prefixes as
+     * Global Unicast addresses"; this method refuses them instead. If IANA later opens a block
+     * outside {@code 2000::/3} for global unicast, targets there stay refused until this method
+     * is updated, and that is the upgrade path. Unallocated space inside {@code 2000::/3} (for
+     * example {@code 3ffe::/16} and {@code 2000::/16}) is allowed, as RFC 4291 requires.
      */
     private static boolean isIetfReserved(byte[] bytes) {
         int first = bytes[0] & 0xFF;
