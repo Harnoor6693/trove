@@ -3649,11 +3649,10 @@ paths:
         There is no server-side default currency literal anywhere — an account
         always carries the one it was created with.
 
-        409 `conflict` is the generic answer to a database integrity violation,
-        for example the caller's own user being deleted (`DELETE
-        /v1/admin/users/{id}`) before this request commits. It is not a
-        duplicate-account signal: a duplicate provider account is never a
-        conflict here.
+        409 `conflict` is the server's generic answer when the database refuses
+        the write with an integrity or data error that request validation did
+        not catch; account creation has no expected conflict and it is not a
+        duplicate-account signal.
       parameters:
         - $ref: '#/components/parameters/RequestedWithHeader'
         - $ref: '#/components/parameters/XsrfTokenHeader'
