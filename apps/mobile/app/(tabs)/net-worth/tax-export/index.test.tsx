@@ -79,6 +79,20 @@ it('lists runs and shows "still generating" for a PENDING run, never an error', 
   expect(screen.queryByTestId('tax-export-run-run1-view')).toBeNull();
 });
 
+it('defaults the tax year to last year in filing season, in the member time zone', async () => {
+  jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick', 'queueMicrotask'] });
+  jest.setSystemTime(new Date('2026-03-10T12:00:00Z'));
+  try {
+    mockRuns.mockResolvedValue({ data: [], meta: { total: 0, page: 0, limit: 20 } });
+    await renderScreen();
+    await waitFor(() => expect(screen.getByTestId('tax-export-new-toggle')).toBeTruthy());
+    await fireEvent.press(screen.getByTestId('tax-export-new-toggle'));
+    expect(screen.getByTestId('tax-export-create-form-year').props.value).toBe('2025');
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
 it('starts an export with the chosen year and format', async () => {
   mockRuns.mockResolvedValue({ data: [], meta: { total: 0, page: 0, limit: 20 } });
   mockCreate.mockResolvedValue(PENDING_RUN);
