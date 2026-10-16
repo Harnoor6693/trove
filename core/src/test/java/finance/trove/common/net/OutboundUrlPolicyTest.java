@@ -157,6 +157,10 @@ class OutboundUrlPolicyTest {
             "64:ff9b::7f00:1,                       loopback",
             "64:ff9b::a00:1,                        private",
             "2002:c0a8:101::1,                      private",
+            "::ffff:0:a00:1,                        private",
+            "::ffff:0:7f00:1,                       loopback",
+            "2001:db8::5efe:c0a8:101,               private",
+            "2001:db8::200:5efe:a00:1,              private",
             "2002:7f00:1::1,                        loopback",
             "2001:0:4136:e378:8000:63bf:f5ff:fffe,  private",
         })
@@ -195,6 +199,7 @@ class OutboundUrlPolicyTest {
             "93.184.216.34", "8.8.8.8", "1.1.1.1", "172.32.0.1", "100.63.255.255",
             "100.128.0.1", "192.0.1.1", "198.20.0.1", "2606:2800:220:1:248:1893:25c8:1946",
             "2001:4860:4860::8888", "64:ff9b::808:808", "2002:808:808::1",
+            "::ffff:0:808:808", "2001:4860::5efe:808:808",
         })
         @DisplayName("a genuinely public address on either family is allowed")
         void publicAddressesAreAllowed(String address) throws UnknownHostException {
@@ -306,6 +311,15 @@ class OutboundUrlPolicyTest {
             "64:ff9b::a9fe:a9fe, instance-metadata",
             "2002:a9fe:a9fe::1, instance-metadata",
             "::a9fe:a9fe,       instance-metadata",
+            "::2,               0.0.0.0/8",
+            "::ff,              0.0.0.0/8",
+            "64:ff9b:1::1,      local-use NAT64",
+            "64:ff9b:1:ffff::a9fe:a9fe, local-use NAT64",
+            "64:ff9b:1::a00:1,  local-use NAT64",
+            "::ffff:0:a9fe:a9fe, instance-metadata",
+            "2001:db8::5efe:a9fe:a9fe, instance-metadata",
+            "2001:db8::200:5efe:a9fe:a9fe, instance-metadata",
+            "2001:db8::5efe:e000:1, multicast",
             "::169.254.1.1,     link-local",
             "::6464:64c8,       instance-metadata",
             "::0.1.2.3,         0.0.0.0/8",
@@ -338,7 +352,8 @@ class OutboundUrlPolicyTest {
 
         @ParameterizedTest(name = "{0} is a private target the opt-in does lift")
         @ValueSource(strings = {"10.1.2.3", "192.168.1.50", "127.0.0.1", "::1", "100.64.0.1",
-            "100.100.100.199", "fd12:3456::1", "fd00:ec2::253"})
+            "100.100.100.199", "fd12:3456::1", "fd00:ec2::253",
+            "::ffff:0:a00:1", "2001:db8::5efe:c0a8:101"})
         @DisplayName("RFC 1918, loopback, CGNAT and ULA stay reachable with both keys")
         void theOptInStillLiftsPrivateRanges(String address) {
             assertThat(policy(true, address).check("http://ollama.lan:11434/v1", true).port())

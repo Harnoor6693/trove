@@ -217,6 +217,9 @@ public class OutboundUrlPolicy {
         if (bytes.length != 16) {
             return null;
         }
+        if (isLocalUseNat64(bytes)) {
+            return "a local-use NAT64 (64:ff9b:1::/48) address";
+        }
         if ((bytes[0] & 0xFF) == 0xFE && (bytes[1] & 0xC0) == 0x80) {
             return "a link-local address";
         }
@@ -241,7 +244,8 @@ public class OutboundUrlPolicy {
 
     /**
      * The four IPv4 bytes {@code address} leads to, or null: the address itself, or the one
-     * embedded in {@code ::ffff:0:0/96} (mapped), {@code ::/96} (IPv4-compatible), {@code 64:ff9b::/96} (NAT64),
+     * embedded in {@code ::ffff:0:0/96} (mapped), {@code ::/96} (IPv4-compatible), {@code ::ffff:0:0:0/96} (SIIT), ISATAP
+     * (identifier {@code 0:5efe} under any prefix), {@code 64:ff9b::/96} (NAT64),
      * {@code 2002::/16} (6to4) or {@code 2001::/32} (Teredo, client address bit-inverted).
      *
      * <p>B3-11: on a host with NAT64, or a 6to4 or Teredo route, a connection to one of these is
@@ -252,7 +256,8 @@ public class OutboundUrlPolicy {
         if (bytes.length == 4) {
             return bytes;
         }
-        if (isIpv4Mapped(bytes) || isNat64(bytes) || isIpv4Compatible(bytes)) {
+        if (isIpv4Mapped(bytes) || isNat64(bytes) || isIpv4Compatible(bytes)
+            || isSiit(bytes) || isIsatap(bytes)) {
             return Arrays.copyOfRange(bytes, 12, 16);
         }
         if ((bytes[0] & 0xFF) == 0x20 && bytes[1] == 0x02) {
@@ -268,9 +273,9 @@ public class OutboundUrlPolicy {
     /**
      * {@code ::/96} (deprecated IPv4-compatible): twelve zero bytes then an IPv4 address. Java keeps
      * these as {@link Inet6Address}, so without this they carried no embedded address and
-     * {@code ::a9fe:a9fe} slipped past {@link #unconditionalBlockReason} and the opt-in. {@code ::}
-     * and {@code ::1} (and the rest of {@code ::/104}) are the IPv6 unspecified and loopback
-     * addresses, not embedded IPv4, so they are left to the checks that already name them.
+     * {@code ::a9fe:a9fe} slipped past {@link #unconditionalBlockReason} and the opt-in. Only
+     * {@code ::} and {@code ::1}, the IPv6 unspecified and loopback addresses, are not embedded
+     * IPv4 and are left to the checks that already name them; {@code ::2} is {@code 0.0.0.2}.
      */
     private static boolean isIpv4Compatible(byte[] bytes) {
         for (int i = 0; i < 12; i++) {
@@ -278,10 +283,41 @@ public class OutboundUrlPolicy {
                 return false;
             }
         }
-        return (bytes[12] | bytes[13] | bytes[14]) != 0;
+        boolean unspecifiedOrLoopback = bytes[12] == 0 && bytes[13] == 0 && bytes[14] == 0
+            && (bytes[15] == 0 || bytes[15] == 1);
+        return !unspecifiedOrLoopback;
     }
 
-    private static boolean isNat64(byte[] bytes) {
+    /** {@code ::ffff:0:0:0/96} (SIIT, IPv4-translated): the IPv4 is the last 32 bits. */
+    private static boolean isSiit(byte[] bytes) {
+        for (int i = 0; i < 8; i++) {
+            if (bytes[i] != 0) {
+                return false;
+            }
+        }
+        return (bytes[8] & 0xFF) == 0xFF && (bytes[9] & 0xFF) == 0xFF
+            && bytes[10] == 0 && bytes[11] == 0;
+    }
+
+    /**
+     * ISATAP: interface identifier {@code 0000:5efe} or {@code 0200:5efe} (the universal/local
+     * bit may be set) under any prefix, then the IPv4 address in the last 32 bits.
+     */
+    private static boolean isIsatap(byte[] bytes) {
+        return (bytes[8] & 0xFD) == 0 && bytes[9] == 0
+            && (bytes[10] & 0xFF) == 0x5E && (bytes[11] & 0xFF) == 0xFE;
+    }
+
+    /**
+     * {@code 64:ff9b:1::/48} (RFC 8215 local-use NAT64). Where the IPv4 sits depends on the prefix
+     * length the operator chose, so no position can be trusted: the whole /48 is refused.
+     */
+    private static boolean isLocalUseNat64(byte[] bytes) {
+        return bytes[0] == 0 && bytes[1] == 0x64 && (bytes[2] & 0xFF) == 0xFF
+            && (bytes[3] & 0xFF) == 0x9B && bytes[4] == 0 && bytes[5] == 1;
+    }
+
+private static boolean isNat64(byte[] bytes) {
         return bytes[0] == 0 && bytes[1] == 0x64 && (bytes[2] & 0xFF) == 0xFF
             && (bytes[3] & 0xFF) == 0x9B && Arrays.equals(bytes, 4, 12, new byte[8], 0, 8);
     }
