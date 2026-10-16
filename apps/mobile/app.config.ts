@@ -259,8 +259,9 @@ const withAndroidGradleHeapFix: ConfigPlugin = (config) =>
   });
 
 /**
- * Expo config for a **sideload-only** v1.0 (owner decision): a signed APK per
- * release plus TestFlight/AltStore, no Play or App Store submission.
+ * Expo config for a **sideload-only** v1.0 (owner decision): a signed Android
+ * APK per release, no Play or App Store submission. No iOS binary is published;
+ * anyone who wants one builds it with EAS on their own Apple account.
  *
  * Notable choices, each tied back to a recovery-doc item:
  *
@@ -284,8 +285,9 @@ const withAndroidGradleHeapFix: ConfigPlugin = (config) =>
  *    bank-notification listener and Expo push (owner decision: no push).
  *  - `ios.privacyManifests` declares `PrivacyInfo.xcprivacy` through the
  *    config plugin, which Expo generates at prebuild (gap J9 / P4-22).
- *  - `usesNonExemptEncryption: false` — without it every TestFlight build
- *    stalls on "Missing Compliance" (gap P4-21).
+ *  - `usesNonExemptEncryption: false` — without it every iOS build
+ *    uploaded to App Store Connect or TestFlight stalls on "Missing
+ *    Compliance" (gap P4-21).
  */
 export default ({ config }: ConfigContext): ExpoConfig =>
   withAndroidNetworkSecurityConfig(withAndroidDetoxTestClass(withAndroidGradleHeapFix(withAndroidDetoxLocalMavenRepo(withAndroidDetoxGradleFix(withIosPodDeploymentTargetFix({
