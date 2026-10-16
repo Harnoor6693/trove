@@ -6905,11 +6905,22 @@ paths:
 
         **`secret` is write-only.** It is encrypted at rest with the same
         AES-GCM field encryption the AI API key and the SimpleFIN access URL
-        use, it appears in no response schema, and it is never logged. Every
-        delivery carries `X-Trove-Signature: sha256=<hex>`, an HMAC-SHA256 over
-        the exact request bytes keyed with it, alongside `X-Trove-Event` (the
-        event type) and `X-Trove-Delivery` (the delivery id, stable across
-        retries so a receiver can deduplicate).
+        use, it appears in no response schema, and it is never logged.
+
+        **Every delivery is signed in the Standard Webhooks scheme**
+        (https://www.standardwebhooks.com, symmetric `v1`). Headers:
+        `webhook-id` (the delivery id, stable across retries so a receiver can
+        deduplicate), `webhook-timestamp` (Unix seconds of this attempt),
+        `webhook-signature` (`v1,<base64>`, an HMAC-SHA256 keyed with the UTF-8
+        bytes of `secret` over `<webhook-id>.<webhook-timestamp>.<raw body>`)
+        and `X-Trove-Event` (the event type). A receiver recomputes the HMAC
+        over the exact bytes it received, compares in constant time, and
+        refuses a `webhook-timestamp` more than five minutes from its own
+        clock: that window is what makes a captured delivery useless for a
+        replay. Standard Webhooks libraries take a base64 `whsec_` secret by
+        default; pass this secret's raw UTF-8 bytes instead. This replaced
+        `X-Trove-Signature: sha256=<hex>` over the body alone, which signed
+        neither the id nor a time.
 
         Deliveries are retried with exponential backoff — 2^n seconds, five
         attempts — and a subscription that never succeeds is left `EXHAUSTED`
@@ -13920,9 +13931,10 @@ components:
           minLength: 16
           maxLength: 128
           description: |
-            The shared secret every delivery is signed with
-            (`X-Trove-Signature: sha256=<hex>`, HMAC-SHA256 over the exact
-            request bytes). Sixteen characters minimum, because a short shared
+            The shared secret every delivery is signed with (Standard Webhooks
+            `webhook-signature: v1,<base64>`, HMAC-SHA256 keyed with this
+            string's UTF-8 bytes over `<webhook-id>.<webhook-timestamp>.<raw
+            body>`). Sixteen characters minimum, because a short shared
             secret is guessable offline from a single captured delivery. Stored
             AES-GCM-encrypted and never returned or logged.
           example: a-long-enough-webhook-secret

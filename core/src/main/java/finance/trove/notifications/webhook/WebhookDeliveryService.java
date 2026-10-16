@@ -188,17 +188,20 @@ public class WebhookDeliveryService {
         }
 
         byte[] body = row.getPayload().getBytes(StandardCharsets.UTF_8);
+        String deliveryId = row.getId().toString();
+        long timestamp = clock.instant().getEpochSecond();
         String signature = WebhookSignature.sign(encryption.decrypt(subscription
-            .getSecretEncrypted()), body);
+            .getSecretEncrypted()), deliveryId, timestamp, body);
 
         try {
             RestClient client = clients.builderFor(target, CONNECT_TIMEOUT, READ_TIMEOUT).build();
             ResponseEntity<Void> response = client.post()
                 .uri(target.uri())
                 .contentType(MediaType.APPLICATION_JSON)
+                .header(WebhookSignature.ID_HEADER, deliveryId)
+                .header(WebhookSignature.TIMESTAMP_HEADER, Long.toString(timestamp))
                 .header(WebhookSignature.SIGNATURE_HEADER, signature)
                 .header(WebhookSignature.EVENT_HEADER, row.getEventType())
-                .header(WebhookSignature.DELIVERY_HEADER, row.getId().toString())
                 .body(body)
                 .retrieve()
                 .toBodilessEntity();
