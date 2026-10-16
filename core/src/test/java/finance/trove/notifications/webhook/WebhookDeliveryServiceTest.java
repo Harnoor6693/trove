@@ -82,7 +82,7 @@ class WebhookDeliveryServiceTest {
 
     private WebhookSubscription enabledSubscription(UUID id, List<String> eventTypes) {
         WebhookSubscription subscription = new WebhookSubscription(UUID.randomUUID(),
-            "https://192.0.2.1/hook", "v1:ciphertext", eventTypes);
+            "https://8.8.8.8/hook", "v1:ciphertext", eventTypes);
         ReflectionTestUtils.setField(subscription, "id", id);
         return subscription;
     }
@@ -263,8 +263,8 @@ class WebhookDeliveryServiceTest {
         ReflectionTestUtils.setField(subscription, "id", subscriptionId);
         when(subscriptions.findSubscription(subscriptionId)).thenReturn(Optional.of(subscription));
         ResolvedTarget target = new ResolvedTarget("hooks.example.test",
-            InetAddress.getByName("192.0.2.1"), 443, URI.create("https://hooks.example.test/hook"),
-            List.of(InetAddress.getByName("192.0.2.1")));
+            InetAddress.getByName("8.8.8.8"), 443, URI.create("https://hooks.example.test/hook"),
+            List.of(InetAddress.getByName("8.8.8.8")));
         when(policy.check("https://hooks.example.test/hook")).thenReturn(target);
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer receiver = MockRestServiceServer.bindTo(builder).build();

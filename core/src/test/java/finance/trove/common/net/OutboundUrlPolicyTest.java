@@ -217,7 +217,15 @@ class OutboundUrlPolicyTest {
             "2001:1::1", "2001:1::2", "2001:1::3", "2001:3::1", "2001:4:112::1",
             "2001:20::1", "2001:2f:ffff::1", "2001:30::1", "2001:3f:ffff::1",
             // Unallocated but inside 2000::/3: RFC 4291 §2.4 says treat it as global unicast
-            "2000::1", "3ffe::1",
+            "2000::1", "3ffe::1", "2d00::1",
+            // The IANA IPv4 special-purpose registry marks these globally reachable: the PCP and
+            // TURN anycast addresses inside 192.0.0.0/24, AS112-v4, AMT, AS112 direct delegation
+            "192.0.0.9", "192.0.0.10", "64:ff9b::c000:9", "192.31.196.1", "192.52.193.1",
+            "192.175.48.1",
+            // One address either side of each IPv4 range that is not globally reachable
+            "191.255.255.255", "192.0.1.0", "192.0.1.255", "192.0.3.0", "192.88.98.255",
+            "192.88.100.0", "198.17.255.255", "198.20.0.0", "198.51.99.255", "198.51.101.0",
+            "203.0.112.255", "203.0.114.0",
         })
         @DisplayName("a genuinely public address on either family is allowed")
         void publicAddressesAreAllowed(String address) throws UnknownHostException {
@@ -368,6 +376,31 @@ class OutboundUrlPolicyTest {
             "3fff::1,                     documentation",
             "3fff:fff:ffff::1,            documentation",
             "5f00::1,                     SRv6",
+            // The IPv4 registry, the same rule: not globally reachable, so never a LAN model.
+            // 192.0.0.0/24 is not globally reachable unless a more specific entry says so
+            "192.0.0.0,                   protocol-assignment",
+            "192.0.0.1,                   protocol-assignment",
+            "192.0.0.7,                   protocol-assignment",
+            "192.0.0.8,                   protocol-assignment",
+            "192.0.0.11,                  protocol-assignment",
+            "192.0.0.170,                 protocol-assignment",
+            "192.0.0.171,                 protocol-assignment",
+            "192.0.0.255,                 protocol-assignment",
+            "192.0.2.0,                   documentation",
+            "192.0.2.255,                 documentation",
+            "198.51.100.0,                documentation",
+            "198.51.100.255,              documentation",
+            "203.0.113.0,                 documentation",
+            "203.0.113.255,               documentation",
+            "198.18.0.0,                  benchmarking",
+            "198.19.255.255,              benchmarking",
+            "192.88.99.0,                 6to4 relay",
+            "192.88.99.1,                 6to4 relay",
+            "192.88.99.2,                 6to4 relay",
+            "192.88.99.255,               6to4 relay",
+            "64:ff9b::c000:201,           documentation",
+            "2002:cb00:7101::1,           documentation",
+            "::ffff:0:c612:1,             benchmarking",
             // 2001::/23 is not globally reachable unless a more specific entry says so
             "2001:1::4,                   2001::/23",
             "2001:4::1,                   2001::/23",

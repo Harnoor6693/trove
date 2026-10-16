@@ -45,13 +45,14 @@ import org.springframework.stereotype.Component;
  *       configures their own endpoint (so an instance-wide switch is too coarse) — §1.6, §6,
  *       owner decision 9. Only the per-user AI endpoint passes an opt-in; SimpleFIN and webhooks
  *       call {@link #check(String)}, so the flag never opens a private target to them. With both
- *       keys set the policy lifts the private-network blocks only:
- *       RFC 1918, loopback, CGNAT, ULA and the deprecated IPv6 site-local {@code fec0::/10}.
- *       Link-local (including {@code 169.254.169.254}), the cloud metadata addresses that sit
- *       inside those ranges (Alibaba's in CGNAT; AWS's, Google's, Oracle's, Akamai's and
- *       Scaleway's IPv6 ones in ULA), the unspecified, multicast and reserved ranges, every
- *       other IPv6 special-purpose range IANA marks not globally reachable, and the IPv6 space
- *       outside {@code 2000::/3} that the IETF reserves stay refused whatever the keys say; see
+ *       keys set the policy lifts two things only: the private-network blocks (RFC 1918,
+ *       loopback, CGNAT, ULA and the deprecated IPv6 site-local {@code fec0::/10}), and the
+ *       https-only rule, so plain http is allowed on that call. Link-local (including
+ *       {@code 169.254.169.254}), the cloud metadata addresses that sit inside those ranges
+ *       (Alibaba's in CGNAT; AWS's, Google's, Oracle's, Akamai's and Scaleway's IPv6 ones in
+ *       ULA), the unspecified, multicast and reserved ranges, every other IPv4 or IPv6
+ *       special-purpose range IANA marks not globally reachable, and the IPv6 space outside
+ *       {@code 2000::/3} that the IETF reserves stay refused whatever the keys say; see
  *       {@link #unconditionalBlockReason}.</li>
  * </ul>
  *
@@ -78,23 +79,23 @@ public class OutboundUrlPolicy {
     private static final List<byte[]> METADATA_IPV6 = List.of(
         // AWS EC2 IMDS:
         // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html
-        ipv6Literal("fd00:ec2::254"),
+        addressBytes("fd00:ec2::254"),
         // AWS EKS Pod Identity Agent, which hands pods their IAM credentials:
         // https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html
-        ipv6Literal("fd00:ec2::23"),
+        addressBytes("fd00:ec2::23"),
         // Google Compute Engine:
         // https://docs.cloud.google.com/compute/docs/metadata/querying-metadata
-        ipv6Literal("fd20:ce::254"),
+        addressBytes("fd20:ce::254"),
         // Oracle Cloud. Its IMDS page lists IPv4 only; Oracle's own SDK uses this address
         // (IMDS_IPV6_HOST) and fetches the instance-principal key from it:
         // https://github.com/oracle/oci-python-sdk/blob/master/src/oci/auth/signers/instance_principals_security_token_signer.py
-        ipv6Literal("fd00:c1::a9fe:a9fe"),
+        addressBytes("fd00:c1::a9fe:a9fe"),
         // Akamai (Linode):
         // https://techdocs.akamai.com/cloud-computing/docs/metadata-service-api
-        ipv6Literal("fd00:a9fe:a9fe::1"),
+        addressBytes("fd00:a9fe:a9fe::1"),
         // Scaleway:
         // https://www.scaleway.com/en/developers/api/instance/user-data
-        ipv6Literal("fd00:42::42"));
+        addressBytes("fd00:42::42"));
 
     /**
      * Entries of the IANA IPv6 Special-Purpose Address Registry marked not globally reachable
@@ -103,7 +104,7 @@ public class OutboundUrlPolicy {
      * them. https://www.iana.org/assignments/iana-ipv6-special-registry/ (checked 2026-10-16,
      * registry last updated 2025-10-09).
      */
-    private static final List<Ipv6Prefix> NOT_GLOBALLY_REACHABLE = List.of(
+    private static final List<Prefix> NOT_GLOBALLY_REACHABLE = List.of(
         prefix("100::", 64, "a discard-only (100::/64) address"),
         prefix("100:0:0:1::", 64, "a dummy-prefix (100:0:0:1::/64) address"),
         prefix("2001:2::", 48, "a benchmarking (2001:2::/48) address"),
@@ -117,7 +118,7 @@ public class OutboundUrlPolicy {
      * specific allocation", so an address in it is refused unless it falls in one of
      * {@link #GLOBALLY_REACHABLE_ASSIGNMENTS}.
      */
-    private static final Ipv6Prefix IETF_PROTOCOL_ASSIGNMENTS =
+    private static final Prefix IETF_PROTOCOL_ASSIGNMENTS =
         prefix("2001::", 23, "an IETF protocol-assignment (2001::/23) address");
 
     /**
@@ -126,7 +127,7 @@ public class OutboundUrlPolicy {
      * ORCHIDv2 and DETs are host identifiers, not locators (RFC 7343), but the registry calls
      * them globally reachable and they reach nothing without a HIP stack, so they stay allowed.
      */
-    private static final List<Ipv6Prefix> GLOBALLY_REACHABLE_ASSIGNMENTS = List.of(
+    private static final List<Prefix> GLOBALLY_REACHABLE_ASSIGNMENTS = List.of(
         prefix("2001::", 32, "Teredo"),
         prefix("2001:1::1", 128, "Port Control Protocol anycast"),
         prefix("2001:1::2", 128, "TURN anycast"),
@@ -135,6 +136,43 @@ public class OutboundUrlPolicy {
         prefix("2001:4:112::", 48, "AS112-v6"),
         prefix("2001:20::", 28, "ORCHIDv2"),
         prefix("2001:30::", 28, "Drone Remote ID entity tags"));
+
+    /**
+     * The IPv4 twin of {@link #NOT_GLOBALLY_REACHABLE}: entries of the IANA IPv4 Special-Purpose
+     * Address Registry marked not globally reachable that no other rule covers.
+     * https://www.iana.org/assignments/iana-ipv4-special-registry/ (checked 2026-10-16, registry
+     * last updated 2025-10-09). The rest of the registry's not-globally-reachable entries have
+     * rules of their own: {@code 0.0.0.0/8}, link-local {@code 169.254.0.0/16} and reserved
+     * {@code 240.0.0.0/4} (which holds the limited broadcast {@code 255.255.255.255/32}) are
+     * refused here too, and RFC 1918, loopback {@code 127.0.0.0/8} and CGNAT
+     * {@code 100.64.0.0/10} are the private ranges the opt-in lifts.
+     *
+     * <p>{@code 192.88.99.0/24}, the deprecated 6to4 relay anycast prefix, has no reachability
+     * value at all: RFC 7526 §7 removed it, and redelegating the prefix needs an IETF Standards
+     * Action. Its one live entry, the 6a44 relay {@code 192.88.99.2/32}, is not globally
+     * reachable, and no HTTP endpoint lives on a 6to4 relay, so the whole /24 is refused.
+     */
+    private static final List<Prefix> IPV4_NOT_GLOBALLY_REACHABLE = List.of(
+        prefix("192.0.2.0", 24, "a documentation (192.0.2.0/24) address"),
+        prefix("192.88.99.0", 24, "a deprecated 6to4 relay anycast (192.88.99.0/24) address"),
+        prefix("198.18.0.0", 15, "a benchmarking (198.18.0.0/15) address"),
+        prefix("198.51.100.0", 24, "a documentation (198.51.100.0/24) address"),
+        prefix("203.0.113.0", 24, "a documentation (203.0.113.0/24) address"));
+
+    /**
+     * {@code 192.0.0.0/24}: the registry marks it not globally reachable and "not usable unless by
+     * virtue of a more specific reservation", so an address in it is refused unless it falls in
+     * one of {@link #IPV4_GLOBALLY_REACHABLE_ASSIGNMENTS}. The DS-Lite {@code 192.0.0.0/29}, the
+     * dummy {@code 192.0.0.8} and the NAT64 discovery {@code 192.0.0.170}/{@code .171} are all
+     * marked not globally reachable, so they stay inside the refusal.
+     */
+    private static final Prefix IPV4_IETF_PROTOCOL_ASSIGNMENTS =
+        prefix("192.0.0.0", 24, "an IETF protocol-assignment (192.0.0.0/24) address");
+
+    /** The more specific {@code 192.0.0.0/24} entries the registry marks globally reachable. */
+    private static final List<Prefix> IPV4_GLOBALLY_REACHABLE_ASSIGNMENTS = List.of(
+        prefix("192.0.0.9", 32, "Port Control Protocol anycast"),
+        prefix("192.0.0.10", 32, "TURN anycast"));
 
     private final EgressProperties properties;
     private final HostResolver resolver;
@@ -251,9 +289,10 @@ public class OutboundUrlPolicy {
      * no LAN model lives on: unspecified ({@code 0.0.0.0/8}, {@code ::}), multicast
      * ({@code 224.0.0.0/4}, {@code ff00::/8}), reserved ({@code 240.0.0.0/4}, and the IPv6 space
      * outside {@code 2000::/3} that the IETF reserves, see {@link #isIetfReserved}) and the other
-     * IPv6 special-purpose ranges IANA marks not globally reachable
+     * special-purpose ranges IANA marks not globally reachable: IPv6
      * ({@link #NOT_GLOBALLY_REACHABLE}, and {@code 2001::/23} outside its globally reachable
-     * entries). The opt-in exists so a member can point at a LAN model on
+     * entries) and IPv4 ({@link #IPV4_NOT_GLOBALLY_REACHABLE}, and {@code 192.0.0.0/24} outside
+     * its globally reachable entries). The opt-in exists so a member can point at a LAN model on
      * RFC 1918, loopback, CGNAT, ULA or site-local; treating
      * the rest as one setting is what would turn a per-user endpoint into an SSRF primitive
      * against the install itself, with no administrator anywhere in the path, since every member
@@ -309,6 +348,23 @@ public class OutboundUrlPolicy {
         if (first >= 240) {
             return "a reserved (240.0.0.0/4) address";
         }
+        return ipv4NotGloballyReachableReason(ipv4);
+    }
+
+    /**
+     * Why {@code ipv4} is in an IANA IPv4 special-purpose range that is not globally reachable,
+     * or {@code null}; see {@link #IPV4_NOT_GLOBALLY_REACHABLE}.
+     */
+    private static String ipv4NotGloballyReachableReason(byte[] ipv4) {
+        for (Prefix prefix : IPV4_NOT_GLOBALLY_REACHABLE) {
+            if (prefix.contains(ipv4)) {
+                return prefix.reason();
+            }
+        }
+        if (IPV4_IETF_PROTOCOL_ASSIGNMENTS.contains(ipv4)
+            && IPV4_GLOBALLY_REACHABLE_ASSIGNMENTS.stream().noneMatch(p -> p.contains(ipv4))) {
+            return IPV4_IETF_PROTOCOL_ASSIGNMENTS.reason();
+        }
         return null;
     }
 
@@ -331,7 +387,7 @@ public class OutboundUrlPolicy {
         if (isLocalUseNat64(bytes)) {
             return "a local-use NAT64 (64:ff9b:1::/48) address";
         }
-        for (Ipv6Prefix prefix : NOT_GLOBALLY_REACHABLE) {
+        for (Prefix prefix : NOT_GLOBALLY_REACHABLE) {
             if (prefix.contains(bytes)) {
                 return prefix.reason();
             }
@@ -373,12 +429,13 @@ public class OutboundUrlPolicy {
         return !(zeroFirst96 || isIpv4Mapped(bytes) || isSiit(bytes) || isNat64(bytes));
     }
 
-    /** An IPv6 prefix, and the reason an address inside it is refused (or allowed). */
-    private record Ipv6Prefix(byte[] network, int length, String reason) {
+    /** An IPv4 or IPv6 prefix, and the reason an address inside it is refused (or allowed). */
+    private record Prefix(byte[] network, int length, String reason) {
 
         boolean contains(byte[] address) {
             int whole = length / 8;
-            if (!Arrays.equals(address, 0, whole, network, 0, whole)) {
+            if (address.length != network.length
+                || !Arrays.equals(address, 0, whole, network, 0, whole)) {
                 return false;
             }
             if (length % 8 == 0) {
@@ -389,12 +446,12 @@ public class OutboundUrlPolicy {
         }
     }
 
-    private static Ipv6Prefix prefix(String literal, int length, String reason) {
-        return new Ipv6Prefix(ipv6Literal(literal), length, reason);
+    private static Prefix prefix(String literal, int length, String reason) {
+        return new Prefix(addressBytes(literal), length, reason);
     }
 
-    /** The bytes of an IPv6 literal; {@code getByName} does no DNS lookup for a literal. */
-    private static byte[] ipv6Literal(String literal) {
+    /** The bytes of an IP literal; {@code getByName} does no DNS lookup for a literal. */
+    private static byte[] addressBytes(String literal) {
         try {
             return InetAddress.getByName(literal).getAddress();
         } catch (UnknownHostException e) {
@@ -576,16 +633,10 @@ public class OutboundUrlPolicy {
         if (first == 100 && second >= 64 && second <= 127) {
             return "a carrier-grade NAT (100.64.0.0/10) address";
         }
-        if (first == 192 && second == 0 && (bytes[2] & 0xFF) == 0) {
-            return "an IETF protocol-assignment (192.0.0.0/24) address";
-        }
-        if (first == 198 && (second == 18 || second == 19)) {
-            return "a benchmarking (198.18.0.0/15) address";
-        }
         if (first >= 240) {
             return "a reserved (240.0.0.0/4) address";
         }
-        return null;
+        return ipv4NotGloballyReachableReason(bytes);
     }
 
     private List<InetAddress> resolve(String host) {

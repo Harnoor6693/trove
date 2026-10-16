@@ -62,7 +62,7 @@ class AiSettingsServiceTest {
         encryption = new FieldEncryptionService(KEY_HEX);
         AiAuditRecorder audit = mock(AiAuditRecorder.class);
 
-        InetAddress ip = InetAddress.getByName("203.0.113.10");
+        InetAddress ip = InetAddress.getByName("8.8.8.8");
         when(urlPolicy.check(anyString(), anyBoolean())).thenReturn(new ResolvedTarget(
             "ai.example.test", ip, 443, URI.create(URL), List.of(ip)));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));

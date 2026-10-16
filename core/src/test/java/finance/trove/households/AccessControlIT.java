@@ -691,7 +691,7 @@ class AccessControlIT extends ImportSupport {
     @Test
     @DisplayName("AI settings are per-user: a household mate can neither read nor write yours")
     void aiSettingsAreNotSharedInsideAHousehold() {
-        String endpoint = "https://203.0.113.10/v1";
+        String endpoint = "https://[2d00::1]/v1";
         String apiKey = "sk-household-mate-must-not-see-this";
         String body = Json.object("enabled", true, "endpointUrl", endpoint, "apiKey", apiKey,
             "model", "llama3", "allowPrivateEndpoint", false, "privacyTier", "LOCAL_ONLY");
@@ -708,12 +708,12 @@ class AccessControlIT extends ImportSupport {
         assertThat(asMate.body())
             .as("a household mate must see neither the endpoint nor any trace of the key")
             .doesNotContain(apiKey)
-            .doesNotContain("203.0.113.10");
+            .doesNotContain("2d00::1");
         assertThat(Json.data(asMate.body()).path("enabled").asBoolean()).isFalse();
 
         HttpResponse<String> asForeigner =
             get(appUrl("/v1/ai/settings"), householdAdminB.accessToken());
-        assertThat(asForeigner.body()).doesNotContain(apiKey).doesNotContain("203.0.113.10");
+        assertThat(asForeigner.body()).doesNotContain(apiKey).doesNotContain("2d00::1");
 
         // A mate's own write is a write to their own row and leaves the admin's alone.
         assertThat(putJson(appUrl("/v1/ai/settings"),
@@ -1475,8 +1475,8 @@ class AccessControlIT extends ImportSupport {
     // and the orchestrator resolves the appends at merge as it did for waves A and B.
     // =========================================================================================
 
-    /** A public IPv4 literal. Nothing connects to it; OutboundUrlPolicy only has to accept it. */
-    private static final String WEBHOOK_TARGET = "https://192.0.2.1/access-control-probe";
+    /** A public IPv6 literal. Nothing connects to it; OutboundUrlPolicy only has to accept it. */
+    private static final String WEBHOOK_TARGET = "https://[2d00::1]/access-control-probe";
 
     /** Sixteen characters is the floor POST /v1/webhooks enforces. */
     private static final String WEBHOOK_SECRET = "a-long-enough-webhook-secret";
