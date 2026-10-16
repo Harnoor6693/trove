@@ -88,6 +88,22 @@ public interface ConnectedAccountRepository extends UserScopedRepository<Connect
     int freeTransferPartners(@Param("id") UUID id, @Param("h") UUID householdId);
 
     /**
+     * The categorised rows whose envelope changes when this account is disconnected (G2): its own
+     * (they leave the ledger with the cascade) and the paired legs on OTHER accounts (they count
+     * as spending again once {@link #freeTransferPartners} unlinks them). Run before both, while
+     * the rows still exist and the partners are still linked. JPQL naming the entity by string,
+     * like {@code freeTransferPartners}' SQL, so {@code accounts} takes no class dependency on
+     * {@code transactions}.
+     */
+    @Query("select new finance.trove.accounts.CategorisedRow(t.id, t.categoryId, t.date, "
+        + "t.currency) from Transaction t where t.householdId = :h and t.categoryId is not null "
+        + "and (t.accountId = :id or t.transferGroupId in (select x.transferGroupId from "
+        + "Transaction x where x.householdId = :h and x.accountId = :id "
+        + "and x.transferGroupId is not null))")
+    List<CategorisedRow> categorisedRowsAffectedByDisconnect(@Param("id") UUID id,
+                                                              @Param("h") UUID householdId);
+
+    /**
      * Inserts a provider account unless the household already has one for that source (B1-15).
      * {@code ON CONFLICT DO NOTHING} rather than catching a unique violation: a violation aborts
      * the surrounding Postgres transaction, so the caller could neither re-read the winner's row

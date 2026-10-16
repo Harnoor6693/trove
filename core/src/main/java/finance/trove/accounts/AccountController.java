@@ -109,11 +109,14 @@ public class AccountController {
             accountService.update(principal.getHouseholdId(), id, request)));
     }
 
-    /** {@code DELETE /v1/accounts/{id}} — removes the account and its transactions. */
+    /**
+     * {@code DELETE /v1/accounts/{id}} — removes the account and its transactions, and recomputes
+     * the budget envelopes they counted in.
+     */
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@AuthenticationPrincipal TroveUserDetails principal,
                                     @PathVariable UUID id) {
-        accountService.delete(principal.getHouseholdId(), id);
+        accountService.delete(principal.getHouseholdId(), principal.getUserId(), id);
         return ApiResponse.<Void>ok(null);
     }
 
