@@ -7,6 +7,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import org.slf4j.Logger;
@@ -195,16 +196,35 @@ public class OutboundUrlPolicy {
         return null;
     }
 
-    /** The four IPv4 bytes of {@code address}, unwrapping {@code ::ffff:0:0/96}, or null. */
+    /**
+     * The four IPv4 bytes {@code address} leads to, or null: the address itself, or the one
+     * embedded in {@code ::ffff:0:0/96} (mapped), {@code 64:ff9b::/96} (NAT64),
+     * {@code 2002::/16} (6to4) or {@code 2001::/32} (Teredo, client address bit-inverted).
+     *
+     * <p>B3-11: on a host with NAT64, or a 6to4 or Teredo route, a connection to one of these is
+     * a connection to the IPv4 address inside it, so that address is what the checks judge.
+     */
     private static byte[] embeddedIpv4(InetAddress address) {
         byte[] bytes = address.getAddress();
         if (bytes.length == 4) {
             return bytes;
         }
-        if (bytes.length == 16 && isIpv4Mapped(bytes)) {
-            return new byte[] {bytes[12], bytes[13], bytes[14], bytes[15]};
+        if (isIpv4Mapped(bytes) || isNat64(bytes)) {
+            return Arrays.copyOfRange(bytes, 12, 16);
+        }
+        if ((bytes[0] & 0xFF) == 0x20 && bytes[1] == 0x02) {
+            return Arrays.copyOfRange(bytes, 2, 6);
+        }
+        if ((bytes[0] & 0xFF) == 0x20 && bytes[1] == 0x01 && bytes[2] == 0 && bytes[3] == 0) {
+            return new byte[] {(byte) ~bytes[12], (byte) ~bytes[13], (byte) ~bytes[14],
+                (byte) ~bytes[15]};
         }
         return null;
+    }
+
+    private static boolean isNat64(byte[] bytes) {
+        return bytes[0] == 0 && bytes[1] == 0x64 && (bytes[2] & 0xFF) == 0xFF
+            && (bytes[3] & 0xFF) == 0x9B && Arrays.equals(bytes, 4, 12, new byte[8], 0, 8);
     }
 
     /**
@@ -254,6 +274,17 @@ public class OutboundUrlPolicy {
         }
         if ((bytes[0] & 0xFE) == 0xFC) {
             return "an IPv6 unique-local (fc00::/7) address";
+        }
+        byte[] ipv4 = embeddedIpv4(address);
+        if (ipv4 != null) {
+            String embedded;
+            try {
+                embedded = blockReason(InetAddress.getByAddress(ipv4));
+            } catch (UnknownHostException e) {
+                // getByAddress refuses only a wrong length, and this is always four bytes.
+                throw new IllegalStateException(e);
+            }
+            return embedded == null ? null : embedded + " inside an IPv6 transition address";
         }
         return null;
     }
