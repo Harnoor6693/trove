@@ -111,9 +111,10 @@ public class LoginAttemptRepository {
     }
 
     /**
-     * Failed attempts from one address since {@code since}. Collapse step 4's per-IP bucket is
-     * the enforcement point; this is the query it will read, and having it here means the
-     * evidence table has one owner rather than two.
+     * Failed attempts from one address since {@code since}. {@code
+     * LockoutService#assertAddressNotThrottled}
+     * reads it for the per-address gate; having it here means the evidence table has one owner
+     * rather than two.
      */
     public long countIpFailuresSince(String ip, Instant since) {
         if (ip == null) {

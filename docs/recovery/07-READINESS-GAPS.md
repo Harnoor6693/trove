@@ -1,5 +1,7 @@
 # Trove — Production-Readiness Gaps
 
+> **Historical record, written 2026-09-03 (verified at `9ad1b5f` plus P0), with dated notes to 2026-09-27.** Many gaps were closed by later rebuild steps and the list was not rolled forward; only some entries carry a Superseded note. Current state: `docs-site/guide/architecture.md`.
+
 What a genuinely production-ready self-hosted finance product needs that `01-FINDINGS.md`
 through `06-PROGRESS.md` do **not** already cover. Merged from four reviewer lenses
 (self-hoster journey, public-internet security, day-2 operations, Expo/store shipping), then

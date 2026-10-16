@@ -90,9 +90,11 @@ export default function AccountsScreen() {
       {
         // MANUAL, CSV or OFX. A `SIMPLEFIN` account is never created here —
         // that row comes from the credential exchange. A `CSV`/`OFX` account
-        // has no source registered until a file is uploaded against it, so
-        // `POST /v1/accounts/{id}/sync` answers 409 for one until then; that
-        // is the contract's own design and is what the hint below says.
+        // has no uploaded file until one is imported against it, so
+        // `POST /v1/accounts/{id}/sync` answers 200 with a `FAILED` sync_log
+        // ("This account has no uploaded file to import"), not a 409. The 409
+        // "no source registered" applies only to `MANUAL` accounts; the hint
+        // below tells the member to import a file first.
         sourceKind,
         displayName: displayName.trim(),
         institution: institution.trim() === '' ? null : institution.trim(),
@@ -122,9 +124,10 @@ export default function AccountsScreen() {
         // `exchange.reset()` is the other half of that, and it is not
         // optional. `mutate` hands the token to React Query, which keeps it as
         // `mutation.state.variables` in the app-level `MutationCache`; the
-        // single client in `app/_layout.tsx` overrides `defaultOptions.queries`
-        // only, so mutations keep v5's five-minute `gcTime` and the credential
-        // would stay reachable in the heap for five minutes after this screen
+        // single client in `src/api/queryClient.ts` (provided by
+        // `app/_layout.tsx`) overrides `defaultOptions.queries` only, so
+        // mutations keep v5's five-minute `gcTime` and the credential would
+        // stay reachable in the heap for five minutes after this screen
         // cleared its own field and unmounted. `reset()` drops `variables` and
         // `data` immediately instead of waiting that timer out.
         onSettled: () => {

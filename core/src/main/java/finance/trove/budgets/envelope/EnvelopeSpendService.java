@@ -102,7 +102,8 @@ public class EnvelopeSpendService {
     /**
      * The seam §1.3 names: recompute one household's envelope for one category and month.
      *
-     * <p>The acting member is taken from the period's {@code created_by} when the caller has no
+     * <p>The acting member is taken from the period's {@code user_id} (who opened it) when the
+     * caller has no
      * better answer — a scheduled recomputation has no request behind it, and
      * {@link BudgetThresholdCrossedEvent} needs a member to address. If that column is null too
      * (the member has since been deleted) the aggregate is still rewritten and only the alert is
@@ -122,8 +123,9 @@ public class EnvelopeSpendService {
     }
 
     /**
-     * The same recomputation with a known acting member — the form both listeners and both
-     * envelope write paths use, so the alert names whoever actually moved the envelope.
+     * The same recomputation with a known acting member — the form the envelope create path and
+     * the rollover job use, so the alert names whoever actually moved the envelope (the ingest and
+     * spend listeners call {@code recalculateAll} with the event's user for the same reason).
      */
     @Transactional
     public void recalculate(UUID householdId, UUID actingUserId, UUID categoryId,
@@ -220,6 +222,11 @@ public class EnvelopeSpendService {
         return total;
     }
 
+    /** Allocated plus carry-over: the amount thresholds and health are measured against. */
+    private static BigDecimal budgetOf(Envelope envelope) {
+        return envelope.getAllocated().add(envelope.getRolloverAmount());
+    }
+
     /**
      * Whether this write is the moment the envelope went from under one of the household's alert
      * thresholds to at or over it.
@@ -240,11 +247,6 @@ public class EnvelopeSpendService {
      * <p>An envelope with nothing allocated never crosses: there is no ratio, and an alert saying
      * spending is 100 % of a zero budget tells the household nothing it can act on.
      */
-    /** Allocated plus carry-over: the amount thresholds and health are measured against. */
-    private static BigDecimal budgetOf(Envelope envelope) {
-        return envelope.getAllocated().add(envelope.getRolloverAmount());
-    }
-
     private static boolean crossedAnyThreshold(BigDecimal previous, BigDecimal recomputed,
                                                BigDecimal allocated,
                                                Set<BigDecimal> thresholds) {
@@ -261,8 +263,8 @@ public class EnvelopeSpendService {
     }
 
     /**
-     * Publishes the crossing. Nothing consumes it in this step — delivery is step 11's and step
-     * 16's — so publishing it now is what lets those steps be additive.
+     * Publishes the crossing. {@code NotificationEventListener} turns it into inbox rows and
+     * {@code WebhookEventListener} into webhook deliveries.
      */
     private void publishCrossing(Envelope envelope, UUID actingUserId, YearMonth month,
                                  BigDecimal recomputed) {

@@ -30,7 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
  * both walked past {@code <= 1}, and both committed. The household is then left with no
  * administrator at all, and there is no way back in through the API: registration is closed,
  * opening it is an admin route, and so is minting an invite. An install in that state needs a
- * database edit or the console commands of {@code finance.trove.app.cli}.
+ * database edit; the console commands in {@code finance.trove.app.cli}
+ * ({@code reset-password}, {@code disable-totp}, {@code unlock}) cannot grant the ADMIN role.
  *
  * <p>The serialisation point is the <strong>household row</strong>, taken
  * {@code PESSIMISTIC_WRITE} before anything is counted. The tenancy root is the natural choice:

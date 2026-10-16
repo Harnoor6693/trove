@@ -33,7 +33,7 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-      # The same gate ci.yml runs on every push: unit + Testcontainers-backed
+      # The same gate as ci.yml: unit + Testcontainers-backed
       # integration tests, checkstyle, and the jacoco coverage check, scoped to
       # the one module that ships. A release is not cut from a commit that
       # hasn't passed this.
@@ -151,7 +151,5 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: trove-${{ github.ref_name }}.apk
 
-  # No smoke-test job: scripts/smoke-test.sh brings up docker/docker-compose.release.yml,
-  # a ten-service compose file for the dead topology (§10.4 of the CI inventory) — it
-  # would need a full rewrite against a single-image core compose before it belongs in
-  # this workflow again, and scripts/ is outside this step's ownership. See openIssues.
+  # No smoke-test job. Add one only when a script exists that starts the single-image
+  # stack (deploy/docker-compose.yml, or scripts/load-stack.sh up) and probes /api/v1/status.

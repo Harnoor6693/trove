@@ -1,6 +1,6 @@
 # Trove — Monolith Collapse Plan (`trove-core`)
 
-**Status:** architect's execution plan · **Baseline:** `9ad1b5f` (main) / `6a8b3cf` (rebuild) · **Date:** 2026-09-03
+**Status:** historical record of the execution plan as written 2026-09-03; executed in full by 2026-09-28. Migration numbers and file lists below are the plan's own, not the current tree's; the current state is in `docs-site/guide/architecture.md`. · **Baseline:** `9ad1b5f` (main) / `6a8b3cf` (rebuild) · **Date:** 2026-09-03
 **Inputs:** `docs/recovery/README.md`, the critical-path list (private project notes), `04-REVIEWS-AND-SCOPE.md` (Architect + Security), all 18
 files under `docs/recovery/inventory/`. Where inventories disagreed, source was read and the resolution is stated inline.
 

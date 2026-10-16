@@ -1,5 +1,7 @@
 # Inventory: libs/common
 
+> **Historical record, 2026-09-03.** Inventory of the pre-rebuild `libs/common`, since removed. Current state: `docs-site/guide/architecture.md`.
+
 `libs/common` (Maven artifact `finance.trove:common`, package root `finance.trove.common`) is
 23 main classes / 1286 LOC main, 15 test classes / 1006 LOC test. It is the shared library every
 one of the 10 services depends on for auth, error handling, and DTOs. It ships **no Spring Boot

@@ -1,5 +1,7 @@
 # plugins/ — collapse inventory
 
+> **Historical record, 2026-09-03.** Inventory of the pre-rebuild plugin modules, since removed. Current state: `docs-site/guide/architecture.md`.
+
 All paths repo-relative from the repository root. Verified against source on
 2026-09-03 (commit `9ad1b5f`). Every defect cited in §10/§M0 below was re-checked directly against
 the file:line shown, not carried over from `docs/recovery/01-FINDINGS.md` without re-verification —

@@ -1,7 +1,7 @@
 # ADR-0001: Microservice Architecture per Business Domain
 
 **Date**: 2026-04-27  
-Status: Superseded by ADR-0020 (monolith collapse, 2026-09-26 — the ten services this ADR split the domain into were merged back into one `core` module)  
+Status: Superseded by [ADR-0020](0020-monolith-collapse.md) (monolith collapse, 2026-09-26 — the ten services this ADR split the domain into were merged back into one `core` module)  
 **Deciders**: Architecture team
 
 ## Context

@@ -40,10 +40,12 @@ import { FormScroll } from '@components/ui/FormScroll/FormScroll';
  *    records a verdict. Both are 409 `conflict` while the pipeline is still
  *    running, which is a "wait, this is still being read" state and not a
  *    generic failure.
- *  - **The tax split is displayed, never computed.** There is no tax
- *    calculation anywhere in this product: GST, PST and HST are what the
- *    server sent, each on its own currency-carrying row, and they are absent
- *    for a member whose country is not CA.
+ *  - **The tax split is displayed, never computed by the app.** The server
+ *    reverse-calculates GST, PST and HST from the receipt total for Canadian
+ *    members only; this screen shows what it sent, each on its own
+ *    currency-carrying row, absent for a member whose country is not CA. The
+ *    tax export does not carry these figures (the member data export includes
+ *    the stored split).
  */
 export default function ReceiptDetailScreen() {
   const theme = useTheme();

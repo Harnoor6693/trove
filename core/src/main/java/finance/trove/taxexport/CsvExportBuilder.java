@@ -22,15 +22,18 @@ import org.springframework.stereotype.Component;
  * ({@code docs/recovery/06-COLLAPSE-PLAN.md} §2.9, §6; gap P2-16).
  *
  * <p><strong>This builder is also collapse step 18's.</strong> {@code POST /v1/me/export}'s full
- * data export is specified to be a filtered view of the same file, which is why the column list
+ * data export reuses it through {@code buildLedger} (the same 11 columns plus {@code accountId},
+ * {@code transferGroupId} and {@code pending}, no totals section), which is why the column list
  * and — critically — the formula-injection escaping live HERE and not in a controller. A second
  * copy of the escaping is a second chance to forget it.
  *
  * <h2>The columns are fixed</h2>
  * {@code date, merchant, description, notes, amount, currency, category, taxLineCode,
- * taxLineLabel, receiptId}, in that order, and {@code CsvExportBuilderTest} asserts the set
- * exactly. {@code notes} is its OWN column (RS-6). There is <strong>no {@code gst_amount} column
- * and no computed figure of any kind</strong>: the source computed GST as {@code amount x 0.05}
+ * taxLineLabel, receiptId, type}, in that order, and {@code CsvExportBuilderTest} asserts the set
+ * exactly. {@code buildLedger} appends {@code accountId}, {@code transferGroupId} and
+ * {@code pending} for the full data export. {@code notes} is its OWN column (RS-6). There is
+ * <strong>no {@code gst_amount} column and no computed figure of any kind</strong>: the source
+ * computed GST as {@code amount x 0.05}
  * on a tax-INCLUSIVE bank amount, which overstates it on every line of every export (the correct
  * form is {@code x 5/105}), and its own test asserted the wrong answer as correct (RS-1 /
  * 01-FINDINGS M7). The fix is not better arithmetic — owner decision 2 and §9 risk 15 mean this
@@ -53,7 +56,9 @@ import org.springframework.stereotype.Component;
  *
  * <h2>Totals</h2>
  * A totals section follows the transactions: one line per {@code (taxLineCode, currency)} pair,
- * each a plain sum of the member's own amounts. Per currency and never blended — a household
+ * the net spending on that line, DEBIT rows added and REFUND rows subtracted. Other types (income,
+ * fees, interest) are listed per row but not added in, and rows with no amount, currency or type
+ * are skipped. Per currency and never blended — a household
  * holding CAD and USD gets two rows for one line, because no exchange rate exists anywhere in
  * this system (findings F1/F2; gap row 40's rate feed is deferred and is not this step's).
  */
@@ -201,7 +206,7 @@ public class CsvExportBuilder {
     }
 
     /**
-     * A plain sum of the member's own amounts for one tax line in one currency.
+     * The net spending on one tax line in one currency: DEBIT rows added, REFUND rows subtracted.
      *
      * <p>No conversion, no rate, no blended figure: two currencies are two rows.
      */

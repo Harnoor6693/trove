@@ -3,7 +3,8 @@
 There are two different starting points, depending on what you're doing:
 
 - **Self-hosting Trove for your own household** → [Docker Compose self-hosting](../self-hosting/docker-compose).
-  Three commands, no source build required.
+  Three commands; Docker builds the images from source on first run (allow 5-15
+  minutes), so you need Docker but no JDK or Node.
 - **Building or contributing to Trove** → [Local development](./local-development). Runs
   the Spring Boot server and the web/mobile clients straight from source, against a
   Postgres container, with no Docker image build in the loop.
@@ -12,13 +13,16 @@ There are two different starting points, depending on what you're doing:
 
 ```bash
 git clone https://github.com/Harnoor6693/trove && cd trove/deploy
-cp .env.example .env
 ./trove bootstrap
+./trove up
 ```
 
-`./trove bootstrap` generates every secret, asks for your domain and TLS mode, and
-brings the whole stack up: `core` (the one Spring Boot module) and PostgreSQL, behind
-Traefik. It prints the admin email and password it generated for the first login. Full
+`./trove bootstrap` writes `deploy/.env` with generated secrets, asks for your domain,
+Let's Encrypt email, first admin email and country (CA or US), and prints the admin
+password once. Do not copy `.env.example` first: bootstrap does nothing if `deploy/.env`
+already exists. The TLS mode is set by `TROVE_TLS_MODE` in `deploy/.env` (default
+`acme-http`), not prompted for. `./trove up` then builds and starts the stack: the web UI
+container, `core` (the one Spring Boot module) and PostgreSQL, behind Traefik. Full
 detail — sizing, TLS modes, backup/restore, troubleshooting — is in
 [`deploy/README.md`](https://github.com/Harnoor6693/trove/blob/canary/deploy/README.md).
 

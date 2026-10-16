@@ -27,9 +27,9 @@ import java.util.UUID;
  *
  * <p><strong>Tenancy.</strong> {@link #getHouseholdId()} is the scope; the source table had
  * {@code user_id} only, which under a shared ledger would hide a partner's subscriptions.
- * {@link #getUserId()} means created-by, for audit — the calling member for
- * {@code POST /v1/subscriptions/scan}, the household's own administrator for the nightly job,
- * which has no caller.
+ * {@link #getUserId()} means attributed-to, for audit: the household's first ADMIN (else its first
+ * member), whichever of the nightly job, {@code POST /v1/subscriptions/scan} or the ingest
+ * listener triggered the scan.
  *
  * <p><strong>{@link #getCurrency()} has no default.</strong> The source column and entity both
  * defaulted to {@code "CAD"} and nothing ever overrode either (finding F1 / SD-3), so every

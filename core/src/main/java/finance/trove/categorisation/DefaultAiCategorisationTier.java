@@ -316,9 +316,9 @@ public class DefaultAiCategorisationTier implements AiCategorisationTier {
             return true;
         }
         try {
-            // Through the INJECTED bean, never through `this`: MerchantMappingWriter is
-            // REQUIRES_NEW and its javadoc says outright that a self-invoked call would run inside
-            // this pipeline's readOnly transaction and be lost. That was D4.
+            // Through the INJECTED bean, never through `this`: a self-invoked call bypasses the
+            // Spring proxy, so MerchantMappingWriter's REQUIRES_NEW would never apply and the write
+            // could join a caller's transaction. That was D4.
             mappingWriter.upsert(householdId, userId, merchant, MatchType.EXACT, categoryId,
                 confidence, MappingSource.AI);
         } catch (ResourceNotFoundException e) {

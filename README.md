@@ -6,7 +6,7 @@ Trove is a self-hostable personal finance platform for one household: transactio
 budgets, net worth, receipts, subscriptions, and tax-time export. It runs on your own
 hardware, behind your own domain, with no required third-party account.
 
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL_3.0-blue.svg)](LICENSE)
+[![License: AGPL-3.0-or-later](https://img.shields.io/badge/License-AGPL_3.0_or_later-blue.svg)](LICENSE)
 [![CI](https://github.com/Harnoor6693/trove/actions/workflows/ci.yml/badge.svg)](https://github.com/Harnoor6693/trove/actions/workflows/ci.yml)
 
 📚 **[Read the documentation →](https://harnoor6693.github.io/trove)**
@@ -23,11 +23,19 @@ conforms the running server's routes against that spec, so the spec is never all
 drift from what the server actually serves. One deployment, under [`deploy/`](deploy/),
 runs the whole thing behind Traefik with automatic TLS.
 
-- **Transactions, budgets, net worth** — manual entry, CSV/OFX import, SimpleFIN,
-  receipt OCR; envelope-style budgets; rolling net worth.
-- **Receipt OCR** — photo or file to matched transaction, stored on local disk under a
-  per-household quota (not per-user — see [Receipts](docs-site/api/receipts.md)).
+- **Transactions, budgets, net worth** — manual entry, CSV/OFX import, SimpleFIN
+  (manual or scheduled sync), receipt upload; envelope-style budgets; rolling net worth.
+- **Receipt upload** — a JPEG or PNG photo; fields are extracted by your own AI endpoint
+  if you configured one, otherwise entered by hand; matched to a transaction, stored on
+  local disk under a per-household quota (not per-user — see [Receipts](docs-site/api/receipts.md)).
 - **Subscription detection** — finds recurring payments from transaction history.
+- **Scheduled bank sync** — optional daily SimpleFIN sync (09:17 UTC by default). Off by
+  default; an admin turns it on in settings, so an upgrade never starts calling a third
+  party by itself.
+- **Household administration** — the admin invites members, changes roles, unlocks
+  accounts and resets 2FA.
+- **Webhooks** — each member can register signed outbound webhooks for events.
+- **Data export** — each member can export their own data as a downloadable archive.
 - **Tax-time export** — CSV/PDF export of the user's own recorded amounts and
   categories for Canada or US filing. It is an export, not a tax engine: see
   "What is not here" below.
@@ -38,8 +46,9 @@ runs the whole thing behind Traefik with automatic TLS.
 
 ## What is not here
 
-- **No push notifications.** In-app inbox and (optional, off by default) email are the
-  only notification channels.
+- **No push notifications.** The in-app inbox and (optional, off by default) email are
+  the only notification channels; members can additionally register signed outbound
+  webhooks.
 - **No tax calculation engine.** Tax export carries the amounts and labels the user
   already entered; Trove computes no tax figures and gives no tax advice.
 - **One household per install.** Multi-tenancy is out of scope; run a second install
@@ -54,12 +63,13 @@ runs the whole thing behind Traefik with automatic TLS.
 
 ```bash
 git clone https://github.com/Harnoor6693/trove && cd trove/deploy
-cp .env.example .env
-./trove bootstrap   # generates every secret, writes .env, brings the stack up
+./trove bootstrap   # writes .env with generated secrets, prints the admin login
+./trove up          # builds and starts the stack
 ```
 
-`./trove bootstrap` walks through domain/TLS choice and prints the admin email and
-password it generated. Full install steps, sizing, backup/restore, and troubleshooting
+`./trove bootstrap` asks for your domain, a Let's Encrypt email, the first admin address
+and country (CA or US, fixed after first boot), and prints the admin password it
+generated. Full install steps, sizing, backup/restore, and troubleshooting
 are in [`deploy/README.md`](deploy/README.md) — that document, not this one, is the
 source of truth for running Trove in production.
 
@@ -70,10 +80,11 @@ OpenAPI spec and never hand-edited.
 
 ## Getting the mobile app
 
-There is no App Store or Play Store listing. Distribution is sideload-only:
+There is no App Store or Play Store listing. Distribution is by direct install:
 
-- **iOS** — TestFlight (invite-only) or a self-signed build installed via AltStore /
-  Sideloadly. See [`docs-site/mobile/build.md`](docs-site/mobile/build.md).
+- **iOS** — no prebuilt binary is published. Build it yourself with EAS on your own Apple
+  developer account (see [`docs-site/mobile/build.md`](docs-site/mobile/build.md)); the
+  release workflow only publishes the Android APK.
 - **Android** — a signed APK built with EAS and installed directly.
 
 See [`docs-site/mobile/app-store-release.md`](docs-site/mobile/app-store-release.md) for
@@ -137,5 +148,5 @@ floor, and the spec-before-controller rule.
 
 ## License
 
-[AGPL-3.0](LICENSE) — free forever, for everyone.
+[AGPL-3.0-or-later](LICENSE) — free forever, for everyone.
 Third-party components and their licences are listed in [NOTICE](NOTICE).

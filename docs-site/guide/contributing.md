@@ -6,8 +6,7 @@ the repo root.
 
 ## Quick links
 
-- **Code of Conduct:** [CODE_OF_CONDUCT.md](https://github.com/Harnoor6693/trove/blob/canary/CODE_OF_CONDUCT.md) (if present in your fork)
-- **License:** [AGPL-3.0](https://github.com/Harnoor6693/trove/blob/canary/LICENSE)
+- **License:** [AGPL-3.0-or-later](https://github.com/Harnoor6693/trove/blob/canary/LICENSE)
 - **Issue tracker:** [github.com/Harnoor6693/trove/issues](https://github.com/Harnoor6693/trove/issues)
 
 ## Development workflow
@@ -22,9 +21,10 @@ the repo root.
    ./mvnw --batch-mode -pl core -am clean verify checkstyle:check -Pintegration,coverage
    ```
 6. Open a pull request; CI runs the same gate plus Checkstyle, dependency and secret
-   scanning, and (for client changes) the web/mobile lint, typecheck, and test suites.
+   scanning, and (for client changes) web lint, test and build (build runs `tsc`) and mobile lint, typecheck and test.
 
 ## Reporting security issues
 
-Please do **not** file public GitHub issues for security problems. Email the maintainers
-or use GitHub's private vulnerability reporting flow.
+Please do **not** file public GitHub issues for security problems. Use the repository's
+private vulnerability reporting: Security tab, Report a vulnerability (see
+[`SECURITY.md`](https://github.com/Harnoor6693/trove/blob/canary/SECURITY.md)).

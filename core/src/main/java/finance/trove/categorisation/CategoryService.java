@@ -20,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>System rows (seeded by V14, {@code householdId == null}) are read-only through every
  * mutating method here — {@link #update} and {@link #delete} both refuse one with
- * {@link ForbiddenException} before touching the repository. Household rows are fully editable by
+ * {@link ForbiddenException} before any write. Household rows are fully editable by
  * any member of the owning household.
  */
 @Service
@@ -43,7 +43,10 @@ public class CategoryService {
         return categories.findAllVisible(householdId);
     }
 
-    /** Creates a household category. {@code parentId}, if given, must resolve within the household. */
+    /**
+     * Creates a household category. {@code parentId}, if given, must resolve to a category
+     * visible to the household (its own or a system category).
+     */
     @Transactional
     public Category create(UUID householdId, UUID userId, CategoryRequest request) {
         String name = request.name().trim();
@@ -70,8 +73,9 @@ public class CategoryService {
 
     /**
      * Deletes a household's own category. A system category is 403 {@code forbidden}; a category
-     * still referenced by one of the household's own merchant mappings ({@code merchant_category
-     * _map.category_id}) is 409 {@code conflict} — "in use" per §4.5's scope.
+     * referenced by a non-AI merchant mapping (a rule the member made; {@code merchant_category
+     * _map.category_id}) is 409 {@code conflict} — "in use" per §4.5's scope. AI-sourced mappings
+     * are deleted with it.
      */
     @Transactional
     public void delete(UUID householdId, UUID id) {

@@ -49,7 +49,7 @@ import org.springframework.stereotype.Component;
  * unconditionally). The coach's "personalised context" was therefore empty for every user on every
  * install, from the day it was written, and its own test never asserted an outbound header name so
  * nothing caught it. Collapsing the services into one JVM deletes the whole class of bug: these
- * are four method calls on four merged services, scoped by the caller's own household and user id.
+ * are four section reads across five merged services, scoped by the caller's own household and user id.
  *
  * <h2>Bounded pool, one deadline</h2>
  * The fan-out runs on {@link AsyncConfig#COACH_EXECUTOR}, not on {@code ForkJoinPool.commonPool()}

@@ -1,5 +1,7 @@
 # Inventory: services/subscription-detector
 
+> **Historical record, 2026-09-03.** Inventory of the pre-rebuild code, since removed. Current state: `docs-site/guide/architecture.md`.
+
 Verified against source at commit `9ad1b5f` (main), 2026-09-03. All line numbers cited from
 `cat -n`. Cross-referenced against `docs/recovery/01-FINDINGS.md` sections D2, D8, F1, O2,
 O4 — every cross-reference below was re-verified directly against this module's source, not

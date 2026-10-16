@@ -16,8 +16,6 @@
  *    composes the envelope per-operation with `allOf` rather than a generic —
  *    see the spec's header — so `ApiResponse<T>` is this client's own
  *    reusable shape for it, structurally identical to `SuccessEnvelope & {data}`).
- *  - Every DTO below marked "until step N regenerates": `openapi/trove-core.yaml`
- *    does not cover transactions, budgets, categories or accounts yet.
  */
 import type { components, operations } from './generated/schema'
 
@@ -72,7 +70,7 @@ export type FieldErrorItem = Schemas['FieldError']
 /**
  * RFC 7807 problem details, carried inside `ApiResponse.error`. Derived from
  * `Schemas['ErrorResponse']` with one deliberate widening: the spec's `type` is
- * a closed 28-slug enum (the complete set the server can emit today), but a
+ * a closed 35-slug enum (the complete set the server can emit today), but a
  * client reading a slug off the wire treats it as an open string — new slugs
  * land in the spec before a client rebuild does, and `ApiError.code` just
  * returns whatever trailing segment arrived. Narrowing call sites (a `switch`
@@ -144,10 +142,10 @@ export type RegisterRequest = Body<'register'>
 
 /**
  * `GET /v1/auth/providers` — gates the OIDC button and the closed-registration
- * copy. `oidc.startUrl` is the absolute sign-on URL the spec adds (§ code
- * corrections — this client still links the static `OIDC_START_URL` below,
- * which resolves identically on the same origin; `startUrl` exists for a
- * client with no page origin to resolve a relative path against, i.e. mobile).
+ * copy. `oidc.startUrl` is the absolute sign-on URL; the client reads it
+ * through `oidcStartUrl()` in `./auth`, which falls back to the static
+ * `OIDC_START_URL` there. `startUrl` exists for a client with no page origin to
+ * resolve a relative path against, i.e. mobile.
  */
 export type AuthProviders = Data<Json<'getAuthProviders', 200>>
 
@@ -186,7 +184,7 @@ export type UpdateProfileRequest = Body<'updateMe'>
  * Single-use, 72-hour, no SMTP required — the admin copies `url` and hands it
  * over. **`token` and `url` are `null` once the invite is no longer redeemable**
  * (accepted, revoked or expired) — narrower than this client's own pre-spec
- * assumption that `url` was always a string; see '## Code corrections'.
+ * assumption that `url` was always a string.
  */
 export type Invite = Data<Json<'createInvite', 201>>
 
@@ -240,9 +238,6 @@ export function countryProfile(country: CountryCode): CountryProfile {
  *    `pending`, `manual` or `createdBy` — i.e. none of the fields the transfer
  *    affordance, the import undo and the delete rule are built on. Its
  *    `TransactionType` was a two-value union where the server has seven.
- *
- * Families B–E: `Category`, `BudgetType`, `Envelope` and `BudgetPeriod` are
- * deliberately left hand-written below; those routes belong to family B.
  * ========================================================================== */
 
 /** The `multipart/form-data` request body of one operation, when it has one. */

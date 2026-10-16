@@ -60,15 +60,14 @@ export const AUTH_MODE_HEADER = 'X-Trove-Auth-Mode';
 export const AUTH_MODE = 'bearer';
 
 /**
- * The header `CsrfRequiresHeaderFilter` demands (§1.5 / contract point 9).
+ * The header `CsrfRequiresHeaderFilter` requires on cookie-authenticated
+ * mutations (§1.5 / contract point 9).
  *
- * Bearer requests are supposed to skip that filter, so strictly this is
- * redundant — but only once the server has been changed to skip it, and the
- * one mutating call mobile makes *before* it holds a bearer token is
- * `POST /v1/auth/login` itself, where the server has no `trove.authSource`
- * attribute to switch on. Sending the header costs nothing, matches what
- * `apps/web` sends on every request, and removes a whole class of 403 at
- * integration time.
+ * The server does not require it for bearer calls: the filter only enforces
+ * the header when the request authenticated through the cookie
+ * (`AuthSource.COOKIE`), and an anonymous bearer-mode `POST /v1/auth/login`
+ * carries no `AuthSource` at all. It is sent anyway because it costs nothing
+ * and matches what `apps/web` sends on every request.
  */
 export const REQUESTED_WITH_HEADER = 'X-Requested-With';
 export const REQUESTED_WITH = 'XMLHttpRequest';
@@ -184,10 +183,11 @@ async function endSession(reason: SessionEndReason): Promise<void> {
  * End the session from a call that does **not** go through the response
  * interceptor below.
  *
- * There is exactly one such call in this app — the SSE stream in `sse.ts`,
- * which has to be a `fetch`/`XMLHttpRequest` because axios cannot hand back a
- * body incrementally. It has to reach the same three endings the interceptor
- * reaches (`REFRESH_REJECTED`, `NO_REFRESH_TOKEN`, `UNAUTHORIZED`), or the
+ * There is exactly one such call in this app — the Coach completion stream in
+ * `coach.ts`, which goes through the `sse.ts` transport (an `XMLHttpRequest`)
+ * because axios cannot hand back a body incrementally. It has to reach the
+ * same three endings the interceptor reaches (`REFRESH_REJECTED`,
+ * `NO_REFRESH_TOKEN`, `UNAUTHORIZED`), or the
  * auth surface behaves differently depending on which transport made the
  * call: a member whose refresh token is gone would sit on an authenticated UI
  * whose every request 401s, because `refreshAccessToken` rejects *before* its

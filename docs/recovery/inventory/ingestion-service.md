@@ -1,5 +1,7 @@
 # ingestion-service — collapse inventory
 
+> **Historical record, 2026-09-03.** Inventory of the pre-rebuild code, since removed. Current state: `docs-site/guide/architecture.md`.
+
 All paths repo-relative from the repository root. Verified against source on 2026-09-03;
 every defect in §10 was re-checked against the file:line cited, not carried over from `01-FINDINGS.md`
 without re-verification.

@@ -22,7 +22,7 @@ import java.util.UUID;
  * itself removes the class of bug rather than patching one call site.
  *
  * <p>System rows are seeded by V14 and are read-only through the API: {@code CategoryService}
- * refuses a rename or delete of one before any repository call. Household rows are fully
+ * refuses a rename or delete of one before any write. Household rows are fully
  * editable by any member of the owning household (owner decision: one shared ledger, §1.5) and
  * carry {@link #getCreatedBy()}, the id of the member who created them, for audit — not for
  * scoping; scoping is {@link #getHouseholdId()} alone.

@@ -69,8 +69,9 @@ public class NetWorthSnapshotService {
      * @param triggeredByUserId the calling member, or {@code null} when the daily job is the
      *                          caller (no member to attribute the write to — the household's own
      *                          administrator is recorded instead)
-     * @return one snapshot per currency this household holds at least one asset or liability in;
-     *         empty if the household has neither
+     * @return one snapshot per currency the household holds an asset or liability in, plus any
+     *         currency already snapshotted today (rewritten as zero if its positions were
+     *         removed); empty only if there is neither
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public List<NetWorthSnapshot> takeSnapshot(UUID householdId, UUID triggeredByUserId) {

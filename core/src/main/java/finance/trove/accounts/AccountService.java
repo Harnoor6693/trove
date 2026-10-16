@@ -73,11 +73,11 @@ public class AccountService {
      * unique to the row is the honest thing to store, and rows step 7 creates with real provider
      * ids are still held to one per household per kind.
      *
-     * <p>That also means the {@link ConflictException} below is not reachable through this
-     * endpoint <em>today</em> — a synthetic id unique to the row cannot collide with anything. It
-     * becomes reachable in step 7, where a re-exchange or a repeat upload supplies the provider's
-     * real id, and the write is flushed inside the {@code try} precisely so that it will be
-     * raised here rather than escaping to the global handler's generic wording.
+     * <p>That also means the {@link ConflictException} below is a safety net and stays
+     * unreachable for hand-made accounts: a synthetic id unique to the row cannot collide with
+     * anything. Provider accounts go through {@code upsertProviderAccount}, which inserts only if
+     * absent. The write is flushed inside the {@code try} so that a violation would be raised here
+     * rather than escaping to the global handler's generic wording.
      *
      * @throws ConflictException when an account of this kind already occupies the household's slot
      *                           for the provider account being described

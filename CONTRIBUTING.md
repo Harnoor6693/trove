@@ -9,9 +9,13 @@ for getting it running.
 
 ```bash
 git clone https://github.com/Harnoor6693/trove && cd trove
-cp core/.env.example core/.env   # or export the same variables
-./mvnw spring-boot:run -pl core -am
+cd core
+cp .env.example .env   # then set TROVE_JWT_SECRET (openssl rand -hex 32); the DB defaults match the Postgres container in local-development.md
+set -a; . ./.env; set +a
+../mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
+
+Spring does not read `.env` itself, and a local Postgres is needed first.
 
 Full setup (Postgres, dev profile, seeding a first user) is in
 [the local development guide](docs-site/guide/local-development.md).
@@ -52,14 +56,15 @@ is no root `package.json`):
 ```bash
 # apps/web
 npm ci
-npm run lint && npm run typecheck && npm run test:ci
+npm run lint && npm run test:ci && npm run build   # build runs tsc and the CSP check
 npm run check:generated   # fails if generated API types drift from openapi/trove-core.yaml
 npm run e2e               # Playwright, needs a running server
 
 # apps/mobile
 npm ci
-npm run lint && npm run typecheck && npm run test:ci
+npm run lint && npm run format:check && npm run typecheck && npm run test:ci
 npm run check:generated
+npm run test:eas-config
 npm run test:e2e:ios      # or :android — Detox, needs a built app + simulator/emulator
 ```
 
@@ -90,7 +95,7 @@ dynamically loaded module.
 - **No secrets:** no API keys, tokens, or passwords in code, fixtures, or `.env.example`
   files — every `*.env.example` value is a real default or empty, never a
   plausible-looking fake secret (gitleaks runs in CI).
-- **AI call sites:** `core/src/main/java/finance/trove/ai/` and the two packages that
+- **AI call sites:** `core/src/main/java/finance/trove/ai/` and the packages that
   call into it (`receipts/pipeline`, `receipts/upload`, `categorisation/`) are
   CODEOWNERS-scoped for extra review — see `.github/CODEOWNERS`.
 
@@ -126,9 +131,10 @@ the primary one — do not rely on the encoder alone.
 - [ ] No secrets in code, fixtures, or `.env.example` files
 - [ ] Conventional commit message format
 - [ ] Client gates pass for any `apps/web` or `apps/mobile` change
+- [ ] Docs updated for any behaviour, endpoint, env var, command or default change (README, `docs-site/`, `deploy/README.md`, `openapi/trove-core.yaml`), or this PR changes none
 
 ## Reporting security issues
 
 Do **not** open a public GitHub issue for a vulnerability. Use the repository's private
-vulnerability reporting instead: GitHub → **Security** → "Report a vulnerability". This
-project follows a 90-day coordinated disclosure window.
+vulnerability reporting instead: GitHub → **Security** → "Report a vulnerability".
+See `SECURITY.md` for what to expect (best-effort, single maintainer).

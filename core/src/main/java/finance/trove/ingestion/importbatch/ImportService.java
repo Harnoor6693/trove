@@ -51,7 +51,7 @@ import tools.jackson.databind.ObjectMapper;
  * <h2>An undo removes only what nobody has touched</h2>
  * Never a blanket delete by {@code import_batch_id}: V22 chose {@code ON DELETE SET NULL} on that
  * column exactly so that removing a batch can never take a household's ledger with it. See
- * {@link #isUntouched}.
+ * {@link ImportUndoService}.
  */
 @Service
 public class ImportService {
@@ -101,8 +101,8 @@ public class ImportService {
      * declared size, so an upload that cannot be kept is never read. Then the format, the account
      * and the parse, all of which can refuse the request; only a file that has survived every one
      * of those reaches {@code storage.put}, so a file that cannot be read leaves nothing behind on
-     * the volume. Classification comes last because it is the only part that touches the database,
-     * and {@link ImportPreviewBuilder} runs it in one short read-only transaction.
+     * the volume. Classification comes last because it is the only read-only database work, and
+     * {@link ImportPreviewBuilder} runs it in one short transaction after the batch row is saved.
      *
      * @param declaredKind what the caller says the file is, or {@code null} to let the bytes decide
      * @param accountId    required for CSV, which carries no account identity; optional for OFX,

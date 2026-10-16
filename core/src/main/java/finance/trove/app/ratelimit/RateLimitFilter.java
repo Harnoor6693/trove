@@ -107,8 +107,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
                     "The server could not check its request limits. Try again shortly.");
                 return;
             }
-            // swallow-ok: rethrown as a 5xx for the sign-in surface just above; here the request
-            // proceeds on purpose. A limiter fault must not lock a household out of its own
+            // swallow-ok: for the sign-in surface the branch above already answered 503
+            // service-unavailable; here the request proceeds on purpose. A limiter fault must not
+            // lock a household out of its own
             // ledger, and no credential is guessable behind these routes.
             LOG.error("The rate limiter could not decide about {} {} — allowing, because this is "
                     + "not the sign-in surface", request.getMethod(),

@@ -269,11 +269,13 @@ public class AuthService {
      * <p>The caller's own family is spared, named by the {@code fid} claim on the token that
      * authorised this request. An earlier version revoked every family and handed the caller a
      * replacement session in the response body, which is defensible on the server and wrong
-     * against the clients that exist: the mobile client types this call {@code Promise<void>}
-     * ({@code apps/mobile/src/api/auth.ts:76}) and treats a rejected refresh as terminal
-     * ({@code apps/mobile/src/api/client.ts:255}), so the user was signed out within fifteen
-     * minutes of changing their password — while its own UI told them "other devices have been
-     * signed out" ({@code apps/mobile/app/(tabs)/settings.tsx:182}).
+     * against the clients that exist: the mobile client then typed this call
+     * {@code Promise<void>} ({@code changePassword} in {@code apps/mobile/src/api/auth.ts} now
+     * returns the {@code {user}}) and treats a rejected refresh with 400, 401 or 403 as terminal
+     * (the {@code endSession(REFRESH_REJECTED)} branch in {@code apps/mobile/src/api/client.ts}),
+     * so the user was signed out within fifteen minutes of changing their password — while its
+     * own UI told them "Password changed. Other devices have been signed out."
+     * ({@code apps/mobile/app/(tabs)/settings.tsx:196}).
      *
      * <p>The security intent survives, and "immediately" is now literal: anybody who had the old
      * password and a live session on another device loses it at their very next request, because

@@ -10,8 +10,9 @@ import java.util.Map;
  * <p><strong>{@link #row()} is never {@code null}, even for a row the parser could not read.</strong>
  * That is deliberate and it is what keeps the import on the sync pipeline's existing failure path
  * rather than inventing a second one: a row whose amount could not be parsed is emitted with a
- * {@code null} amount, and {@code DeduplicationService.validate} refuses it with "the source
- * reported no amount", counted by {@code IngestionBatchWriter} and summarised into
+ * {@code null} amount, and {@code DeduplicationService.validate} refuses it with the parser's own
+ * error message (the "source reported no amount" message applies only when no parse error was
+ * recorded), counted by {@code IngestionBatchWriter} and summarised into
  * {@code sync_log.error_message} exactly as a malformed bank row is. Dropping the row in the
  * parser instead would make {@code transactions_fetched} a count of the rows that happened to
  * parse, and a member would never learn that four lines of their statement were silently ignored.

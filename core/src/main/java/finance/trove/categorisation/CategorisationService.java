@@ -8,9 +8,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * The categorisation pipeline: household rules, then the built-in community defaults, then a
- * guaranteed fallback — the service API {@code docs/recovery/06-COLLAPSE-PLAN.md} §6's D4 seam
- * describes and steps 6, 16 and 17 call.
+ * The categorisation pipeline: household rules, then the built-in community defaults, then the
+ * AI tier when an owner is supplied, then a guaranteed fallback — the service API
+ * {@code docs/recovery/06-COLLAPSE-PLAN.md} §6's D4 seam describes and steps 6, 16 and 17 call.
  *
  * <p>Five tiers, each returning as soon as one matches:
  * <ol>
@@ -43,12 +43,12 @@ import org.springframework.transaction.annotation.Transactional;
  * method's shape.
  *
  * <p><strong>Nothing here writes.</strong> This is the D4 self-invocation fix applied by
- * construction rather than by patching the old call site: {@code categorise} stays
- * {@code readOnly = true} for real, because it has no write of its own to accidentally run
- * inside its own transaction. Writing a learned mapping back (the old service's self-learning
- * cache, and step 6/16/17's job) goes through {@link MerchantMappingWriter} — a different Spring
- * bean, called by a different caller, in its own {@code REQUIRES_NEW} transaction — never by this
- * class calling a sibling method on itself.
+ * construction rather than by patching the old call site: the five-argument {@code categorise}
+ * stays {@code readOnly = true}, because no write of its own can accidentally run inside its own
+ * transaction. The six-argument overload is not transactional (B1-12). Writing a learned mapping
+ * back (the old service's self-learning cache) goes through {@link MerchantMappingWriter} — a
+ * different Spring bean, called by a different caller, in its own {@code REQUIRES_NEW}
+ * transaction — never this class calling a sibling method on itself.
  */
 @Service
 public class CategorisationService {
@@ -94,14 +94,17 @@ public class CategorisationService {
      *
      * <p>The owner is named rather than inferred because {@code ai_settings} is keyed by user id
      * (V16, owner decision 9): the endpoint, the key, the model and the privacy tier that would be
-     * used belong to one member, and there is no "the install's AI" to fall back on. On the ingest
-     * path the owner is {@code TransactionsIngestedEvent.userId}; on a manual entry it is the
-     * principal.
+     * used belong to one member, and there is no "the install's AI" to fall back on. During
+     * ingest the inline pass names no owner and skips the AI tier; {@code CategorisationListener}
+     * runs the owner-aware pass after commit, using {@code TransactionsIngestedEvent.userId}. On
+     * manual entry the owner is the principal.
      *
-     * <p>This method stays {@code readOnly = true} and still never returns {@code null}. The
-     * learned write-back a confident answer produces happens inside {@link AiCategorisationTier},
-     * through the injected {@link MerchantMappingWriter} and its own {@code REQUIRES_NEW}
-     * transaction, so nothing this class holds is ever written from a read-only session.
+     * <p>Deliberately NOT transactional (B1-12): the AI tier makes a network call, and the learned
+     * write-back goes through {@link MerchantMappingWriter} in its own {@code REQUIRES_NEW}
+     * transaction. Only the five-argument overload is {@code readOnly}; it passes a {@code null}
+     * owner, so it never consults the AI tier. This method still never returns {@code null}. A
+     * learned write-back for a confident answer happens inside {@link AiCategorisationTier},
+     * through the injected bean.
      *
      * @param userId the transaction OWNER, or {@code null} for an ownerless row — a row with no
      *               owner takes the non-AI path and falls through to {@code Uncategorised},

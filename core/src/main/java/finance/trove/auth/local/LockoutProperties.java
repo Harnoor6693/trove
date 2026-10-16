@@ -14,8 +14,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *       from one address with no quiet {@code window} between them throttle that address for
  *       that account, for {@code baseBackoff}, doubling with each further failure up to
  *       {@code maxBackoff}; the run ends only after a quiet {@code window} once the throttle is
- *       over. A human who mistyped twice barely notices; a script gets about twenty guesses an
- *       hour from one address. Other addresses are untouched, so an attacker's failures cannot
+ *       over. A human who mistyped twice barely notices; a script gets about a dozen guesses in
+ *       the first hour from one address and about four an hour after that at the default
+ *       settings. Other addresses are untouched, so an attacker's failures cannot
  *       lock the owner out.</li>
  *   <li><strong>Per account, every address.</strong> {@code accountThreshold} failures inside
  *       {@code accountWindow}, from anywhere, throttle the account for every address that has not

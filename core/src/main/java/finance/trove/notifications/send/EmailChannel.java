@@ -27,13 +27,11 @@ import org.thymeleaf.context.Context;
  * <strong>There is no owner decision cutting email.</strong> Decision 8 of 2026-09-03 cuts PUSH and
  * nothing else; §2.8 and §6 D3 both keep EMAIL, §9 risk 13's test is an SMTP stub, and
  * {@code core/pom.xml} already carries {@code spring-boot-starter-mail} and
- * {@code spring-boot-starter-thymeleaf} for exactly this class. What email needs in order to run
- * is {@code spring.mail.*} in {@code application.yml} and SMTP variables in
- * {@code core/.env.example}, and collapse step 11 may edit neither of those files: three steps of
- * this wave run in parallel worktrees and no step of it owns them. The exact diff is in this
- * step's {@code sharedFilesTouched}, and until it is applied this bean does not exist:
- * {@code @ConditionalOnProperty} with {@code matchIfMissing = false} is the inline-default shape
- * {@code PurgeJobs.reloadRateLimits} uses for {@code trove.rate-limit.reload-interval}.
+ * {@code spring-boot-starter-thymeleaf} for exactly this class. The configuration is in place:
+ * {@code spring.mail.*} in {@code application.yml} (from SMTP_HOST, SMTP_PORT, SMTP_USER,
+ * SMTP_PASSWORD) and the SMTP block in {@code core/.env.example}. This bean exists only when
+ * {@code trove.notifications.smtp-enabled} is true (SMTP_ENABLED=true, default false), which is
+ * {@code @ConditionalOnProperty} with {@code matchIfMissing = false}.
  *
  * <p>A bean that is absent is better than a bean that silently drops everything. The source's
  * channel logged "SMTP not configured, skipping" and returned normally, and the dispatcher then

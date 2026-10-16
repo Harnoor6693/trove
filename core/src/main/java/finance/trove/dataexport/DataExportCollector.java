@@ -77,8 +77,10 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <h2>One read-only transaction</h2>
  * {@code Receipt} owns its images and line items as EAGER collections, and the coach page decrypts
- * inside its own read. Collecting inside one read-only transaction is what makes the whole archive
- * a consistent picture of one moment rather than thirteen pictures of thirteen different ones.
+ * inside its own read. Collecting the JSON datasets inside one read-only transaction makes them a
+ * consistent picture of one moment rather than fourteen pictures of fourteen different ones.
+ * {@code transactions.csv} is read separately by {@code DataExportGenerationService} and is not
+ * part of that snapshot.
  */
 @Component
 public class DataExportCollector {
@@ -137,8 +139,7 @@ public class DataExportCollector {
     /**
      * Every JSON dataset of one archive, keyed by the entry name it is written under.
      *
-     * <p>A {@code LinkedHashMap}, so the archive's entry order is stable across runs and two
-     * archives of the same account differ only where the data differs.
+     * <p>A {@code LinkedHashMap}, so the archive's entry order is stable across runs.
      */
     @Transactional(readOnly = true)
     public Map<String, Object> collect(UUID userId, UUID householdId) {
@@ -424,7 +425,8 @@ public class DataExportCollector {
     }
 
     /**
-     * The member's coach history, grouped by conversation, newest turn first within the page.
+     * The member's coach history, grouped by conversation: conversations most recently updated
+     * first, and the turns inside each conversation oldest first.
      *
      * <p>Read through {@link CoachConversationService#page}, which owns the decryption and the
      * ownership check. This class never touches a ciphertext and holds no key.

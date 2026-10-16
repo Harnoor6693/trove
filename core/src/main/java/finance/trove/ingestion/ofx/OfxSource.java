@@ -136,10 +136,11 @@ public class OfxSource implements FileImportSource {
     /**
      * The OFX {@code ACCTTYPE} as a Trove product type.
      *
-     * <p>OFX spells a line of credit {@code CREDITLINE} and a card statement carries no
-     * {@code ACCTTYPE} at all, so anything unrecognised is {@code OTHER} rather than a guess —
-     * the member renames and reclassifies through {@code PUT /v1/accounts/{id}} anyway, and a
-     * wrong guess is harder to notice than an honest one.
+     * <p>{@code CREDITCARD} and {@code CREDITLINE} (OFX spells a line of credit that way) map to
+     * {@code CREDIT_CARD}. OFX card statements carry no {@code ACCTTYPE}, and both parsers default a
+     * missing one to {@code CHECKING}, so such a statement imports as {@code CHECKING} unless the
+     * member reclassifies it through {@code PUT /v1/accounts/{id}}. Only a value the parser passes
+     * through that is not recognised, or {@code null}, maps to {@code OTHER} rather than a guess.
      */
     static AccountType accountType(String acctType) {
         if (acctType == null) {

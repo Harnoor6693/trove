@@ -13,10 +13,9 @@ export interface paths {
         };
         /**
          * Server status
-         * @description The unauthenticated, detail-free probe. **The one route in the API whose
+         * @description The unauthenticated, detail-free probe. **The one JSON route whose
          *     body is not the `ApiResponse` envelope** — it is bare so that an uptime
-         *     check, the SPA's degraded state and `trove status` all have something
-         *     trivial to key off.
+         *     check and the SPA's degraded state have something trivial to key off.
          *
          *     `status` is the actuator aggregate collapsed to two words: anything that
          *     is not `UP` is `DEGRADED`. Which component is unhappy is management-port
@@ -468,8 +467,10 @@ export interface paths {
          *     changed inside that window has to be visible on the next read — the
          *     alternative is a settings screen that appears not to have saved.
          *
-         *     It lives under `/v1/auth/` rather than `/v1/me` because that is where the
-         *     shipped clients call it, and it is on their never-refresh list.
+         *     It lives under `/v1/auth/` rather than `/v1/me` because that is where
+         *     the shipped clients call it; the web client calls it with refresh-on-401
+         *     switched off for the first-visit probe (`skipAuthRefresh`), so an
+         *     anonymous 401 stays a 401.
          *
          *     Identity comes from the signed token. No route in this group takes a user
          *     id from a path, a query or a body.
@@ -1088,10 +1089,10 @@ export interface paths {
          * Household settings
          * @description **Requires the `ADMIN` role.**
          *
-         *     Two flags. Both are read from the household row rather than from
-         *     configuration, so an admin's runtime decision — not the boot-time
-         *     environment variable — is what the sign-in page and the scheduled
-         *     bank sync obey.
+         *     Two flags. `registrationOpen` is seeded once from the environment on
+         *     first boot; `scheduledSyncEnabled` has no environment seed and starts
+         *     off. Both are then read from the household row, so the admin's decision
+         *     is what the sign-in page and the scheduled bank sync obey.
          */
         get: operations["getAdminSettings"];
         /**
@@ -1101,7 +1102,8 @@ export interface paths {
          *     A partial update: an absent or null field leaves that flag alone, and
          *     an empty body returns the current settings unchanged. A value is written
          *     to the household row so it survives a restart; the environment variable
-         *     is only ever a seed for the first boot.
+         *     (for `registrationOpen` only) is only ever a seed for the first boot;
+         *     `scheduledSyncEnabled` has none.
          */
         put: operations["updateAdminSettings"];
         post?: never;
@@ -1129,10 +1131,12 @@ export interface paths {
          *     answer is "what changed, and who changed it".
          *
          *     `path` is the matched **route template** (`/api/v1/admin/users/{id}`),
-         *     never the caller's raw URI. Two routes on this API carry a live credential
-         *     in the path, and a table that stored the URI would become a second,
-         *     permanent, plaintext copy of every invitation token this install has ever
-         *     issued. Nothing else about the request is kept: no body, no headers, no
+         *     never the caller's raw URI. One route on this API (`GET
+         *     /v1/auth/invites/{token}`) carries a live credential in the path. It is
+         *     a read, so it is never recorded, but the table stores the route template
+         *     regardless, so that a future change to the audit scope could never turn
+         *     it into a second, permanent, plaintext copy of every invitation token
+         *     this install has issued. Nothing else about the request is kept: no body, no headers, no
          *     query string, no token.
          *
          *     Scoped to the caller's own household. `userId` and `clientIp` are null
@@ -2404,8 +2408,10 @@ export interface paths {
         };
         /**
          * The household's active detected subscriptions
-         * @description Every non-cancelled `detected_subscription` of the caller's household,
-         *     ordered by normalised merchant name. One shared ledger per household
+         * @description Every non-cancelled `detected_subscription` of the caller's household
+         *     whose charges have not stopped (a next charge more than three whole
+         *     billing cycles overdue hides the row until charges resume), ordered by
+         *     normalised merchant name. One shared ledger per household
          *     (owner decision), so a household mate sees exactly the same list;
          *     `createdBy` records the member the detection was attributed to and is
          *     for audit only, never for scoping.
@@ -3096,8 +3102,8 @@ export interface paths {
          * The caller's own notification inbox
          * @description One page of the caller's undismissed notifications, newest first.
          *
-         *     **Per member, not per household.** This is one of the three areas of
-         *     this API where a household mate is refused rather than served: the
+         *     **Per member, not per household.** This is one of the areas of this API
+         *     where a household mate is refused rather than served: the
          *     ledger is shared, but a notification is addressed to one person and
          *     another member's inbox is 404, never 403. The rows are written by
          *     `NotificationService` on the events the ledger raises — an envelope
@@ -3713,8 +3719,9 @@ export interface components {
         };
         /**
          * @description Pagination for a listed collection, present on every operation whose
-         *     response declares it — `GET /v1/audit`, `GET /v1/transactions`,
-         *     `GET /v1/chat/history` and `GET /v1/insights`. The capped lists
+         *     response declares it — `GET /v1/audit`, `GET /v1/transactions`, `GET
+         *     /v1/chat/history`, `GET /v1/insights`, `GET /v1/receipts`, `GET
+         *     /v1/notifications`, `GET /v1/tax-export/runs` and `GET /v1/me/export`. The capped lists
          *     (`security-events`, `invites`) omit it: they are bounded, not paged.
          * @example {
          *       "total": 137,
@@ -3811,8 +3818,8 @@ export interface components {
              *     — the limiter sits in front of them all — and `service-unavailable`
              *     by every operation under `/v1/auth`, which refuses rather than
              *     passing a request through when the limiter cannot decide.
-             *     `upload-too-large` is emitted by `POST /v1/imports`, the one
-             *     operation in this version that accepts a file.
+             *     `upload-too-large` is emitted by the two operations that accept a
+             *     file, `POST /v1/imports` and `POST /v1/receipts/upload`.
              *     `answer-too-long` is **in-band only**: no HTTP response of this API
              *     carries it. It is the last frame of a streamed
              *     `POST /v1/chat/completions` whose answer outran the length the server
@@ -4011,7 +4018,7 @@ export interface components {
          *         "role": "MEMBER",
          *         "totpEnabled": false
          *       },
-         *       "accessToken": "eyJhbGciOiJFUzI1NiJ9.EXAMPLE-ACCESS-TOKEN.not-a-real-signature",
+         *       "accessToken": "eyJraWQiOiJrMSIsImFsZyI6IkhTMjU2In0.EXAMPLE-ACCESS-TOKEN.not-a-real-signature",
          *       "refreshToken": "cmVmcmVzaC10b2tlbi1FWEFNUExFLW5vdC1yZWFs",
          *       "expiresIn": 900
          *     }
@@ -4019,8 +4026,9 @@ export interface components {
         BearerSession: {
             user: components["schemas"]["AuthUser"];
             /**
-             * @description ES256 JWT, 15-minute lifetime. Hold it in memory only.
-             * @example eyJhbGciOiJFUzI1NiJ9.EXAMPLE-ACCESS-TOKEN.not-a-real-signature
+             * @description HMAC-signed JWT (HS256 to HS512, set by the length of
+             *     `TROVE_JWT_SECRET`), 15-minute lifetime. Hold it in memory only.
+             * @example eyJraWQiOiJrMSIsImFsZyI6IkhTMjU2In0.EXAMPLE-ACCESS-TOKEN.not-a-real-signature
              */
             accessToken: string;
             /**
@@ -4049,7 +4057,7 @@ export interface components {
          *     error** — the client shows the code screen and posts the challenge back to
          *     `POST /v1/auth/login/totp`. Valid for 60 seconds.
          * @example {
-         *       "challengeToken": "eyJhbGciOiJFUzI1NiJ9.EXAMPLE-TOTP-CHALLENGE.not-a-real-signature"
+         *       "challengeToken": "eyJraWQiOiJrMSIsImFsZyI6IkhTMjU2In0.EXAMPLE-TOTP-CHALLENGE.not-a-real-signature"
          *     }
          */
         TotpChallenge: {
@@ -4057,7 +4065,7 @@ export interface components {
              * @description A short-lived JWT of type `totp_challenge`. It is accepted by that one
              *     route and refused everywhere else, exactly as a full access token is
              *     refused there.
-             * @example eyJhbGciOiJFUzI1NiJ9.EXAMPLE-TOTP-CHALLENGE.not-a-real-signature
+             * @example eyJraWQiOiJrMSIsImFsZyI6IkhTMjU2In0.EXAMPLE-TOTP-CHALLENGE.not-a-real-signature
              */
             challengeToken: string;
         };
@@ -4092,13 +4100,13 @@ export interface components {
         /**
          * @description Bearer-mode rotation. Both new tokens, and the old refresh token is spent.
          * @example {
-         *       "accessToken": "eyJhbGciOiJFUzI1NiJ9.EXAMPLE-ACCESS-TOKEN.not-a-real-signature",
+         *       "accessToken": "eyJraWQiOiJrMSIsImFsZyI6IkhTMjU2In0.EXAMPLE-ACCESS-TOKEN.not-a-real-signature",
          *       "refreshToken": "cmVmcmVzaC10b2tlbi1FWEFNUExFLXJvdGF0ZWQ",
          *       "expiresIn": 900
          *     }
          */
         BearerRefresh: {
-            /** @example eyJhbGciOiJFUzI1NiJ9.EXAMPLE-ACCESS-TOKEN.not-a-real-signature */
+            /** @example eyJraWQiOiJrMSIsImFsZyI6IkhTMjU2In0.EXAMPLE-ACCESS-TOKEN.not-a-real-signature */
             accessToken: string;
             /** @example cmVmcmVzaC10b2tlbi1FWEFNUExFLXJvdGF0ZWQ */
             refreshToken: string;
@@ -4676,7 +4684,7 @@ export interface components {
         TotpLoginRequest: {
             /**
              * @description The token a password login returned. Wins over the cookie when both are present.
-             * @example eyJhbGciOiJFUzI1NiJ9.EXAMPLE-TOTP-CHALLENGE.not-a-real-signature
+             * @example eyJraWQiOiJrMSIsImFsZyI6IkhTMjU2In0.EXAMPLE-TOTP-CHALLENGE.not-a-real-signature
              */
             challengeToken?: string | null;
             /**
@@ -5265,8 +5273,10 @@ export interface components {
             connectTimeoutMs: number;
             /**
              * Format: int32
-             * @description Milliseconds to wait for an answer, capped on use by the install's
-             *     `TROVE_HTTP_READ_TIMEOUT_MS`.
+             * @description Milliseconds to wait for an answer, capped on use at four times the
+             *     install's `TROVE_HTTP_READ_TIMEOUT_MS` (120 s at the default). The
+             *     stored value is what was asked for; the effective one is the smaller
+             *     of the two.
              * @example 120000
              */
             readTimeoutMs: number;
@@ -5624,7 +5634,9 @@ export interface components {
          * @description Where an account's transactions come from. `MANUAL` is the
          *     credential-less account (gap P2-13): nothing fetches for it, and it is
          *     the only kind that accepts a hand-entered transaction. The other three
-         *     are fetched or uploaded; the code that does so is not in this version.
+         *     are fetched or uploaded: SIMPLEFIN accounts are fetched from the
+         *     SimpleFIN bridge (`POST /v1/accounts/exchange-setup-token`, then sync);
+         *     OFX and CSV are uploaded through `POST /v1/imports`.
          * @example MANUAL
          * @enum {string}
          */
@@ -6253,9 +6265,11 @@ export interface components {
             manual: boolean;
             /**
              * Format: uuid
-             * @description The category this row counts against. Written on insert by the
-             *     categorisation pipeline and overwritten by a `PATCH`; null only for
-             *     a row written before a category could be resolved.
+             * @description The category this row counts against. Set on insert by the
+             *     categorisation pipeline (or by the caller on manual entry) and
+             *     changed by a `PATCH`. Null for a row written before a category could
+             *     be resolved, or after a member clears it with `PATCH {categoryId:
+             *     null}`.
              * @example 00000000-0000-4000-8000-0000000000d1
              */
             categoryId: string | null;
@@ -6327,6 +6341,7 @@ export interface components {
              * @example 2026-09-04
              */
             date: string;
+            /** @description Omitted or null means `DEBIT`. */
             type?: components["schemas"]["TransactionType"];
             /**
              * @description Stored as `merchantName`, and what the categorisation pipeline matches on.
@@ -6365,6 +6380,7 @@ export interface components {
             /** @example Reimbursable */
             notes?: string | null;
             /**
+             * @description At most 50 tags of at most 50 characters each. Blank tags are dropped.
              * @example [
              *       "travel"
              *     ]
@@ -6387,7 +6403,8 @@ export interface components {
             spentToday: components["schemas"]["MoneyAmount"];
             /**
              * Format: int32
-             * @description How many transactions of any type fell on the caller's own today.
+             * @description How many transactions of any type, excluding internal-transfer legs,
+             *     fell on the caller's own today.
              * @example 3
              */
             transactionsToday: number;
@@ -6442,8 +6459,10 @@ export interface components {
             incomeThisMonth: components["schemas"]["MoneyAmount"];
             netThisMonth: components["schemas"]["MoneyAmount"];
             /**
-             * @description One entry per currency present in this household's ledger, ordered
-             *     by currency code. Empty when the household has no transactions.
+             * @description One entry per currency that has at least one non-transfer
+             *     transaction dated from the first of the caller's current month
+             *     through the caller's today, ordered by currency code. Empty when
+             *     there are none.
              *     An array rather than an object keyed by code, so a generated client
              *     gets a typed list instead of an index signature.
              */
@@ -6454,7 +6473,8 @@ export interface components {
          *     `@Pattern`-validated exactly these four literal values, so this is
          *     modelled as a real enum rather than a free string: an out-of-range
          *     value is 400 `validation-error`, predicted by the document rather
-         *     than discovered at runtime. `ALL` has no lower bound.
+         *     than discovered at runtime. `3M`, `6M` and `1Y` reach back 90, 180 and
+         *     365 days from the caller's own today; `ALL` reaches back to 2000-01-01.
          * @default 1Y
          * @example 1Y
          * @enum {string}
@@ -6547,6 +6567,7 @@ export interface components {
              */
             name: string;
             assetType: components["schemas"]["AssetType"];
+            /** @description Zero or greater; a negative value is 400 `validation-error`. */
             value: components["schemas"]["MoneyAmount"];
             /**
              * @description Same value set as `CurrencyCode`, spelled out here because an
@@ -6581,6 +6602,7 @@ export interface components {
             /** @example Everyday Chequing */
             name: string;
             assetType: components["schemas"]["AssetType"];
+            /** @description Zero or greater; a negative value is 400 `validation-error`. */
             value: components["schemas"]["MoneyAmount"];
             /**
              * Format: uuid
@@ -6673,6 +6695,7 @@ export interface components {
              */
             name: string;
             liabilityType: components["schemas"]["LiabilityType"];
+            /** @description Zero or greater; a negative value is 400 `validation-error`. */
             balance: components["schemas"]["MoneyAmount"];
             /**
              * @description Defaults to zero (zero-interest debt) when omitted OR sent explicitly as `null`.
@@ -6713,6 +6736,7 @@ export interface components {
             /** @example Visa Credit Card */
             name: string;
             liabilityType: components["schemas"]["LiabilityType"];
+            /** @description Zero or greater; a negative value is 400 `validation-error`. */
             balance: components["schemas"]["MoneyAmount"];
             /**
              * @description A full replace, not a partial patch: omitted OR sent explicitly as `null` resets to
@@ -6877,7 +6901,12 @@ export interface components {
          *     * `RED` — a charge was expected and has not been observed:
          *       `nextChargeDate` is further in the past than the cycle's own tolerance
          *       window allows. Bank posting delays are absorbed by that tolerance, so
-         *       `RED` means the charge is genuinely missing, not merely late.
+         *       `RED` means the charge is genuinely missing, not merely late. A
+         *       subscription whose next charge is more than three whole billing cycles
+         *       overdue is treated as stopped: it is left out of `GET /v1/subscriptions`
+         *       and of every summary figure (run rate, counts, `next14Days`) until
+         *       charges resume, but stays readable by id. So `RED` on a listed row means
+         *       overdue by more than the tolerance but not yet three cycles.
          * @example GREEN
          * @enum {string}
          */
@@ -6888,7 +6917,11 @@ export interface components {
          *     the column's CHECK constraint admits them and a client's union should be
          *     complete, but nothing writes them yet — upcoming charges are served by
          *     the summary's `next14Days`, and delivery of any of these as a
-         *     notification belongs to a later step.
+         *     notification is not built. A `PRICE_INCREASE` alert is raised alongside
+         *     a SUBSCRIPTION_PRICE_CHANGE notification (sent only if the member has
+         *     subscription alerts enabled) and a `subscription.price_changed` webhook.
+         *     That event, and so the notification and webhook, also fires when the
+         *     price falls, but no alert row is written for a decrease.
          * @example PRICE_INCREASE
          * @enum {string}
          */
@@ -7017,7 +7050,8 @@ export interface components {
             /**
              * @description True once a member has dismissed it with
              *     `DELETE /v1/subscriptions/{id}`. A cancelled row is excluded from
-             *     `GET /v1/subscriptions` and from every summary figure, but is still
+             *     `GET /v1/subscriptions` and from every summary figure, as is one
+             *     whose charges have stopped (see `SubscriptionSignal`), but is still
              *     readable by id and is still kept current by the scan — it is never
              *     un-cancelled and never raises another alert.
              * @example false
@@ -7043,7 +7077,7 @@ export interface components {
          *       "createdBy": "00000000-0000-4000-8000-000000000002",
          *       "subscriptionId": "00000000-0000-4000-8000-0000000000f1",
          *       "alertType": "PRICE_INCREASE",
-         *       "alertMessage": "SPOTIFY went up from 9.99 CAD to 11.99 CAD a month.",
+         *       "alertMessage": "SPOTIFY went up from 9.99 CAD to 11.99 CAD.",
          *       "isRead": false,
          *       "createdAt": "2026-09-05T02:00:00Z"
          *     }
@@ -7081,7 +7115,7 @@ export interface components {
              * @description A sentence written for the member, naming the merchant and both
              *     amounts with their currency. Safe to display; a client that wants
              *     its own wording should build it from `subscriptionId` instead.
-             * @example SPOTIFY went up from 9.99 CAD to 11.99 CAD a month.
+             * @example SPOTIFY went up from 9.99 CAD to 11.99 CAD.
              */
             alertMessage: string;
             /**
@@ -7208,7 +7242,8 @@ export interface components {
             currency: components["schemas"]["CurrencyCode"];
             /**
              * Format: int32
-             * @description Active subscriptions across every currency.
+             * @description Active subscriptions across every currency. A subscription more than
+             *     three whole billing cycles overdue counts as stopped and is left out.
              * @example 5
              */
             activeCount: number;
@@ -7265,6 +7300,7 @@ export interface components {
              * @example 2026-09-01
              */
             month: string;
+            /** @description Zero or greater; a negative value is 400 `validation-error`. */
             totalIncome: components["schemas"]["MoneyAmount"];
             /**
              * @description Same value set as `CurrencyCode`, spelled out here because an
@@ -7292,6 +7328,7 @@ export interface components {
          *     }
          */
         BudgetPeriodUpdateRequest: {
+            /** @description Zero or greater; a negative value is 400 `validation-error`. */
             totalIncome: components["schemas"]["MoneyAmount"];
             budgetType: components["schemas"]["BudgetType"];
         };
@@ -7382,6 +7419,7 @@ export interface components {
              * @example 00000000-0000-4000-8000-0000000000f1
              */
             categoryId: string;
+            /** @description Zero or greater; a negative value is 400 `validation-error`. */
             allocated: components["schemas"]["MoneyAmount"];
             /**
              * @description Same value set as `CurrencyCode`, spelled out here because an
@@ -7402,12 +7440,15 @@ export interface components {
          *     }
          */
         EnvelopeUpdateRequest: {
+            /** @description Zero or greater; a negative value is 400 `validation-error`. */
             allocated: components["schemas"]["MoneyAmount"];
         };
         /**
          * @description Computed on every read from the envelope's amounts and where today falls
          *     inside the period's month, in the CALLER's own timezone. Never stored:
-         *     it depends on the clock, not on the row.
+         *     it depends on the clock, not on the row. `expectedSpend` is allocated
+         *     plus `rolloverAmount` multiplied by the elapsed fraction of the month,
+         *     and `remainingAmount` is that same sum less `spent`, floored at zero.
          *
          *     For a month already over, the pace is 100 %; for one not yet begun it is
          *     0 %. The pre-collapse calculator used today's day-of-month whatever
@@ -7424,8 +7465,9 @@ export interface components {
         EnvelopeHealth: {
             /**
              * Format: int32
-             * @description `spent / allocated` as a percentage, rounded. Above 100 means the
-             *     envelope is over budget. Zero when nothing is allocated.
+             * @description `spent / (allocated + rolloverAmount)` as a percentage, rounded
+             *     half-up. Above 100 means the envelope is over budget. Zero when
+             *     allocated plus `rolloverAmount` is zero.
              * @example 62
              */
             healthPercentage: number;
@@ -7533,6 +7575,7 @@ export interface components {
              * @example Emergency Fund
              */
             name: string;
+            /** @description Zero or greater; a negative value is 400 `validation-error`. */
             targetAmount: components["schemas"]["MoneyAmount"];
             /**
              * @description Same value set as `CurrencyCode`, spelled out here because an
@@ -7566,7 +7609,9 @@ export interface components {
              * @example Emergency Fund
              */
             name: string;
+            /** @description Zero or greater; a negative value is 400 `validation-error`. */
             targetAmount: components["schemas"]["MoneyAmount"];
+            /** @description Zero or greater; a negative value is 400 `validation-error`. */
             currentAmount: components["schemas"]["MoneyAmount"];
             /**
              * Format: date
@@ -7919,8 +7964,9 @@ export interface components {
             errorMessage: string | null;
             /**
              * Format: date-time
-             * @description When the download link stops working — 24 hours after the archive was
-             *     written. Null until the run is `COMPLETE`. A download after this
+             * @description When the download link stops working — by default 24 hours after
+             *     the archive was written (operator setting
+             *     `trove.data-export.download-ttl`). Null until the run is `COMPLETE`. A download after this
              *     instant is 409 `conflict`, and a scheduled sweep deletes the file
              *     itself.
              * @example 2026-09-07T14:00:02Z
@@ -8263,9 +8309,11 @@ export interface components {
              *     than the one that ships. The vocabulary is
              *     `budget.threshold_crossed`, `subscription.price_changed`,
              *     `sync.completed` and `receipt.processed`; it is not written as an
-             *     enum here because the component that publishes into the delivery
-             *     queue arrives with a later collapse step, and an enum would promise
-             *     a delivery this build cannot make.
+             *     enum because the server accepts any non-blank string of at most 50 characters and
+             *     does not check it against this list. Only the four names above are
+             *     ever delivered. A name outside the list is stored but never matches
+             *     an event, so a subscription that lists only unknown names receives
+             *     nothing.
              * @example [
              *       "budget.threshold_crossed"
              *     ]
@@ -8621,9 +8669,10 @@ export interface components {
              */
             extractedMerchant?: string;
             /**
-             * @description The receipt total. `MoneyAmount` admits a negative because the ledger
-             *     has negative amounts elsewhere; a receipt total does not, and the
-             *     server refuses one below zero with 400 `validation-error`.
+             * @description The receipt total. `MoneyAmount` admits a negative because the
+             *     ledger has negative amounts elsewhere; a receipt total does not, and
+             *     the server refuses one below zero with 400 `validation-error`. Zero
+             *     or greater and at most 1000000000.
              */
             extractedAmount?: components["schemas"]["MoneyAmount"];
             extractedCurrency?: components["schemas"]["CurrencyCode"];
@@ -9112,7 +9161,11 @@ export interface components {
                 };
             };
         };
-        /** @description **504.** The endpoint did not answer inside the deadline. The deadline is the caller's own `readTimeoutMs`, capped by the install's `TROVE_HTTP_READ_TIMEOUT_MS`; a local model on modest hardware legitimately needs longer than a cloud one, which is why the value is per user at all. */
+        /**
+         * @description **504.** The endpoint did not answer inside the deadline. The deadline is the caller's own `readTimeoutMs`, capped
+         *     at four times the install's `TROVE_HTTP_READ_TIMEOUT_MS` (120 s at the
+         *     default 30000 ms); a local model on modest hardware legitimately needs longer than a cloud one, which is why the value is per user at all.
+         */
         AiTimeout: {
             headers: {
                 "X-Request-Id": components["headers"]["XRequestId"];
@@ -9411,9 +9464,13 @@ export interface components {
         /**
          * @description **Cookie mode only.** Two `Set-Cookie` headers, `__Host-trove_access` and
          *     `__Host-trove_refresh`, each `HttpOnly; Secure; SameSite=Lax; Path=/` with
-         *     `Max-Age` set to the refresh token's remaining life. Bearer-mode responses
-         *     set neither and carry the tokens in the body instead. A `XSRF-TOKEN`
-         *     cookie (readable, `Secure; Path=/`) may be planted alongside them.
+         *     `Max-Age` set to the refresh token's remaining life (86400 s, one day,
+         *     for a fresh sign-in by default; `trove.jwt.refresh-expiry-seconds` sets
+         *     it). Bearer-mode responses set neither and carry the tokens in the body instead. A `XSRF-TOKEN`
+         *     cookie (readable, `Secure; Path=/`) may be planted alongside them. On
+         *     register, password login and TOTP login the `XSRF-TOKEN` cookie is
+         *     replaced with a fresh value; `POST /v1/auth/refresh` leaves it as it
+         *     was.
          */
         SetSessionCookies: string;
         /**
@@ -14234,8 +14291,9 @@ export interface operations {
         parameters: {
             query?: {
                 /**
-                 * @description The window to report. `ALL` has no lower bound. Any other value is
-                 *     400 `validation-error`, which is why this is a real enum rather
+                 * @description The window to report. `3M`, `6M` and `1Y` reach back 90, 180 and
+                 *     365 days from the caller's own today; `ALL` reaches back to
+                 *     2000-01-01. Any other value is 400 `validation-error`, which is why this is a real enum rather
                  *     than a free string.
                  */
                 range?: components["schemas"]["NetWorthRange"];

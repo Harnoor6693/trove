@@ -163,8 +163,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   /**
    * Exchange the stored refresh token for a live access token. Returns false
-   * when the server refused it, in which case the session has already been
-   * cleared by the client's reuse handling and the store is `anonymous`.
+   * when the exchange failed. If the server definitively refused the token
+   * (400/401/403) the client has already ended the session and the store is
+   * `anonymous`. After a network error, timeout or 5xx the session is kept and
+   * the store stays `locked`, so the caller can retry. With no stored refresh
+   * token it also returns false and the store stays `locked`.
    */
   unlock: async () => {
     if (get().status !== 'locked') return true;

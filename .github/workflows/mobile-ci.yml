@@ -73,9 +73,10 @@ jobs:
       - name: Validate eas.json profiles
         run: npm run test:eas-config
 
-  # Detox needs a macOS runner with a matching Xcode and a native build that
-  # currently fails on react-native-screens codegen. Manual-only until the mobile
-  # phase rebuilds the native projects (plan step 21).
+  # Both Detox jobs (detox-ios on macos-15, detox-android on ubuntu) are manual-only
+  # (workflow_dispatch) because they are slow: each builds a native project, starts
+  # Postgres, the Trove server and Metro, and boots a simulator or emulator. Run them
+  # from the Actions tab before landing mobile changes.
   detox-ios:
     if: github.event_name == 'workflow_dispatch'
     runs-on: macos-15

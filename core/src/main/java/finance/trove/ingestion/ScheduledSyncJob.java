@@ -40,8 +40,8 @@ import org.springframework.stereotype.Component;
  *
  * <p><strong>Who the run acts as</strong> decides the window's timezone and who is told on
  * failure: the account's creator ({@code connected_account.user_id}); if that member has been
- * erased (the column is {@code ON DELETE SET NULL}), the household's admin, by the rule
- * {@code NetWorthSnapshotService} uses.
+ * erased (the column is {@code ON DELETE SET NULL}), the household's first admin, or its first
+ * member if it has none, by the rule {@code NetWorthSnapshotService} uses.
  */
 @Component
 public class ScheduledSyncJob {
@@ -67,7 +67,11 @@ public class ScheduledSyncJob {
         this.orchestrator = orchestrator;
     }
 
-    /** How one pass went: runs that reached the bank, runs that did not, accounts skipped. */
+    /**
+     * How one pass went. {@code synced} counts runs that finished {@code SUCCESS}; {@code failed}
+     * counts {@code PARTIAL_FAILURE}, {@code FAILED} and unexpected exceptions; {@code skipped}
+     * counts accounts another sync already held (409) or whose household has no member to act as.
+     */
     public record Result(int synced, int failed, int skipped) {
     }
 

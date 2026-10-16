@@ -36,11 +36,9 @@ body:
     attributes:
       label: Source type
       options:
-        - Email alerts (IMAP)
-        - OFX / QFX Direct Connect
-        - OFX file import
         - SimpleFIN
-        - SMS
+        - OFX / QFX file import
+        - CSV file import
         - Other
     validations:
       required: true
@@ -48,9 +46,9 @@ body:
   - type: textarea
     id: email-pattern
     attributes:
-      label: Sample alert format (redacted)
+      label: Sample export or file format (redacted)
       description: Paste a redacted example (remove all real account numbers and amounts).
-      placeholder: "A transaction of $XX.XX was made on your account ending XXXX at MERCHANT NAME"
+      placeholder: "A CSV header row, or an OFX <STMTTRN> snippet"
     validations:
       required: true
 
@@ -59,5 +57,5 @@ body:
     attributes:
       label: Plugin checklist
       options:
-        - label: I have 10+ sample fixtures ready for `src/test/resources/fixtures/`
+        - label: I have 10+ sample fixtures ready under `core/src/test/resources/` (csv/, ofx/ or simplefin/)
         - label: I am willing to maintain this plugin

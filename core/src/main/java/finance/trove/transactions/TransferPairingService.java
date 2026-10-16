@@ -44,9 +44,14 @@ import org.springframework.transaction.annotation.Transactional;
  *       the next fortnight's transactions.</li>
  *   <li><strong>Never across households.</strong> Every query is household-scoped, so this is
  *       true by construction rather than by a check that could be forgotten.</li>
+ *   <li><strong>Looks like a transfer.</strong> Both legs must say so in their description or
+ *       merchant: TRANSFER, XFER, PAYMENT, PAIEMENT or VIREMENT.</li>
  *   <li><strong>One group per leg.</strong> A leg that has been paired is not a candidate for
- *       another pair, so a household that made three identical transfers in a week gets three
- *       groups of two, not one group of six.</li>
+ *       another pair, so a group is always exactly two legs.</li>
+ *   <li><strong>Unambiguous.</strong> A leg is paired only when it has exactly one closest
+ *       candidate and that candidate's closest match is the same leg. Ties are left unpaired for
+ *       a member to link by hand, so a household that made several identical transfers on the
+ *       same day sees them left unpaired because the match is ambiguous.</li>
  * </ul>
  *
  * <p>Because only unpaired legs are ever loaded, running the job twice pairs nothing new: the
@@ -110,10 +115,9 @@ public class TransferPairingService {
      * The rule itself, over a list of unpaired legs — no database, no Spring, so the window, the
      * currency rule, the sign rule and the one-group-per-leg rule are each testable on their own.
      *
-     * <p>The input is expected in the order the repository returns it (date, then insertion), so
-     * the earliest possible partner is chosen first; that makes the result deterministic for a
-     * household that made several identical transfers in one window rather than dependent on
-     * which row the planner happened to return first.
+     * <p>A leg is paired only when it has exactly one closest candidate and that candidate's
+     * closest match is the same leg; identical same-day legs are left unpaired because the match
+     * is ambiguous (B1-09).
      *
      * @param legs unpaired transactions of ONE household
      * @return the legs this call modified, both members of every new pair, in pairing order
@@ -182,7 +186,10 @@ public class TransferPairingService {
             || text.contains("PAIEMENT") || text.contains("VIREMENT");
     }
 
-    /** Whether two legs describe one movement. Every clause is one of the rules above. */
+    /**
+     * Whether two legs describe one movement. Every clause is one of the rules above, including
+     * the transfer-text test.
+     */
     private static boolean pairs(Transaction left, Transaction right) {
         return isDirectional(right)
             && looksLikeTransfer(left) && looksLikeTransfer(right)

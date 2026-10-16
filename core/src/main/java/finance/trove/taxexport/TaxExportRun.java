@@ -15,7 +15,7 @@ import java.util.UUID;
 
 /**
  * One tax-year export a member asked for ({@code docs/recovery/06-COLLAPSE-PLAN.md} §2.9,
- * §3 V41-row, §4.12, §6 "Tax export").
+ * §3 V41-row (plan numbering; shipped as V35__tax_export_run.sql), §4.12, §6 "Tax export").
  *
  * <p><strong>Tenancy: this row is scoped by {@code user_id}, not by {@code household_id}</strong>,
  * and that is the deliberate exception to the rule every other ledger table follows. A tax filing

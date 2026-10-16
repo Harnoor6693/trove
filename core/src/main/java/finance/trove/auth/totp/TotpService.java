@@ -80,7 +80,7 @@ public class TotpService {
 
     /**
      * Starts (or restarts) enrolment. The caller must already have re-authenticated with a
-     * password — {@code AuthController} enforces that, not this method, because "which
+     * password — {@code AccountSecurityController} enforces that, not this method, because "which
      * re-authentication counts" is a routing concern.
      *
      * @throws TotpException if TOTP is already enabled; re-enrolling silently would replace a
@@ -215,7 +215,10 @@ public class TotpService {
         return List.copyOf(codes);
     }
 
-    /** Recovery codes are compared case- and separator-insensitively; people retype them. */
+    /**
+     * Recovery codes are compared case-insensitively and ignoring spaces; the hyphen is part of
+     * the code.
+     */
     static String normaliseRecovery(String code) {
         return code.trim().toUpperCase(Locale.ROOT).replace(" ", "");
     }

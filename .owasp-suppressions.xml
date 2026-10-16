@@ -12,8 +12,8 @@
     Example (commented out):
     <suppress>
       <notes>
-        Justification: CVE-2024-XXXXX affects only the SAML pathway; Trove uses
-        OIDC via Authentik. Reviewed by @Harnoor6693 2026-XX-XX.
+        Justification: CVE-2024-XXXXX affects only the SAML pathway; Trove's optional
+        OIDC login is provider-neutral (any standards-compliant issuer). Reviewed by @Harnoor6693 2026-XX-XX.
       </notes>
       <packageUrl regex="true">^pkg:maven/org\.example/affected-lib@.*$</packageUrl>
       <cve>CVE-2024-XXXXX</cve>

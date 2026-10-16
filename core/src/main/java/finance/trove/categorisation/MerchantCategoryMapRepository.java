@@ -38,7 +38,8 @@ public interface MerchantCategoryMapRepository extends UserScopedRepository<Merc
 
     /**
      * Every PREFIX row of this household whose stored value is a leading substring of
-     * {@code merchant}, longest (most specific) first, then by {@code priority} descending — the
+     * {@code merchant}, longest (most specific) first, then by {@code priority} ascending
+     * (lower number first) — the
      * column the rules controller's reorder endpoint writes, for ties between prefixes of the
      * same length.
      */
@@ -54,7 +55,10 @@ public interface MerchantCategoryMapRepository extends UserScopedRepository<Merc
     List<MerchantCategoryMap> findAllByHouseholdIdAndSourceOrderByPriorityAscCreatedAtAsc(
         UUID householdId, MappingSource source);
 
-    /** Whether any mapping in this household still points at this category — the delete guard. */
+    /**
+     * Whether any mapping in this household still points at this category. The delete guard is
+     * {@link #existsByHouseholdIdAndCategoryIdAndSourceNot}.
+     */
     boolean existsByHouseholdIdAndCategoryId(UUID householdId, UUID categoryId);
 
     /** Whether a mapping other than a machine guess (AI) still points at the category (B1-06). */

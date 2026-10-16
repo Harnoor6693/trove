@@ -5,8 +5,9 @@
  *
  *  - **I5** — the mobile bottom bar was `NAV_ITEMS.slice(0, 5)` with no overflow,
  *    so on a phone Receipts, Net Worth, Accounts, Tax and Settings were
- *    unreachable through any affordance at all. There is now a "More" sheet, and
- *    a compile-time check that every nav item is reachable from one of the two.
+ *    unreachable through any affordance at all. There is now a "More" sheet; the
+ *    bottom bar and the sheet are two slices of the same NAV_ITEMS table
+ *    (navItems.ts), so every item is reachable, and AppShell.test.tsx asserts it.
  *  - **I2** — there was no sign-out control anywhere in the app. There is one on
  *    every authenticated route now, in the top bar, alongside Settings' own.
  *

@@ -161,7 +161,7 @@ public class AdminController {
      *
      * <p>{@code token} and {@code url} are populated for invites that can still be redeemed, and
      * null for the rest. The web admin UI reads the link from here rather than from the creation
-     * response ({@code apps/web/src/pages/Settings/index.tsx:215}), so the clock is passed in:
+     * response ({@code apps/web/src/pages/Settings/index.tsx:234-246}), so the clock is passed in:
      * "still redeemable" is a question about now.
      */
     @GetMapping("/invites")
@@ -174,7 +174,7 @@ public class AdminController {
      * {@code POST /v1/admin/invites} — 201 with the one and only readable copy of the token.
      *
      * <p>The body is optional and {@code {}} is the normal case: the web client sends literally
-     * {@code createInvite({})} ({@code apps/web/src/pages/Settings/index.tsx:167}). An
+     * {@code createInvite({})} ({@code apps/web/src/pages/Settings/index.tsx:180}). An
      * {@code @Valid @RequestBody} that was required would 400 that call.
      */
     @PostMapping("/invites")

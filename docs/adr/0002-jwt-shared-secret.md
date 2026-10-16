@@ -1,7 +1,7 @@
 # ADR-0002: JWT Signing with Shared Symmetric Secret (HMAC-SHA256) over Asymmetric Keys
 
 **Date**: 2026-04-27  
-Status: Superseded by ADR-0020 (monolith collapse, 2026-09-26 — the shared-secret-across-services risk this ADR accepted no longer applies once there is one process holding the secret; see ADR-0011 threat model)  
+Status: Superseded in part by [ADR-0020](0020-monolith-collapse.md) (monolith collapse, 2026-09-26 — the shared-secret-across-services risk this ADR accepted no longer applies once there is one process holding the secret; see ADR-0011 threat model). HS256 with one symmetric secret remains the live signing scheme; only the sharing of that secret across ten services was removed.  
 **Deciders**: Security team
 
 ## Context
