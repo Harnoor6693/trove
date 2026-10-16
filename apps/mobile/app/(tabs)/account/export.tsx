@@ -106,8 +106,14 @@ export default function DataExportScreen() {
           <Text style={[styles.note, { color: theme.ink3 }]} testID="export-contents">
             A ZIP archive holding a manifest, `transactions.csv`, and one JSON document per dataset:
             accounts, categories, merchant rules, budget periods, envelopes, savings goals,
-            subscriptions, net-worth snapshots, assets, liabilities, receipts, coach conversations
-            and notification preferences.
+            subscriptions, subscription alerts, net-worth snapshots, assets, liabilities and
+            receipts, and your own profile, webhooks, notification inbox, coach conversations, coach
+            insights, tax-line mappings and notification preferences.
+          </Text>
+          <Text style={[styles.note, { color: theme.ink3 }]} testID="export-secrets-note">
+            No password, second-factor secret, AI key or webhook signing secret is ever included. A
+            webhook&rsquo;s target URL is exported as you entered it, and some services put a token
+            in that URL, so keep the archive somewhere safe.
           </Text>
           <Text style={[styles.note, { color: theme.ink3 }]} testID="export-household-note">
             Your ledger is shared with your household, so the archive contains the household&rsquo;s
