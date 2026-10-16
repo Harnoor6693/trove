@@ -17,6 +17,8 @@ import finance.trove.ai.AiHandle;
 import finance.trove.common.exception.ValidationException;
 import finance.trove.common.storage.LocalDiskStorage;
 import finance.trove.common.storage.StorageArea;
+import finance.trove.households.Household;
+import finance.trove.households.HouseholdRepository;
 import finance.trove.receipts.ReceiptEventPublisher;
 import finance.trove.receipts.ReceiptImageFixtures;
 import finance.trove.receipts.ReceiptProperties;
@@ -30,6 +32,7 @@ import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -64,6 +67,7 @@ class ReceiptUploadGauntletTest {
     private ReceiptRepository receipts;
     private AiGateway gateway;
     private AiHandle handle;
+    private HouseholdRepository households;
     private ReceiptUploadService service;
 
     @BeforeEach
@@ -82,10 +86,12 @@ class ReceiptUploadGauntletTest {
             .thenReturn("receipts/" + HOUSEHOLD + "/" + UUID.randomUUID() + ".jpg");
         when(storage.usage(eq(StorageArea.RECEIPTS), any())).thenReturn(0L);
         when(receipts.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        households = mock(HouseholdRepository.class);
+        when(households.findByIdForUpdate(any())).thenReturn(Optional.of(mock(Household.class)));
 
         service = new ReceiptUploadService(receipts, validator, processor, storage, gateway,
             mock(ReceiptPipelineOrchestrator.class), mock(ReceiptEventPublisher.class),
-            properties);
+            properties, households);
     }
 
     // ------------------------------------------------------------- (a) declared size
