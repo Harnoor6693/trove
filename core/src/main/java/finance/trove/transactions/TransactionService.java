@@ -12,6 +12,7 @@ import finance.trove.common.time.UserClock;
 import finance.trove.transactions.dto.ManualTransactionRequest;
 import finance.trove.transactions.dto.TransactionPatch;
 import java.time.YearMonth;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -118,6 +119,14 @@ public class TransactionService {
      * one: the column is what a budget aggregate reads, and the pin is what survives the next
      * re-sync. Doing only the second was the named defect, and it would have meant a member's
      * correction never moved envelope spend at all.
+     *
+     * <p>A {@code transferPartnerId} links this row and the named one as the two legs of one
+     * transfer, under a group id minted here, in this one transaction (G6). It used to take two
+     * PATCHes carrying the same {@code transferGroupId}, and when the second failed the first row
+     * was left grouped alone: hidden from every spend figure while its partner still counted, and
+     * never repaired by the pairing job, which only loads ungrouped legs. Now both rows commit or
+     * neither does. The partner is loaded in the caller's household (another household's row is
+     * 404), and a row that is already a leg is 409 rather than a third member of its pair.
      */
     @Transactional
     public Transaction patch(UUID householdId, UUID userId, UUID transactionId,
@@ -145,6 +154,11 @@ public class TransactionService {
             // Linking or unlinking moves the row in or out of every spend aggregate (B2-04).
             ledgerChanged = !java.util.Objects.equals(transaction.getTransferGroupId(),
                 previousGroupId);
+        }
+        Transaction partner = null;
+        if (patch.hasTransferPartnerId()) {
+            partner = linkPartner(householdId, transaction, patch.transferPartnerId());
+            ledgerChanged = true;
         }
         if (patch.hasCategoryId()) {
             UUID categoryId = patch.categoryId() == null
@@ -179,7 +193,38 @@ public class TransactionService {
             publishCategorised(householdId, userId, saved, saved.getCategoryId(),
                 saved.getCategoryId());
         }
+        if (partner != null) {
+            // The partner left every spend aggregate too, exactly as freePartners reports a row
+            // that rejoined them.
+            publishCategorised(householdId, userId, partner, partner.getCategoryId(),
+                partner.getCategoryId());
+        }
         return saved;
+    }
+
+    /**
+     * Writes one fresh group id onto this row and {@code partnerId}, or refuses with nothing
+     * written. Returns the partner, already carrying the group.
+     */
+    private Transaction linkPartner(UUID householdId, Transaction transaction, UUID partnerId) {
+        if (partnerId.equals(transaction.getId())) {
+            throw new ValidationException("transferPartnerId must name another transaction");
+        }
+        Transaction partner = require(householdId, partnerId);
+        UUID group = UUID.randomUUID();
+        // Guarded in the UPDATE itself rather than by reading the two columns first, so a
+        // concurrent link of either row cannot slip in between a check and the write. Anything
+        // short of both rows is a refusal, and the exception rolls back whatever was written.
+        if (transactions.linkUngrouped(householdId,
+            List.of(transaction.getId(), partnerId), group) != 2) {
+            throw new ConflictException("One of these transactions is already part of a "
+                + "transfer. Unlink it first, then link the two you mean.");
+        }
+        // The bulk update bypassed these managed copies; bring them in line so the response and
+        // the events below describe the rows as they now are.
+        transaction.setTransferGroupId(group);
+        partner.setTransferGroupId(group);
+        return partner;
     }
 
     /**

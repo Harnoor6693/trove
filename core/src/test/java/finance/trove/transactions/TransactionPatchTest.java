@@ -107,6 +107,43 @@ class TransactionPatchTest {
             .isInstanceOf(ValidationException.class);
     }
 
+    @Test
+    @DisplayName("transferPartnerId is read when present and is a request on its own")
+    void transferPartnerIdIsRead() {
+        UUID partner = UUID.randomUUID();
+
+        TransactionPatch patch = parse("{\"transferPartnerId\":\"" + partner + "\"}");
+
+        assertThat(patch.hasTransferPartnerId()).isTrue();
+        assertThat(patch.transferPartnerId()).isEqualTo(partner);
+        assertThat(patch.hasTransferGroupId()).isFalse();
+        assertThat(patch.isEmpty()).as("a link request is not a no-op").isFalse();
+        assertThat(parse("{}").hasTransferPartnerId()).isFalse();
+    }
+
+    @Test
+    @DisplayName("transferPartnerId must name a row: null, a non-string and a non-uuid are 400")
+    void transferPartnerIdMustBeAUuid() {
+        assertThatThrownBy(() -> parse("{\"transferPartnerId\": null}"))
+            .isInstanceOf(ValidationException.class);
+        assertThatThrownBy(() -> parse("{\"transferPartnerId\": 7}"))
+            .isInstanceOf(ValidationException.class);
+        assertThatThrownBy(() -> parse("{\"transferPartnerId\": \"not-a-uuid\"}"))
+            .isInstanceOf(ValidationException.class);
+    }
+
+    @Test
+    @DisplayName("transferPartnerId and transferGroupId together are 400: the server mints the id")
+    void transferPartnerIdExcludesTransferGroupId() {
+        UUID partner = UUID.randomUUID();
+        assertThatThrownBy(() -> parse("{\"transferPartnerId\":\"" + partner + "\","
+            + "\"transferGroupId\":\"" + UUID.randomUUID() + "\"}"))
+            .isInstanceOf(ValidationException.class);
+        assertThatThrownBy(() -> parse("{\"transferPartnerId\":\"" + partner + "\","
+            + "\"transferGroupId\":null}"))
+            .isInstanceOf(ValidationException.class);
+    }
+
     private static TransactionPatch parse(String json) {
         return TransactionPatch.from(MAPPER.readTree(json));
     }

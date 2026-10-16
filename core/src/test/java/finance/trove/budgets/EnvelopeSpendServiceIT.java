@@ -211,6 +211,28 @@ class EnvelopeSpendServiceIT extends BudgetTestSupport {
     }
 
     @Test
+    @DisplayName("G6: linking by transferPartnerId takes the PARTNER out of spent as well")
+    void linkingByPartnerRecomputesThePartnersSpend() {
+        String other = createManualAccount(member, "Card " + UUID.randomUUID());
+        String debit = spend("40.00", "2026-09-24", "DEBIT", groceries);
+        String credit = createManualTransaction(member, other, "40.00", "2026-09-24", "CREDIT",
+            "PAYMENT RECEIVED " + UUID.randomUUID()).path("id").asString();
+        assertThat(storedSpent(envelopeId)).isEqualByComparingTo(new BigDecimal("40.0000"));
+
+        // Sent from the uncategorised leg, so the categorised one is the partner: only an event
+        // published for the partner can move this envelope.
+        HttpResponse<String> linked = patchJson(appUrl("/v1/transactions/" + credit),
+            Json.object("transferPartnerId", debit),
+            "Authorization", "Bearer " + member.accessToken());
+        assertThat(linked.statusCode()).as(linked.body()).isEqualTo(200);
+
+        assertThat(storedSpent(envelopeId))
+            .as("the partner became a transfer leg in the same request, so it is not spending")
+            .isEqualByComparingTo(BigDecimal.ZERO);
+        assertSpentEqualsTheSqlSum();
+    }
+
+    @Test
     @DisplayName("recategorising moves the spend off one envelope and onto the other")
     void recategorisingMovesTheSpend() {
         String restaurantsEnvelope =
