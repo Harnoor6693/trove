@@ -43,10 +43,15 @@ import org.springframework.stereotype.Component;
  *       install-wide {@code TROVE_EGRESS_ALLOW_PRIVATE} and the caller's own opt-in, because a
  *       LAN Ollama is the primary AI story (so a blanket block is wrong) but every member
  *       configures their own endpoint (so an instance-wide switch is too coarse) — §1.6, §6,
- *       owner decision 9. With both keys set the policy lifts the private-network blocks only:
- *       RFC 1918, loopback, CGNAT and ULA. Link-local (including {@code 169.254.169.254}), the
- *       Alibaba and AWS-IPv6 metadata addresses, and the unspecified, multicast and reserved
- *       ranges stay refused whatever the keys say; see {@link #unconditionalBlockReason}.</li>
+ *       owner decision 9. Only the per-user AI endpoint passes an opt-in; SimpleFIN and webhooks
+ *       call {@link #check(String)}, so the flag never opens a private target to them. With both
+ *       keys set the policy lifts the private-network blocks only:
+ *       RFC 1918, loopback, CGNAT, ULA and the deprecated IPv6 site-local {@code fec0::/10}.
+ *       Link-local (including {@code 169.254.169.254}), the cloud metadata addresses that sit
+ *       inside those ranges (Alibaba's in CGNAT; AWS's, Google's, Oracle's, Akamai's and
+ *       Scaleway's IPv6 ones in ULA), the unspecified, multicast and reserved ranges, and every
+ *       IPv6 special-purpose range IANA marks not globally reachable stay refused whatever the
+ *       keys say; see {@link #unconditionalBlockReason}.</li>
  * </ul>
  *
  * <p>Userinfo in the URL is refused outright: {@code https://evil.example@10.0.0.1/} reads as a
@@ -60,6 +65,75 @@ public class OutboundUrlPolicy {
 
     /** The cloud metadata endpoint; inside link-local, but named because it is the objective. */
     static final String METADATA_IPV4 = "169.254.169.254";
+
+    /**
+     * Cloud metadata and credential endpoints that sit inside the ULA range {@code fc00::/7},
+     * which the opt-in lifts, so each one is named. Only addresses the provider documents (or,
+     * for Oracle, ships in its own SDK) are listed. Checked 2026-10-16: Azure, DigitalOcean,
+     * Hetzner, Vultr and Alibaba document IPv4 only (link-local, or Alibaba's
+     * {@code 100.100.100.200}, both refused already); Akamai's second address,
+     * {@code fe80::a9fe:a9fe}, is link-local and refused already.
+     */
+    private static final List<byte[]> METADATA_IPV6 = List.of(
+        // AWS EC2 IMDS:
+        // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html
+        ipv6Literal("fd00:ec2::254"),
+        // AWS EKS Pod Identity Agent, which hands pods their IAM credentials:
+        // https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html
+        ipv6Literal("fd00:ec2::23"),
+        // Google Compute Engine:
+        // https://docs.cloud.google.com/compute/docs/metadata/querying-metadata
+        ipv6Literal("fd20:ce::254"),
+        // Oracle Cloud. Its IMDS page lists IPv4 only; Oracle's own SDK uses this address
+        // (IMDS_IPV6_HOST) and fetches the instance-principal key from it:
+        // https://github.com/oracle/oci-python-sdk/blob/master/src/oci/auth/signers/instance_principals_security_token_signer.py
+        ipv6Literal("fd00:c1::a9fe:a9fe"),
+        // Akamai (Linode):
+        // https://techdocs.akamai.com/cloud-computing/docs/metadata-service-api
+        ipv6Literal("fd00:a9fe:a9fe::1"),
+        // Scaleway:
+        // https://www.scaleway.com/en/developers/api/instance/user-data
+        ipv6Literal("fd00:42::42"));
+
+    /**
+     * Entries of the IANA IPv6 Special-Purpose Address Registry marked not globally reachable
+     * that no other rule covers. Not globally reachable means no public endpoint can be there,
+     * and none of them is a private network a LAN model lives on, so the opt-in does not lift
+     * them. https://www.iana.org/assignments/iana-ipv6-special-registry/ (checked 2026-10-16,
+     * registry last updated 2025-10-09).
+     */
+    private static final List<Ipv6Prefix> NOT_GLOBALLY_REACHABLE = List.of(
+        prefix("100::", 64, "a discard-only (100::/64) address"),
+        prefix("100:0:0:1::", 64, "a dummy-prefix (100:0:0:1::/64) address"),
+        prefix("2001:2::", 48, "a benchmarking (2001:2::/48) address"),
+        prefix("2001:10::", 28, "a deprecated ORCHID (2001:10::/28) address"),
+        prefix("2001:db8::", 32, "a documentation (2001:db8::/32) address"),
+        prefix("3fff::", 20, "a documentation (3fff::/20) address"),
+        prefix("5f00::", 16, "an SRv6 SID (5f00::/16) address"));
+
+    /**
+     * {@code 2001::/23}: the registry marks it not globally reachable "unless allowed by a more
+     * specific allocation", so an address in it is refused unless it falls in one of
+     * {@link #GLOBALLY_REACHABLE_ASSIGNMENTS}.
+     */
+    private static final Ipv6Prefix IETF_PROTOCOL_ASSIGNMENTS =
+        prefix("2001::", 23, "an IETF protocol-assignment (2001::/23) address");
+
+    /**
+     * The more specific {@code 2001::/23} entries the registry marks globally reachable, plus
+     * Teredo ({@code 2001::/32}, "N/A" there), which is judged by the IPv4 address it carries.
+     * ORCHIDv2 and DETs are host identifiers, not locators (RFC 7343), but the registry calls
+     * them globally reachable and they reach nothing without a HIP stack, so they stay allowed.
+     */
+    private static final List<Ipv6Prefix> GLOBALLY_REACHABLE_ASSIGNMENTS = List.of(
+        prefix("2001::", 32, "Teredo"),
+        prefix("2001:1::1", 128, "Port Control Protocol anycast"),
+        prefix("2001:1::2", 128, "TURN anycast"),
+        prefix("2001:1::3", 128, "DNS-SD Service Registration Protocol anycast"),
+        prefix("2001:3::", 32, "AMT"),
+        prefix("2001:4:112::", 48, "AS112-v6"),
+        prefix("2001:20::", 28, "ORCHIDv2"),
+        prefix("2001:30::", 28, "Drone Remote ID entity tags"));
 
     private final EgressProperties properties;
     private final HostResolver resolver;
@@ -170,42 +244,33 @@ public class OutboundUrlPolicy {
      *
      * <p>What the opt-in cannot lift: link-local (IPv4 {@code 169.254.0.0/16}, IPv6
      * {@code fe80::/10}), which holds {@code 169.254.169.254}, the cloud instance-metadata service
-     * whose answer is the host's own credentials; the two metadata addresses that sit inside
-     * ranges the opt-in does lift, Alibaba's {@code 100.100.100.200} (in CGNAT) and AWS's IPv6
-     * {@code fd00:ec2::254} (in ULA); and the ranges that are not private networks at all, which no
-     * LAN model lives on: unspecified ({@code 0.0.0.0/8}, {@code ::}), multicast
-     * ({@code 224.0.0.0/4}, {@code ff00::/8}) and reserved ({@code 240.0.0.0/4}). The opt-in
-     * exists so a member can point at a LAN model on RFC 1918, loopback, CGNAT or ULA; treating
+     * whose answer is the host's own credentials; the metadata addresses that sit inside ranges
+     * the opt-in does lift, Alibaba's {@code 100.100.100.200} (in CGNAT) and the IPv6 ones in
+     * {@link #METADATA_IPV6} (in ULA); and the ranges that are not private networks at all, which
+     * no LAN model lives on: unspecified ({@code 0.0.0.0/8}, {@code ::}), multicast
+     * ({@code 224.0.0.0/4}, {@code ff00::/8}), reserved ({@code 240.0.0.0/4}, and IPv6 space IANA
+     * has not allocated, see {@link #isIetfReserved}) and the IPv6 special-purpose ranges IANA
+     * marks not globally reachable ({@link #NOT_GLOBALLY_REACHABLE}, and {@code 2001::/23} outside
+     * its globally reachable entries). The opt-in exists so a member can point at a LAN model on
+     * RFC 1918, loopback, CGNAT, ULA or site-local; treating
      * the rest as one setting is what would turn a per-user endpoint into an SSRF primitive
      * against the install itself, with no administrator anywhere in the path, since every member
      * configures their own endpoint.
      *
      * <p>An IPv6 address is judged twice, and either refusal refuses. First as itself, against
      * the native IPv6 ranges above plus the local-use NAT64 prefix, before anything else: an
-     * ISATAP identifier under {@code fe80::/10} or {@code ff00::/8} is still link-local or
-     * multicast. Then by every IPv4 address it may carry (see {@link #embeddedIpv4s}), because
-     * {@code ::ffff:169.254.169.254} is the same destination written differently and
-     * {@code Inet6Address#isLinkLocalAddress} answers false for it.
+     * ISATAP identifier under {@code fe80::/10}, {@code ff00::/8} or {@code 2001:db8::/32} is
+     * still link-local, multicast or documentation. Then by every IPv4 address it may carry
+     * (see {@link #embeddedIpv4s}), because {@code ::ffff:169.254.169.254} is the same
+     * destination written differently and {@code Inet6Address#isLinkLocalAddress} answers false
+     * for it.
      */
     static String unconditionalBlockReason(InetAddress address) {
         byte[] bytes = address.getAddress();
         if (bytes.length == 16) {
-            if (address.isAnyLocalAddress()) {
-                return "the unspecified address";
-            }
-            if ((bytes[0] & 0xFF) == 0xFE && (bytes[1] & 0xC0) == 0x80) {
-                return "a link-local address";
-            }
-            if ((bytes[0] & 0xFF) == 0xFF) {
-                return "a multicast address";
-            }
-            if (isAwsImdsIpv6(bytes)) {
-                // AWS's IPv6 metadata endpoint, fd00:ec2::254, inside the ULA range the opt-in
-                // lifts.
-                return "the cloud instance-metadata address";
-            }
-            if (isLocalUseNat64(bytes)) {
-                return "a local-use NAT64 (64:ff9b:1::/48) address";
+            String reason = nativeIpv6BlockReason(address, bytes);
+            if (reason != null) {
+                return reason;
             }
         }
         for (byte[] ipv4 : embeddedIpv4s(bytes)) {
@@ -245,10 +310,88 @@ public class OutboundUrlPolicy {
         return null;
     }
 
-    private static boolean isAwsImdsIpv6(byte[] bytes) {
-        byte[] imds = {(byte) 0xFD, 0, 0x0E, (byte) 0xC2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x02,
-            0x54};
-        return Arrays.equals(bytes, imds);
+    /** The always-refused verdict on an IPv6 address as itself, before any IPv4 inside it. */
+    private static String nativeIpv6BlockReason(InetAddress address, byte[] bytes) {
+        if (address.isAnyLocalAddress()) {
+            return "the unspecified address";
+        }
+        if ((bytes[0] & 0xFF) == 0xFE && (bytes[1] & 0xC0) == 0x80) {
+            return "a link-local address";
+        }
+        if ((bytes[0] & 0xFF) == 0xFF) {
+            return "a multicast address";
+        }
+        for (byte[] metadata : METADATA_IPV6) {
+            if (Arrays.equals(bytes, metadata)) {
+                return "the cloud instance-metadata address";
+            }
+        }
+        if (isLocalUseNat64(bytes)) {
+            return "a local-use NAT64 (64:ff9b:1::/48) address";
+        }
+        for (Ipv6Prefix prefix : NOT_GLOBALLY_REACHABLE) {
+            if (prefix.contains(bytes)) {
+                return prefix.reason();
+            }
+        }
+        if (IETF_PROTOCOL_ASSIGNMENTS.contains(bytes)
+            && GLOBALLY_REACHABLE_ASSIGNMENTS.stream().noneMatch(p -> p.contains(bytes))) {
+            return IETF_PROTOCOL_ASSIGNMENTS.reason();
+        }
+        if (isIetfReserved(bytes)) {
+            return "a reserved IPv6 address";
+        }
+        return null;
+    }
+
+    /**
+     * Whether {@code bytes} is space the IANA IPv6 Address Space registry marks "Reserved by
+     * IETF" with no use the policy recognises: anything outside global unicast {@code 2000::/3}
+     * other than ULA ({@code fc00::/7}, which the opt-in lifts), site-local ({@code fec0::/10},
+     * see {@link #blockReason}), and the {@code ::/8} forms that are loopback or carry an IPv4
+     * address ({@code ::/96}, {@code ::ffff:0:0/96}, {@code ::ffff:0:0:0/96},
+     * {@code 64:ff9b::/96}), which {@link #embeddedIpv4s} judges. Like {@code 240.0.0.0/4}, none
+     * of it holds a public endpoint or a LAN model. Unspecified, link-local, multicast and
+     * local-use NAT64 are refused before this is asked.
+     */
+    private static boolean isIetfReserved(byte[] bytes) {
+        int first = bytes[0] & 0xFF;
+        if ((first & 0xE0) == 0x20 || (first & 0xFE) == 0xFC
+            || (first == 0xFE && (bytes[1] & 0xC0) == 0xC0)) {
+            return false;
+        }
+        boolean zeroFirst96 = Arrays.equals(bytes, 0, 12, new byte[12], 0, 12);
+        return !(zeroFirst96 || isIpv4Mapped(bytes) || isSiit(bytes) || isNat64(bytes));
+    }
+
+    /** An IPv6 prefix, and the reason an address inside it is refused (or allowed). */
+    private record Ipv6Prefix(byte[] network, int length, String reason) {
+
+        boolean contains(byte[] address) {
+            int whole = length / 8;
+            if (!Arrays.equals(address, 0, whole, network, 0, whole)) {
+                return false;
+            }
+            if (length % 8 == 0) {
+                return true;
+            }
+            int mask = (0xFF << (8 - length % 8)) & 0xFF;
+            return (address[whole] & mask) == (network[whole] & mask);
+        }
+    }
+
+    private static Ipv6Prefix prefix(String literal, int length, String reason) {
+        return new Ipv6Prefix(ipv6Literal(literal), length, reason);
+    }
+
+    /** The bytes of an IPv6 literal; {@code getByName} does no DNS lookup for a literal. */
+    private static byte[] ipv6Literal(String literal) {
+        try {
+            return InetAddress.getByName(literal).getAddress();
+        } catch (UnknownHostException e) {
+            // Only a malformed constant in this file gets here.
+            throw new IllegalStateException(e);
+        }
     }
 
     /**
@@ -364,7 +507,12 @@ public class OutboundUrlPolicy {
             return "a multicast address";
         }
         if (address.isSiteLocalAddress()) {
-            return "a private (RFC 1918) address";
+            // Java's site-local is RFC 1918 for IPv4 and fec0::/10 for IPv6. The latter is
+            // deprecated (RFC 3879, IANA: "Reserved by IETF"), but RFC 3879 §4 lets existing
+            // deployments keep using it, so it stays a private range the opt-in lifts.
+            return address instanceof Inet6Address
+                ? "a site-local (fec0::/10, deprecated) address"
+                : "a private (RFC 1918) address";
         }
         if (address instanceof Inet6Address ipv6) {
             return ipv6BlockReason(ipv6);

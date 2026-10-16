@@ -84,23 +84,29 @@ the full authentication threat table.
 
 ## AI
 
-AI is per-user and off by default. `finance.trove.ai.AiGateway` calls whatever
-OpenAI-compatible endpoint a user points their own account at from Settings — a local
-Ollama, a LAN model server, or a cloud provider. A fresh install calls no AI endpoint at
-all: there is no bundled model runtime and no default endpoint. Outbound calls go
-through `finance.trove.common.net.OutboundUrlPolicy`, which blocks private and loopback
-addresses unless the operator sets `TROVE_EGRESS_ALLOW_PRIVATE=true` (for a LAN model server)
-and the member also opts their own endpoint in (`allowPrivateEndpoint`). Even then only the
-private ranges open up (RFC 1918, loopback, carrier-grade NAT and IPv6 unique-local). Link-local,
-cloud-metadata (including `100.100.100.200` and `fd00:ec2::254`), unspecified, multicast and
-reserved addresses are always blocked. An IPv6 address is first checked as IPv6 (link-local,
-multicast and the metadata address are refused before anything else), then by every IPv4
-address it could carry as an IPv4-mapped, IPv4-compatible, SIIT, 6to4, Teredo or ISATAP address
-or under the well-known NAT64 prefix `64:ff9b::/96`, and it is refused if any one of them is. A
-NAT64 prefix an operator chose for their own network cannot be detected, so an address under it
-is judged as the IPv6 address it is. The local-use NAT64 range `64:ff9b:1::/48` is refused
-whole: on an IPv6-only install whose DNS64 uses that prefix, IPv4-only destinations are
-refused.
+AI is per-user and off by default. `finance.trove.ai.AiGateway` calls whatever OpenAI-compatible
+endpoint a user points their own account at from Settings — a local Ollama, a LAN model server,
+or a cloud provider. A fresh install calls no AI endpoint at all: there is no bundled model
+runtime and no default endpoint. Outbound calls go through
+`finance.trove.common.net.OutboundUrlPolicy`, which blocks private and loopback addresses unless
+the operator sets `TROVE_EGRESS_ALLOW_PRIVATE=true` (for a LAN model server) and the member also
+opts their own endpoint in (`allowPrivateEndpoint`). Webhooks and bank sync go through the same
+policy without the opt-in, so they never reach a private address whatever the flag says. With
+both keys set, only the private ranges open up (RFC 1918, loopback, carrier-grade NAT, IPv6
+unique-local and the deprecated IPv6 site-local `fec0::/10`). Link-local, cloud-metadata
+(including `100.100.100.200` and the IPv6 metadata addresses of AWS, Google Cloud, Oracle Cloud,
+Akamai and Scaleway: `fd00:ec2::254`, `fd00:ec2::23`, `fd20:ce::254`, `fd00:c1::a9fe:a9fe`,
+`fd00:a9fe:a9fe::1` and `fd00:42::42`), unspecified, multicast and reserved addresses are always
+blocked, and so is every IPv6 range the IANA special-purpose registry marks not globally
+reachable (among them discard-only `100::/64`, benchmarking `2001:2::/48`, the retired ORCHID
+`2001:10::/28` and documentation `2001:db8::/32` and `3fff::/20`) and IPv6 space IANA has not
+allocated. An IPv6 address is first checked as IPv6 (link-local, multicast, the metadata
+addresses and those ranges are refused before anything else), then by every IPv4 address it
+could carry as an IPv4-mapped, IPv4-compatible, SIIT, 6to4, Teredo or ISATAP address or under
+the well-known NAT64 prefix `64:ff9b::/96`, and it is refused if any one of them is. A NAT64
+prefix an operator chose for their own network cannot be detected, so an address under it is
+judged as the IPv6 address it is. The local-use NAT64 range `64:ff9b:1::/48` is refused whole:
+on an IPv6-only install whose DNS64 uses that prefix, IPv4-only destinations are refused.
 
 ## Storage
 
