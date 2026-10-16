@@ -1746,13 +1746,6 @@ export interface paths {
          *     `currency` defaults to the caller's own `users.currency` when omitted.
          *     There is no server-side default currency literal anywhere — an account
          *     always carries the one it was created with.
-         *
-         *     409 `conflict` means an account of this `sourceKind` already occupies
-         *     this household's slot for the provider account being described: the
-         *     unique key is `(household_id, source_kind, external_account_id)` with
-         *     nulls compared equal, which is what lets a later re-exchange or repeat
-         *     upload reuse the account instead of duplicating it and every transaction
-         *     on it.
          */
         post: operations["createAccount"];
         delete?: never;
@@ -13241,7 +13234,6 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
-            409: components["responses"]["Conflict"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["InternalServerError"];
         };
