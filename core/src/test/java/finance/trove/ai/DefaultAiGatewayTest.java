@@ -65,7 +65,7 @@ class DefaultAiGatewayTest {
         audit = mock(AiAuditRecorder.class);
         encryption = new FieldEncryptionService(KEY_HEX);
 
-        InetAddress ip = InetAddress.getByName("203.0.113.10");
+        InetAddress ip = InetAddress.getByName("8.8.8.8");
         URI uri = URI.create("https://ai.example.test/v1");
         when(urlPolicy.check(anyString(), anyBoolean()))
             .thenReturn(new ResolvedTarget("ai.example.test", ip, 443, uri, List.of(ip)));

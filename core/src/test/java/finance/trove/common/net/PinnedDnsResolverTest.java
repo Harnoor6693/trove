@@ -62,6 +62,22 @@ class PinnedDnsResolverTest {
     }
 
     @Test
+    @DisplayName("an IPv6 literal resolves in the bracketed form Apache HttpClient asks for")
+    void aBracketedIpv6LiteralResolvesToItsPin() throws Exception {
+        // The policy pins the bare address; HttpClient 5 asks the DnsResolver for the URL's host
+        // with its brackets. Matching only the bare form failed every IPv6 literal endpoint at
+        // connect time with "will not resolve".
+        ResolvedTarget target = new OutboundUrlPolicy(new EgressProperties(false),
+            InetAddress::getAllByName).check("https://[2d00::1]/v1");
+        PinnedDnsResolver resolver = new PinnedDnsResolver(target);
+
+        assertThat(resolver.resolve("[2d00::1]")).containsExactly(target.ip());
+        assertThat(resolver.resolve("2d00::1")).containsExactly(target.ip());
+        assertThatThrownBy(() -> resolver.resolve("[2d00::2]"))
+            .isInstanceOf(UnknownHostException.class);
+    }
+
+    @Test
     void resolvedTargetValidatesItsComponents() throws Exception {
         InetAddress approved = InetAddress.getByName("93.184.216.34");
         URI uri = URI.create("https://" + HOST + "/v1");

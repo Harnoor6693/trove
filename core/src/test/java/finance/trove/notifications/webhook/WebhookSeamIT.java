@@ -31,8 +31,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * a real published domain event and ends at a {@code webhook_delivery_log} row, so with
  * {@code WebhookEventListener} removed the queue is empty and every assertion here fails.
  *
- * <p>The target is an unroutable TEST-NET-1 literal, exactly as {@code WebhookIT} uses: nothing
- * connects to it. That is also the second half of what these cases assert — the rows land
+ * <p>The target is an unroutable {@code 2d00::/8} literal, exactly as {@code WebhookIT} uses:
+ * nothing connects to it. That is also the second half of what these cases assert — the rows land
  * {@code PENDING} with no attempt on them, because this step SCHEDULES and the retry job with its
  * delivery-time URL re-validation, its pinned resolver and its HMAC signature is the only thing
  * that ever dials out. A listener that delivered inline would walk straight around the SSRF fix
@@ -40,8 +40,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 class WebhookSeamIT extends BudgetTestSupport {
 
-    /** A public IPv4 literal that the outbound policy accepts and nothing ever reaches. */
-    private static final String TARGET = "https://192.0.2.1/trove-hook";
+    /** A public IPv6 literal that the outbound policy accepts and nothing ever reaches. */
+    private static final String TARGET = "https://[2d00::1]/trove-hook";
 
     private static final String SECRET = "a-long-enough-webhook-secret";
 

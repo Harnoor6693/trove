@@ -21,17 +21,19 @@ import tools.jackson.databind.JsonNode;
  * <p><strong>Why the endpoint is an IP literal.</strong> {@code OutboundUrlPolicy} resolves the
  * host and refuses anything private, and it does so at save time as well as on every call. A
  * hostname would need DNS, which an offline build does not have; {@code localhost} is loopback and
- * is refused by design. {@code 203.0.113.10} is RFC 5737 TEST-NET-3: a literal, so
- * {@code InetAddress} answers without a lookup, and public as far as the policy is concerned, so
- * the save succeeds. Nothing in this class actually reaches it except the two tests that are about
- * what happens when an endpoint cannot be reached.
+ * is refused by design. {@code 2d00::1} is a literal, so {@code InetAddress} answers without a
+ * lookup, and public as far as the policy is concerned, so the save succeeds; it is global
+ * unicast that IANA has not delegated to any registry ({@code 2d00::/8}), so nobody routes it. A
+ * documentation range such as RFC 5737's TEST-NET-3 cannot stand in: the policy refuses those.
+ * Nothing in this class actually reaches it except the two tests that are about what happens
+ * when an endpoint cannot be reached.
  */
 class AiSettingsIT extends AuthFlowSupport {
 
     @Autowired
     private AiGateway gateway;
 
-    private static final String ENDPOINT = "https://203.0.113.10/v1";
+    private static final String ENDPOINT = "https://[2d00::1]/v1";
     private static final String API_KEY = "sk-integration-test-key-9f2c";
 
     @Test
@@ -139,7 +141,7 @@ class AiSettingsIT extends AuthFlowSupport {
                 + "AND type = 'EGRESS_SETTING_CHANGE'", String.class, member.userId());
         assertThat(metadata).hasSize(1);
         assertThat(metadata.get(0))
-            .contains("203.0.113.10")
+            .contains("2d00::1")
             .as("the row is readable by its subject; an endpoint path routinely carries a token")
             .doesNotContain("secret-path")
             .doesNotContain(API_KEY);
@@ -208,9 +210,9 @@ class AiSettingsIT extends AuthFlowSupport {
         Session member = inviteAndRegister(loginBootstrapAdmin(), "ai-unreachable");
         String bearer = "Bearer " + member.accessToken();
 
-        // The lowest connect timeout the schema allows, because 203.0.113.10 is a documentation
-        // range that nothing routes to: the point is which exception comes back, not how long it
-        // takes to come back.
+        // The lowest connect timeout the schema allows, because 2d00::1 is undelegated space that
+        // nothing routes to: the point is which exception comes back, not how long it takes to
+        // come back.
         putJson(appUrl("/v1/ai/settings"),
             Json.object("enabled", true, "endpointUrl", ENDPOINT, "model", "llama3",
                 "allowPrivateEndpoint", false, "privacyTier", "CLOUD_OK",
@@ -247,7 +249,7 @@ class AiSettingsIT extends AuthFlowSupport {
 
         // What a member's settings look like the moment before they pick a model: an endpoint,
         // AI still off, and nothing in the model box. The short timeouts are because nothing
-        // routes to 203.0.113.10 and the point is which answer comes back, not how long it takes.
+        // routes to 2d00::1 and the point is which answer comes back, not how long it takes.
         putJson(appUrl("/v1/ai/settings"),
             Json.object("enabled", false, "endpointUrl", ENDPOINT, "allowPrivateEndpoint", false,
                 "privacyTier", "CLOUD_OK", "connectTimeoutMs", 100, "readTimeoutMs", 1000),
