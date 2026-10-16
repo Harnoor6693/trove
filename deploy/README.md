@@ -528,11 +528,11 @@ with the opt-in: link-local addresses; the cloud metadata addresses (`169.254.16
 `100.100.100.200` and the IPv6 ones inside unique-local space: `fd00:ec2::254`,
 `fd00:ec2::23`, `fd20:ce::254`, `fd00:c1::a9fe:a9fe`, `fd00:a9fe:a9fe::1`, `fd00:42::42`);
 the unspecified address and 0.0.0.0/8, multicast and reserved (240.0.0.0/4) ranges; every
-IPv6 range the IANA special-purpose registry marks not globally reachable (such as
-`100::/64`, `2001:2::/48`, `2001:10::/28`, `2001:db8::/32` and `3fff::/20`); and IPv6 space
-IANA has not allocated. An IPv6 address is first checked as IPv6 (link-local, multicast,
-unspecified, the metadata addresses, the IANA and unallocated ranges above and the local-use
-NAT64 prefix `64:ff9b:1::/48` are always refused), then by
+other IPv6 range the IANA special-purpose registry marks not globally reachable (such as
+`100::/64`, `2001:2::/48`, `2001:10::/28`, `2001:db8::/32` and `3fff::/20`); and the IPv6
+space outside `2000::/3` that the IETF reserves. An IPv6 address is first checked as IPv6
+(link-local, multicast, unspecified, the metadata addresses, the IANA and IETF-reserved
+ranges above and the local-use NAT64 prefix `64:ff9b:1::/48` are always refused), then by
 every IPv4 address it could carry (IPv4-mapped, IPv4-compatible, SIIT, 6to4, Teredo, ISATAP,
 or under the well-known NAT64 prefix `64:ff9b::/96`), and is refused if any one of them is.
 A NAT64 prefix you chose yourself cannot be detected, so addresses under it are judged as

@@ -15,8 +15,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * <p>"Private" means RFC 1918, loopback, carrier-grade NAT ({@code 100.64.0.0/10}), IPv6
  * unique-local ({@code fc00::/7}) and the deprecated IPv6 site-local ({@code fec0::/10}).
- * Link-local, the cloud metadata addresses, the unspecified, multicast and reserved ranges, and
- * the IPv6 ranges IANA marks not globally reachable are refused whatever this is set to; see
+ * Link-local, the cloud metadata addresses, the unspecified, multicast and reserved ranges, every
+ * other IPv6 range IANA marks not globally reachable, and the IPv6 space outside
+ * {@code 2000::/3} that the IETF reserves are refused whatever this is set to; see
  * {@link OutboundUrlPolicy}.
  *
  * @param allowPrivate whether a private or loopback target may be opted into
