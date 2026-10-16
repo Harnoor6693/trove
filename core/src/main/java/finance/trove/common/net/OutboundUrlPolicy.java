@@ -180,58 +180,67 @@ public class OutboundUrlPolicy {
      * against the install itself, with no administrator anywhere in the path, since every member
      * configures their own endpoint.
      *
-     * <p>An IPv4-mapped IPv6 address is unwrapped before the check, because
+     * <p>An IPv6 address is judged twice, and either refusal refuses. First as itself, against
+     * the native IPv6 ranges above plus the local-use NAT64 prefix, before anything else: an
+     * ISATAP identifier under {@code fe80::/10} or {@code ff00::/8} is still link-local or
+     * multicast. Then by every IPv4 address it may carry (see {@link #embeddedIpv4s}), because
      * {@code ::ffff:169.254.169.254} is the same destination written differently and
      * {@code Inet6Address#isLinkLocalAddress} answers false for it.
      */
     static String unconditionalBlockReason(InetAddress address) {
-        byte[] ipv4 = embeddedIpv4(address);
-        if (ipv4 != null) {
-            int first = ipv4[0] & 0xFF;
-            int second = ipv4[1] & 0xFF;
-            if (first == 169 && second == 254) {
-                return (ipv4[2] & 0xFF) == 169 && (ipv4[3] & 0xFF) == 254
-                    ? "the cloud instance-metadata address"
-                    : "a link-local address";
+        byte[] bytes = address.getAddress();
+        if (bytes.length == 16) {
+            if (address.isAnyLocalAddress()) {
+                return "the unspecified address";
             }
-            if (first == 100 && second == 100 && (ipv4[2] & 0xFF) == 100
-                && (ipv4[3] & 0xFF) == 200) {
-                // Alibaba Cloud's metadata service. It sits inside CGNAT 100.64.0.0/10, which the
-                // opt-in does lift (Tailscale and similar overlays live there), so it is named.
-                return "the cloud instance-metadata address";
+            if ((bytes[0] & 0xFF) == 0xFE && (bytes[1] & 0xC0) == 0x80) {
+                return "a link-local address";
             }
-            if (first == 0) {
-                return ipv4[1] == 0 && ipv4[2] == 0 && ipv4[3] == 0
-                    ? "the unspecified address"
-                    : "a 0.0.0.0/8 address";
-            }
-            if (first >= 224 && first < 240) {
+            if ((bytes[0] & 0xFF) == 0xFF) {
                 return "a multicast address";
             }
-            if (first >= 240) {
-                return "a reserved (240.0.0.0/4) address";
+            if (isAwsImdsIpv6(bytes)) {
+                // AWS's IPv6 metadata endpoint, fd00:ec2::254, inside the ULA range the opt-in
+                // lifts.
+                return "the cloud instance-metadata address";
             }
-            return null;
+            if (isLocalUseNat64(bytes)) {
+                return "a local-use NAT64 (64:ff9b:1::/48) address";
+            }
         }
-        byte[] bytes = address.getAddress();
-        if (bytes.length != 16) {
-            return null;
+        for (byte[] ipv4 : embeddedIpv4s(bytes)) {
+            String reason = unconditionalIpv4BlockReason(ipv4);
+            if (reason != null) {
+                return reason;
+            }
         }
-        if (isLocalUseNat64(bytes)) {
-            return "a local-use NAT64 (64:ff9b:1::/48) address";
+        return null;
+    }
+
+    private static String unconditionalIpv4BlockReason(byte[] ipv4) {
+        int first = ipv4[0] & 0xFF;
+        int second = ipv4[1] & 0xFF;
+        if (first == 169 && second == 254) {
+            return (ipv4[2] & 0xFF) == 169 && (ipv4[3] & 0xFF) == 254
+                ? "the cloud instance-metadata address"
+                : "a link-local address";
         }
-        if ((bytes[0] & 0xFF) == 0xFE && (bytes[1] & 0xC0) == 0x80) {
-            return "a link-local address";
+        if (first == 100 && second == 100 && (ipv4[2] & 0xFF) == 100
+            && (ipv4[3] & 0xFF) == 200) {
+            // Alibaba Cloud's metadata service. It sits inside CGNAT 100.64.0.0/10, which the
+            // opt-in does lift (Tailscale and similar overlays live there), so it is named.
+            return "the cloud instance-metadata address";
         }
-        if ((bytes[0] & 0xFF) == 0xFF) {
+        if (first == 0) {
+            return ipv4[1] == 0 && ipv4[2] == 0 && ipv4[3] == 0
+                ? "the unspecified address"
+                : "a 0.0.0.0/8 address";
+        }
+        if (first >= 224 && first < 240) {
             return "a multicast address";
         }
-        if (address.isAnyLocalAddress()) {
-            return "the unspecified address";
-        }
-        if (isAwsImdsIpv6(bytes)) {
-            // AWS's IPv6 metadata endpoint, fd00:ec2::254, inside the ULA range the opt-in lifts.
-            return "the cloud instance-metadata address";
+        if (first >= 240) {
+            return "a reserved (240.0.0.0/4) address";
         }
         return null;
     }
@@ -243,36 +252,41 @@ public class OutboundUrlPolicy {
     }
 
     /**
-     * The four IPv4 bytes {@code address} leads to, or null: the address itself, or the one
-     * embedded in {@code ::ffff:0:0/96} (mapped), {@code ::/96} (IPv4-compatible), {@code ::ffff:0:0:0/96} (SIIT), ISATAP
-     * (identifier {@code 0:5efe} under any prefix), {@code 64:ff9b::/96} (NAT64),
-     * {@code 2002::/16} (6to4) or {@code 2001::/32} (Teredo, client address bit-inverted).
+     * Every IPv4 address {@code bytes} may lead to: the address itself if it is IPv4, else the one
+     * embedded by each transition format it matches: {@code ::ffff:0:0/96} (mapped),
+     * {@code ::/96} (IPv4-compatible), {@code ::ffff:0:0:0/96} (SIIT), {@code 64:ff9b::/96}
+     * (well-known NAT64), ISATAP (identifier {@code 0:5efe} under any prefix), {@code 2002::/16}
+     * (6to4) and {@code 2001::/32} (Teredo, client address bit-inverted). Empty for a native
+     * IPv6 address.
      *
-     * <p>B3-11: on a host with NAT64, or a 6to4 or Teredo route, a connection to one of these is
-     * a connection to the IPv4 address inside it, so that address is what the checks judge.
+     * <p>B3-11: on a host with NAT64, or a 6to4, Teredo or ISATAP route, a connection to one of
+     * these is a connection to the IPv4 address inside it, so that address is what the checks
+     * judge. One address can match several formats ({@code 2002:a9fe:a9fe::5efe:808:808} is 6to4
+     * to {@code 169.254.169.254} and ISATAP to {@code 8.8.8.8}), and which one the network uses
+     * is not knowable here, so every candidate is returned and callers refuse if any is refused.
      */
-    private static byte[] embeddedIpv4(InetAddress address) {
-        byte[] bytes = address.getAddress();
+    private static List<byte[]> embeddedIpv4s(byte[] bytes) {
         if (bytes.length == 4) {
-            return bytes;
+            return List.of(bytes);
         }
-        if (isIpv4Mapped(bytes) || isNat64(bytes) || isIpv4Compatible(bytes)
-            || isSiit(bytes) || isIsatap(bytes)) {
-            return Arrays.copyOfRange(bytes, 12, 16);
+        List<byte[]> candidates = new ArrayList<>(3);
+        if (isIpv4Mapped(bytes) || isIpv4Compatible(bytes) || isSiit(bytes) || isNat64(bytes)
+            || isIsatap(bytes)) {
+            candidates.add(Arrays.copyOfRange(bytes, 12, 16));
         }
         if ((bytes[0] & 0xFF) == 0x20 && bytes[1] == 0x02) {
-            return Arrays.copyOfRange(bytes, 2, 6);
+            candidates.add(Arrays.copyOfRange(bytes, 2, 6));
         }
         if ((bytes[0] & 0xFF) == 0x20 && bytes[1] == 0x01 && bytes[2] == 0 && bytes[3] == 0) {
-            return new byte[] {(byte) ~bytes[12], (byte) ~bytes[13], (byte) ~bytes[14],
-                (byte) ~bytes[15]};
+            candidates.add(new byte[] {(byte) ~bytes[12], (byte) ~bytes[13], (byte) ~bytes[14],
+                (byte) ~bytes[15]});
         }
-        return null;
+        return candidates;
     }
 
     /**
-     * {@code ::/96} (deprecated IPv4-compatible): twelve zero bytes then an IPv4 address. Java keeps
-     * these as {@link Inet6Address}, so without this they carried no embedded address and
+     * {@code ::/96} (deprecated IPv4-compatible): twelve zero bytes then an IPv4 address. Java
+     * keeps these as {@link Inet6Address}, so without this they carried no embedded address and
      * {@code ::a9fe:a9fe} slipped past {@link #unconditionalBlockReason} and the opt-in. Only
      * {@code ::} and {@code ::1}, the IPv6 unspecified and loopback addresses, are not embedded
      * IPv4 and are left to the checks that already name them; {@code ::2} is {@code 0.0.0.2}.
@@ -310,14 +324,16 @@ public class OutboundUrlPolicy {
 
     /**
      * {@code 64:ff9b:1::/48} (RFC 8215 local-use NAT64). Where the IPv4 sits depends on the prefix
-     * length the operator chose, so no position can be trusted: the whole /48 is refused.
+     * length the operator chose, so no position can be trusted: the whole /48 is refused, before
+     * any embedded-IPv4 format is looked at.
      */
     private static boolean isLocalUseNat64(byte[] bytes) {
         return bytes[0] == 0 && bytes[1] == 0x64 && (bytes[2] & 0xFF) == 0xFF
             && (bytes[3] & 0xFF) == 0x9B && bytes[4] == 0 && bytes[5] == 1;
     }
 
-private static boolean isNat64(byte[] bytes) {
+    /** {@code 64:ff9b::/96} (RFC 6052 well-known NAT64): the IPv4 is the last 32 bits. */
+    private static boolean isNat64(byte[] bytes) {
         return bytes[0] == 0 && bytes[1] == 0x64 && (bytes[2] & 0xFF) == 0xFF
             && (bytes[3] & 0xFF) == 0x9B && Arrays.equals(bytes, 4, 12, new byte[8], 0, 8);
     }
@@ -370,8 +386,7 @@ private static boolean isNat64(byte[] bytes) {
         if ((bytes[0] & 0xFE) == 0xFC) {
             return "an IPv6 unique-local (fc00::/7) address";
         }
-        byte[] ipv4 = embeddedIpv4(address);
-        if (ipv4 != null) {
+        for (byte[] ipv4 : embeddedIpv4s(bytes)) {
             String embedded;
             try {
                 embedded = blockReason(InetAddress.getByAddress(ipv4));
@@ -379,7 +394,9 @@ private static boolean isNat64(byte[] bytes) {
                 // getByAddress refuses only a wrong length, and this is always four bytes.
                 throw new IllegalStateException(e);
             }
-            return embedded == null ? null : embedded + " inside an IPv6 transition address";
+            if (embedded != null) {
+                return embedded + " inside an IPv6 transition address";
+            }
         }
         return null;
     }
