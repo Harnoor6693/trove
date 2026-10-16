@@ -7,10 +7,11 @@ import org.springframework.http.HttpStatus;
  * A URL a user supplied — an AI endpoint, a webhook target, a SimpleFIN access URL — was refused
  * by {@link OutboundUrlPolicy}.
  *
- * <p>A 400, because the caller can fix it by supplying a different URL, and the message says
- * exactly why so that Settings › AI can show something better than "invalid". The message names
- * the rule ("resolves to a private address") but never the resolved address itself: echoing the
- * IP back would turn the validator into the internal port scanner it exists to prevent.
+ * <p>A 400, because the caller can fix it by supplying a different URL. A refusal for the URL's
+ * shape (scheme, credentials, port) names the rule. A refusal by address is one generic sentence,
+ * the same for loopback, private, link-local, metadata and a name that does not resolve: naming
+ * the range, or the IP, would turn the validator into the internal network probe it exists to
+ * prevent (B3-10). The specific reason is logged server-side.
  */
 public class OutboundUrlPolicyException extends TroveException {
 
