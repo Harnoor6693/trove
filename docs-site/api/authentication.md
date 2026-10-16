@@ -46,6 +46,12 @@ members from the app; there is no open sign-up.
 from core's environment; a Docker Compose install passes core only the variables listed in
 `deploy/.env.example`, so one that is not listed there keeps its default (see
 [Environment variables](../guide/environment-variables)).
+The bootstrap is one transaction. If `TROVE_ADMIN_PASSWORD` fails the password policy, nothing
+is created: the boot logs why and carries on, `/v1/status` still answers, and the next boot
+retries once you have fixed the value. An install first booted before this was fixed may have
+an administrator with no password; sign-in cannot work for it, so run
+`docker compose run --rm trove-core --trove.cli.command="reset-password <email>"` from `deploy/`
+and open the link it prints.
 `TROVE_REGISTRATION_OPEN` only seeds the first boot. After that an administrator opens or
 closes registration in Settings (`PUT /v1/admin/settings`), and the choice is stored on
 the household.
@@ -80,7 +86,8 @@ token at its next refresh.
   single-use with a 30 second reuse grace, so two tabs racing a refresh are not treated as
   theft. Real reuse is detected and logged.
 - After a password login for a TOTP account, the challenge is valid for 60 seconds. TOTP is
-  six digits, 30 second period, with ten recovery codes.
+  six digits, 30 second period, with ten recovery codes. A recovery code is matched without
+  regard to case, spaces or the hyphen in the middle.
 - Data export and account deletion need a step-up body: `password`, plus `code` where TOTP
   is on. Each request must carry its own step-up factor; nothing is remembered between
   requests. A missing or wrong factor is 403 `step-up-required`. TOTP setup needs the

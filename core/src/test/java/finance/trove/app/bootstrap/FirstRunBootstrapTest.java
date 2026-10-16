@@ -28,6 +28,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.mockito.quality.Strictness;
 
 /**
@@ -54,9 +55,12 @@ class FirstRunBootstrapTest {
     @Mock
     private LocalAccountService accounts;
 
+    @Mock
+    private PlatformTransactionManager transactions;
+
     private FirstRunBootstrap bootstrap(BootstrapProperties properties) {
         return new FirstRunBootstrap(properties, new AuthProperties(false, "https://trove.test"),
-            new TimeProperties("America/Toronto"), households, users, accounts);
+            new TimeProperties("America/Toronto"), households, users, accounts, transactions);
     }
 
     private static BootstrapProperties complete() {
@@ -104,7 +108,8 @@ class FirstRunBootstrapTest {
         when(users.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         new FirstRunBootstrap(complete(), new AuthProperties(true, "https://trove.test"),
-            new TimeProperties("UTC"), households, users, accounts).bootstrapIfEmpty(NOW);
+            new TimeProperties("UTC"), households, users, accounts, transactions)
+            .bootstrapIfEmpty(NOW);
 
         ArgumentCaptor<Household> household = ArgumentCaptor.forClass(Household.class);
         verify(households).save(household.capture());
@@ -151,6 +156,37 @@ class FirstRunBootstrapTest {
     }
 
     @Test
+    @DisplayName("A refused admin password rolls the household and user back, so the next boot "
+        + "retries (CI-42)")
+    void aWeakPasswordRollsEverythingBack() {
+        when(users.countAllUsers()).thenReturn(0L);
+        when(households.save(any(Household.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(users.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        org.mockito.Mockito.doThrow(new PasswordPolicyException("too short"))
+            .when(accounts).createCredential(any(), anyString(), anyString(), any());
+
+        bootstrap(complete()).run(null);
+
+        verify(transactions).rollback(any());
+        verify(transactions, never()).commit(any());
+    }
+
+    @Test
+    @DisplayName("A successful bootstrap commits its single transaction")
+    void aSuccessfulBootstrapCommits() {
+        when(users.countAllUsers()).thenReturn(0L);
+        when(households.save(any(Household.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(users.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        bootstrap(complete()).run(null);
+
+        verify(transactions).commit(any());
+        verify(transactions, never()).rollback(any());
+    }
+
+    @Test
     @DisplayName("An unparseable default timezone falls back to UTC rather than failing")
     void unknownDefaultTimezoneFallsBackToUtc() {
         when(users.countAllUsers()).thenReturn(0L);
@@ -159,7 +195,7 @@ class FirstRunBootstrapTest {
         when(users.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         new FirstRunBootstrap(complete(), new AuthProperties(false, "https://trove.test"),
-            new TimeProperties("Nowhere/Special"), households, users, accounts)
+            new TimeProperties("Nowhere/Special"), households, users, accounts, transactions)
             .bootstrapIfEmpty(NOW);
 
         ArgumentCaptor<User> admin = ArgumentCaptor.forClass(User.class);

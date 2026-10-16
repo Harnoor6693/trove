@@ -20,7 +20,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Creates the install's household and its first ADMIN, once, on a boot where {@code users} is
@@ -60,16 +61,19 @@ public class FirstRunBootstrap implements ApplicationRunner {
     private final HouseholdRepository households;
     private final UserRepository users;
     private final LocalAccountService accounts;
+    private final TransactionTemplate transaction;
 
     public FirstRunBootstrap(BootstrapProperties bootstrap, AuthProperties auth,
                              TimeProperties time, HouseholdRepository households,
-                             UserRepository users, LocalAccountService accounts) {
+                             UserRepository users, LocalAccountService accounts,
+                             PlatformTransactionManager transactionManager) {
         this.bootstrap = bootstrap;
         this.auth = auth;
         this.time = time;
         this.households = households;
         this.users = users;
         this.accounts = accounts;
+        this.transaction = new TransactionTemplate(transactionManager);
     }
 
     @Override
@@ -79,20 +83,24 @@ public class FirstRunBootstrap implements ApplicationRunner {
         } catch (PasswordPolicyException e) {
             // swallow-ok: the operator's chosen admin password is too weak. Refusing to start
             // would make an un-onboarded install unreachable, including the status endpoint they
-            // would use to find out why. The credential is refused after the household and
-            // ADMIN rows are already committed (bootstrapIfEmpty runs on this, so its
-            // @Transactional does not apply). The install boots with an administrator who has
-            // no password, and a restart will not retry because the users table is no longer
-            // empty. Recover with the console: --trove.cli.command="reset-password <email>"
-            // (LocalAccountService.setPassword creates the missing credential on redemption).
+            // would use to find out why. bootstrapIfEmpty runs in one transaction, so the refusal
+            // rolls the household and the ADMIN row back: the users table is still empty and the
+            // next boot retries with whatever the operator has fixed in the environment.
             LOG.error("TROVE_ADMIN_PASSWORD was refused by the password policy: {}. {}",
                 e.getMessage(), REMEDY);
         }
     }
 
-    /** Package-private so the test can drive it without an application context. */
-    @Transactional
+    /**
+     * Package-private so the test can drive it without an application context. All writes happen
+     * in one transaction, opened here with a {@link TransactionTemplate} because {@code run}
+     * calls this method on {@code this}, which no {@code @Transactional} proxy would intercept.
+     */
     void bootstrapIfEmpty(Instant now) {
+        transaction.executeWithoutResult(status -> bootstrapInTransaction(now));
+    }
+
+    private void bootstrapInTransaction(Instant now) {
         if (users.countAllUsers() > 0) {
             LOG.debug("Install already has users; first-run bootstrap is a no-op");
             return;
