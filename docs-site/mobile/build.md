@@ -8,7 +8,7 @@ for what actually ships. This page covers local/manual builds for development an
 ## Prerequisites
 
 ```bash
-npm install -g eas-cli
+npm install -g eas-cli   # eas.json requires >= 13.0.0; the Release workflow pins one version
 eas login
 ```
 
@@ -44,6 +44,15 @@ npm run build:prod   # eas build --profile production --platform all
 The `submit:ios`/`submit:android` npm scripts (`eas submit`) exist in `package.json`
 but nothing in this repository's CI calls them — see the note in
 [Release (sideload APK)](./app-store-release).
+
+## iOS
+
+No iOS binary is published: there is no TestFlight or AltStore build, and the Release
+workflow builds Android only. To run Trove on an iPhone, build it yourself with EAS on your
+own Apple account. `eas build --profile development --platform ios` produces an iOS
+Simulator build (the `development` profile sets `ios.simulator`); a build for a physical
+device needs your own Apple Developer account and signing credentials
+(`eas credentials --platform ios`).
 
 ## Credentials
 
