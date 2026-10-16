@@ -4638,7 +4638,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "Removes the account **and every transaction stored against it**\n(`ON DELETE CASCADE`), which is also the only way a synced transaction\nis ever deleted — `DELETE /v1/transactions/{id}` refuses anything that\ndid not come from manual entry.\n",
+              "content": "Removes the account **and every transaction stored against it**\n(`ON DELETE CASCADE`), which is also the only way a synced transaction\nis ever deleted — `DELETE /v1/transactions/{id}` refuses anything that\ndid not come from manual entry.\n\nBudget envelopes are recomputed: the `spent` of every envelope that\ncounted one of the account's categorised transactions drops those\nrows, and a transaction on another account that was paired with one\nof them as a transfer is unpaired and counts as spending again.\n",
               "type": "text/plain"
             },
             "header": [

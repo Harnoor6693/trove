@@ -1794,6 +1794,11 @@ export interface paths {
          *     (`ON DELETE CASCADE`), which is also the only way a synced transaction
          *     is ever deleted — `DELETE /v1/transactions/{id}` refuses anything that
          *     did not come from manual entry.
+         *
+         *     Budget envelopes are recomputed: the `spent` of every envelope that
+         *     counted one of the account's categorised transactions drops those
+         *     rows, and a transaction on another account that was paired with one
+         *     of them as a transfer is unpaired and counts as spending again.
          */
         delete: operations["deleteAccount"];
         options?: never;
@@ -13422,7 +13427,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The account and its transactions are gone. */
+            /** @description The account and its transactions are gone, and the budget envelopes they counted in are recomputed. */
             200: {
                 headers: {
                     "X-Request-Id": components["headers"]["XRequestId"];
