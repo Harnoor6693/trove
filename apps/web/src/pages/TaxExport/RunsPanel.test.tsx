@@ -6,7 +6,7 @@
  * that is not `COMPLETE` answers 409 and must read as "still generating",
  * never as a failure.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from '@/test/test-utils'
@@ -151,5 +151,44 @@ describe('Tax export runs', () => {
     expect(failedRow).not.toBeNull()
     expect(within(failedRow as HTMLElement).queryByRole('button', { name: 'Download' })).not.toBeInTheDocument()
     expect(failedRow).toHaveTextContent('Export generation could not be queued')
+  })
+
+  /**
+   * Tax season: from January to April a member files for the year that just
+   * ended, so that is the year the dialog offers. The month is read on the
+   * member's own calendar (their preference zone), not UTC's.
+   */
+  describe('default tax year', () => {
+    // Years well clear of the real one, so a default read from the real clock cannot pass.
+    afterEach(() => vi.useRealTimers())
+
+    async function openCreateDialog() {
+      const user = userEvent.setup()
+      renderWithProviders(<RunsPanel />)
+      await user.click(await screen.findByRole('button', { name: 'Start export' }))
+      const dialog = await screen.findByTestId('create-run-dialog')
+      return within(dialog).getByLabelText(/tax year/i)
+    }
+
+    it('offers last year during tax season (April)', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date('2031-04-15T12:00:00Z'))
+      expect(await openCreateDialog()).toHaveValue('2030')
+    })
+
+    it('offers the current year once tax season is over (May)', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date('2031-05-15T12:00:00Z'))
+      expect(await openCreateDialog()).toHaveValue('2031')
+    })
+
+    it("reads the month on the member's calendar, not the browser's or UTC's", async () => {
+      // A zone far from any CI runner or dev machine: 09:30 UTC on 1 May is
+      // 23:30 on 30 April in Honolulu, and already May almost everywhere else.
+      mswState.preferences = { ...mswState.preferences, timezone: 'Pacific/Honolulu' }
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date('2031-05-01T09:30:00Z'))
+      expect(await openCreateDialog()).toHaveValue('2030')
+    })
   })
 })
