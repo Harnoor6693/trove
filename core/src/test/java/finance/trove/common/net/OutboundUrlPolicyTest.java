@@ -153,6 +153,12 @@ class OutboundUrlPolicyTest {
             "::,                 unspecified",
             "::ffff:127.0.0.1,   loopback",
             "::0.0.0.2,          IPv4-compatible",
+            // B3-11: IPv6 transition prefixes carry an IPv4 address the network may route to
+            "64:ff9b::7f00:1,                       loopback",
+            "64:ff9b::a00:1,                        private",
+            "2002:c0a8:101::1,                      private",
+            "2002:7f00:1::1,                        loopback",
+            "2001:0:4136:e378:8000:63bf:f5ff:fffe,  private",
         })
         @DisplayName("every range gap P2-10 and §9 risk 9 name is blocked, with a reason")
         void everyBlockedRangeIsRefused(String address, String expectedReason)
@@ -188,7 +194,7 @@ class OutboundUrlPolicyTest {
         @ValueSource(strings = {
             "93.184.216.34", "8.8.8.8", "1.1.1.1", "172.32.0.1", "100.63.255.255",
             "100.128.0.1", "192.0.1.1", "198.20.0.1", "2606:2800:220:1:248:1893:25c8:1946",
-            "2001:4860:4860::8888",
+            "2001:4860:4860::8888", "64:ff9b::808:808", "2002:808:808::1",
         })
         @DisplayName("a genuinely public address on either family is allowed")
         void publicAddressesAreAllowed(String address) throws UnknownHostException {
@@ -297,6 +303,8 @@ class OutboundUrlPolicyTest {
             "169.254.169.254,   instance-metadata",
             "169.254.1.1,       link-local",
             "fe80::1,           link-local",
+            "64:ff9b::a9fe:a9fe, instance-metadata",
+            "2002:a9fe:a9fe::1, instance-metadata",
         })
         @DisplayName("the opt-in widens to LAN and loopback, never to link-local or metadata")
         void theOptInNeverReachesLinkLocal(String address, String expectedReason)
