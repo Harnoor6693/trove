@@ -6,7 +6,12 @@ import { AppLock } from './AppLock';
 import { withLockSuppressed } from './lockSuppression';
 import { fetchMe } from '@api/me';
 import { fetchPreferences } from '@api/preferences';
-import { __resetClientForTests, refreshAccessToken, setSession } from '@api/client';
+import {
+  __resetClientForTests,
+  getRefreshToken,
+  refreshAccessToken,
+  setSession,
+} from '@api/client';
 import { __resetServerConnectionForTests, setServerConnection } from '@api/serverConfig';
 import { useAuthStore } from '@stores/authStore';
 import { useUiStore } from '@stores/uiStore';
@@ -159,6 +164,22 @@ describe('locked state', () => {
     expect(mockAuthenticate).toHaveBeenCalledWith(
       expect.objectContaining({ disableDeviceFallback: false })
     );
+  });
+
+  it('offers Sign out on the lock screen, which clears the session without unlocking', async () => {
+    const { getByTestId, queryByTestId } = await render(
+      <AppLock>
+        <Child />
+      </AppLock>
+    );
+    const signOut = getByTestId('app-lock-sign-out-btn');
+    expect(signOut.props.accessibilityRole).toBe('button');
+    await fireEvent.press(signOut);
+
+    await waitFor(() => expect(useAuthStore.getState().status).toBe('anonymous'));
+    expect(getRefreshToken()).toBeNull();
+    expect(mockAuthenticate).not.toHaveBeenCalled();
+    expect(queryByTestId('app-lock-screen')).toBeNull();
   });
 
   it('stays locked, and says why, when the device has no passcode at all (B5-04)', async () => {

@@ -38,6 +38,7 @@ export function AppLock({ children }: { children: React.ReactNode }) {
   const status = useAuthStore((s) => s.status);
   const lock = useAuthStore((s) => s.lock);
   const unlock = useAuthStore((s) => s.unlock);
+  const signOut = useAuthStore((s) => s.signOut);
   const setMe = useAuthStore((s) => s.setMe);
   const setPreferences = useAuthStore((s) => s.setPreferences);
   const appLockEnabled = useUiStore((s) => s.appLockEnabled);
@@ -156,6 +157,17 @@ export function AppLock({ children }: { children: React.ReactNode }) {
             fullWidth
           />
         )}
+        {/* The way out when the device can no longer open the lock (passcode
+            removed, biometrics unenrolled). It shows no data and takes the
+            ordinary sign-out path, so tokens are revoked and cleared. */}
+        <MnBtn
+          testID="app-lock-sign-out-btn"
+          label="Sign out"
+          variant="ghost"
+          onPress={() => void signOut()}
+          fullWidth
+          style={styles.signOut}
+        />
       </View>
     );
   }
@@ -195,6 +207,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: Space.s6,
   },
+  signOut: { marginTop: Space.s2 },
   error: {
     fontFamily: FontFamily.body,
     fontSize: FontSize.sm,
