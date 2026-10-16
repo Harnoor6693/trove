@@ -27,6 +27,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class CategoryService {
 
     private static final Pattern NON_SLUG_CHAR = Pattern.compile("[^a-z0-9]+");
+    /** {@code category.slug} is {@code VARCHAR(60)} (V14). */
+    private static final int SLUG_MAX_LENGTH = 60;
     private static final Pattern EDGE_DASH = Pattern.compile("^-+|-+$");
 
     private final CategoryRepository categories;
@@ -124,15 +126,24 @@ public class CategoryService {
         return false;
     }
 
-    /** {@code slugify(name)}, deduplicated within the household by appending {@code -2}, {@code -3}, … */
+    /**
+     * {@code slugify(name)}, deduplicated within the household by appending {@code -2}, {@code -3},
+     * … The result always fits {@code category.slug VARCHAR(60)}: the base is cut to leave room
+     * for the suffix, then any dash the cut exposed is stripped.
+     */
     private String uniqueSlug(UUID householdId, String name) {
         String base = slugify(name);
-        String candidate = base;
+        String candidate = fit(base, "");
         int suffix = 2;
         while (categories.existsByHouseholdIdAndSlug(householdId, candidate)) {
-            candidate = base + "-" + suffix++;
+            candidate = fit(base, "-" + suffix++);
         }
         return candidate;
+    }
+
+    private static String fit(String base, String suffix) {
+        String cut = base.substring(0, Math.min(base.length(), SLUG_MAX_LENGTH - suffix.length()));
+        return EDGE_DASH.matcher(cut).replaceAll("") + suffix;
     }
 
     private static String slugify(String name) {
