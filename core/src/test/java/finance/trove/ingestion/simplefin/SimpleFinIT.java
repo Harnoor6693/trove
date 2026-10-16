@@ -141,8 +141,9 @@ class SimpleFinIT extends LedgerSupport {
         assertThat(response.statusCode()).isEqualTo(400);
         assertThat(Json.errorCode(response.body())).isEqualTo("outbound-url-rejected");
         assertThat(Json.parse(response.body()).path("error").path("detail").asString())
-            .as("the message names the RULE that refused it, never the resolved address")
-            .contains("private (RFC 1918)");
+            .as("the message is the one generic refusal: never the address, nor its range (B3-10)")
+            .contains("only to addresses this server is allowed to connect to")
+            .doesNotContain("private");
         assertThat(response.body())
             .doesNotContain("SECRET-TOKEN-VALUE")
             .doesNotContain("10.0.0.7/simplefin");

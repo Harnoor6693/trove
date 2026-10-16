@@ -1326,7 +1326,9 @@ export interface paths {
          *     link-local target — a LAN Ollama is the primary AI story, so a blanket
          *     block would be wrong, and an instance-wide switch alone would be too
          *     coarse for a per-user endpoint. A refusal is 400 `outbound-url-rejected`
-         *     with a sentence naming the rule (never the resolved address). Passing
+         *     with a sentence naming the rule for the URL's shape (scheme, credentials,
+         *     port); every refusal by address, including a name that does not resolve,
+         *     reads the same and never names the address or its range. Passing
          *     this check at save time buys nothing on its own: the policy is
          *     re-evaluated, and the address re-pinned, on every outbound call.
          *
@@ -3272,10 +3274,11 @@ export interface paths {
          *
          *     **`targetUrl` is checked by the shared egress policy, and it is checked
          *     again on every delivery attempt.** A refusal here is 400
-         *     `outbound-url-rejected` with a sentence naming the rule — the scheme,
-         *     or the address range the host resolves to — but never the resolved
-         *     address itself, which would turn this route into an internal port
-         *     scanner. Re-checking at delivery time is what closes the DNS-rebinding
+         *     `outbound-url-rejected`. A refusal for the URL's shape (the scheme,
+         *     credentials before the host) names that rule; every refusal by address,
+         *     including a name that does not resolve, reads the same and names neither
+         *     the address nor its range, which would turn this route into an internal
+         *     network probe. Re-checking at delivery time is what closes the DNS-rebinding
          *     window: a name that answers a public address while you are saving it
          *     and a private one an hour later is refused at the second point, and the
          *     HTTP client connects to the address the policy approved rather than
@@ -8829,7 +8832,7 @@ export interface components {
                 };
             };
         };
-        /** @description **400.** The setup token could not be used. `validation-error` is a token that is not base64 or does not decode to an absolute URL; `malformed-request` is an unparseable body; `outbound-url-rejected` is the egress policy refusing the URL the token decodes to — not https, no host, or an address this server will not connect to (loopback, private, link-local, the cloud instance-metadata address, or a name that resolves to one). HTTP Basic credentials in the URL's userinfo are *not* a refusal here: the SimpleFIN protocol puts them there, so they are taken off the URL before the policy sees it and sent as an `Authorization` header to the address that was approved. The message names the rule that refused it and never the resolved address, and it never echoes the token, the decoded URL or any credential. */
+        /** @description **400.** The setup token could not be used. `validation-error` is a token that is not base64 or does not decode to an absolute URL; `malformed-request` is an unparseable body; `outbound-url-rejected` is the egress policy refusing the URL the token decodes to — not https, no host, or an address this server will not connect to (loopback, private, link-local, the cloud instance-metadata address, or a name that resolves to one). HTTP Basic credentials in the URL's userinfo are *not* a refusal here: the SimpleFIN protocol puts them there, so they are taken off the URL before the policy sees it and sent as an `Authorization` header to the address that was approved. A refusal for the URL's shape names that rule; a refusal by address reads the same whatever the address or its range. It never echoes the token, the decoded URL or any credential. */
         SetupTokenRejected: {
             headers: {
                 "X-Request-Id": components["headers"]["XRequestId"];
@@ -8967,7 +8970,7 @@ export interface components {
                 };
             };
         };
-        /** @description **400.** The body failed validation, or the endpoint URL was refused by the egress policy. `outbound-url-rejected` carries a sentence naming the rule that refused it — the scheme, the missing opt-in, or the address range the host resolves to — but never the resolved address itself, which would turn the validator into the internal port scanner it exists to prevent. */
+        /** @description **400.** The body failed validation, or the endpoint URL was refused by the egress policy. `outbound-url-rejected` names the rule when the URL's shape is refused (the scheme, the missing opt-in, credentials before the host). A refusal by address reads the same whatever the address, its range, or whether the name resolves at all: anything more would turn the validator into the internal network probe it exists to prevent. */
         AiSettingsRejected: {
             headers: {
                 "X-Request-Id": components["headers"]["XRequestId"];
@@ -9102,7 +9105,7 @@ export interface components {
                 };
             };
         };
-        /** @description **400.** The body failed validation, or the target URL was refused by the shared egress policy. `outbound-url-rejected` carries a sentence naming the rule that refused it — plain `http`, credentials before the host, or the address range the host resolves to (loopback, private, carrier-grade NAT, IPv6 unique-local, link-local, or the cloud instance-metadata address) — but never the resolved address itself, which would turn this route into the internal port scanner the policy exists to prevent. The same policy runs again on every delivery attempt, so passing here is not a promise that a later delivery will be attempted. */
+        /** @description **400.** The body failed validation, or the target URL was refused by the shared egress policy. `outbound-url-rejected` names the rule when the URL's shape is refused (plain `http`, credentials before the host). A refusal by address (loopback, private, carrier-grade NAT, IPv6 unique-local or transition, link-local, the cloud instance-metadata address, or a name that does not resolve) reads the same whatever the reason, so this route cannot become the internal network probe the policy exists to prevent. The same policy runs again on every delivery attempt, so passing here is not a promise that a later delivery will be attempted. */
         WebhookRejected: {
             headers: {
                 "X-Request-Id": components["headers"]["XRequestId"];

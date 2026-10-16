@@ -147,9 +147,19 @@ public class OutboundUrlPolicy {
     }
 
     private static OutboundUrlPolicyException refusal(String host, String reason) {
+        return refusal(host, reason, null);
+    }
+
+    /**
+     * B3-10: one message for every address refusal, whatever the reason. The caller is any
+     * member, and a message naming the range, or saying the name does not resolve, let them map
+     * which internal names exist and what each one points at. The reason goes to the log only.
+     */
+    private static OutboundUrlPolicyException refusal(String host, String reason,
+                                                      Throwable cause) {
         LOG.warn("Refused outbound URL for host {}: {}", host, reason);
-        return new OutboundUrlPolicyException("The host '" + host + "' resolves to " + reason
-            + ", which this server will not connect to");
+        return new OutboundUrlPolicyException("The host '" + host + "' was refused: it must "
+            + "resolve, and only to addresses this server is allowed to connect to", cause);
     }
 
     /**
@@ -206,8 +216,8 @@ public class OutboundUrlPolicy {
     static String blockReason(InetAddress address) {
         // The family-independent checks run first so that a v4-mapped or v4-compatible IPv6
         // loopback is reported as a loopback rather than as an address-format curiosity: the
-        // reason ends up in a user-facing message in Settings, and "you cannot reach loopback"
-        // is actionable where "IPv4-compatible IPv6" is not.
+        // reason ends up in the server log (never the caller's message, B3-10), and "loopback"
+        // tells an operator more than "IPv4-compatible IPv6" does.
         if (address.isAnyLocalAddress()) {
             return "the unspecified address";
         }
@@ -283,10 +293,10 @@ public class OutboundUrlPolicy {
         try {
             resolved = resolver.resolve(host);
         } catch (UnknownHostException e) {
-            throw new OutboundUrlPolicyException("The host '" + host + "' does not resolve", e);
+            throw refusal(host, "it does not resolve", e);
         }
         if (resolved == null || resolved.length == 0) {
-            throw new OutboundUrlPolicyException("The host '" + host + "' does not resolve");
+            throw refusal(host, "it does not resolve");
         }
         List<InetAddress> addresses = new ArrayList<>(resolved.length);
         for (InetAddress address : resolved) {
@@ -295,7 +305,7 @@ public class OutboundUrlPolicy {
             }
         }
         if (addresses.isEmpty()) {
-            throw new OutboundUrlPolicyException("The host '" + host + "' does not resolve");
+            throw refusal(host, "it does not resolve");
         }
         return List.copyOf(addresses);
     }

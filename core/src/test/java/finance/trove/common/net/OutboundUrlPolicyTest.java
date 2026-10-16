@@ -2,6 +2,7 @@ package finance.trove.common.net;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -9,6 +10,7 @@ import java.net.UnknownHostException;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -99,7 +101,8 @@ class OutboundUrlPolicyTest {
             });
 
             assertThatThrownBy(() -> failing.check("https://nowhere.example/x"))
-                .isInstanceOf(OutboundUrlPolicyException.class).hasMessageContaining("not resolve");
+                .isInstanceOf(OutboundUrlPolicyException.class)
+                .hasMessageContaining("nowhere.example").hasMessageContaining("must resolve");
         }
 
         @Test
@@ -201,7 +204,35 @@ class OutboundUrlPolicyTest {
 
             assertThatThrownBy(() -> policy.check("https://mixed.example/x"))
                 .isInstanceOf(OutboundUrlPolicyException.class)
-                .hasMessageContaining("private");
+                .hasMessageContaining("mixed.example");
+        }
+
+        @Test
+        @DisplayName("B3-10: loopback, private, metadata and unresolvable hosts are refused alike")
+        void everyAddressRefusalReadsTheSame() {
+            // The refusal goes back to any member. A message that named the range, or said
+            // "does not resolve", told them which internal names exist and what class of address
+            // each one has: a reconnaissance tool. The detail goes to the server log only.
+            OutboundUrlPolicy unresolvable =
+                new OutboundUrlPolicy(new EgressProperties(false), host -> {
+                    throw new UnknownHostException(host);
+                });
+            List<String> messages = Stream.of(
+                    catchThrowable(() -> policy(false, "127.0.0.1").check("https://h.example/x")),
+                    catchThrowable(() -> policy(false, "10.1.2.3").check("https://h.example/x")),
+                    catchThrowable(() -> policy(false, "169.254.169.254")
+                        .check("https://h.example/x")),
+                    catchThrowable(() -> unresolvable.check("https://h.example/x")))
+                .map(refusal -> {
+                    assertThat(refusal).isInstanceOf(OutboundUrlPolicyException.class);
+                    return refusal.getMessage();
+                })
+                .toList();
+
+            assertThat(messages).as("one generic message for every address refusal")
+                .containsOnly(messages.get(0));
+            assertThat(messages.get(0)).contains("h.example")
+                .doesNotContain("loopback", "private", "metadata", "not resolve");
         }
 
         @Test
@@ -268,13 +299,16 @@ class OutboundUrlPolicyTest {
             "fe80::1,           link-local",
         })
         @DisplayName("the opt-in widens to LAN and loopback, never to link-local or metadata")
-        void theOptInNeverReachesLinkLocal(String address, String expectedReason) {
+        void theOptInNeverReachesLinkLocal(String address, String expectedReason)
+            throws UnknownHostException {
+            assertThat(OutboundUrlPolicy.unconditionalBlockReason(InetAddress.getByName(address)))
+                .contains(expectedReason);
             assertThatThrownBy(() ->
                 policy(true, address).check("http://ollama.lan:11434/v1", true))
                 .as("TROVE_EGRESS_ALLOW_PRIVATE plus a member's own opt-in must not be a way to "
                     + "read this host's cloud credentials")
                 .isInstanceOf(OutboundUrlPolicyException.class)
-                .hasMessageContaining(expectedReason);
+                .hasMessageContaining("ollama.lan");
         }
 
         @Test

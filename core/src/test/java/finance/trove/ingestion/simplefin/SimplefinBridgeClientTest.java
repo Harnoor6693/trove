@@ -215,15 +215,16 @@ class SimplefinBridgeClientTest {
     @Test
     @DisplayName("G2: the egress policy refuses http, private, link-local and a rebinding name")
     void theEgressPolicyGovernsEverySimplefinCall() {
-        assertRefused(publicPolicy("10.0.0.7"), "https://" + HOST + CLAIM_PATH,
-            "private (RFC 1918)");
+        // B3-10: every address refusal reads the same; the range goes to the server log only.
+        String addressRefusal = "only to addresses this server is allowed to connect to";
+        assertRefused(publicPolicy("10.0.0.7"), "https://" + HOST + CLAIM_PATH, addressRefusal);
         assertRefused(publicPolicy("169.254.169.254"), "https://" + HOST + CLAIM_PATH,
-            "cloud instance-metadata");
-        assertRefused(publicPolicy("127.0.0.1"), "https://" + HOST + CLAIM_PATH, "loopback");
+            addressRefusal);
+        assertRefused(publicPolicy("127.0.0.1"), "https://" + HOST + CLAIM_PATH, addressRefusal);
         assertRefused(publicPolicy("93.184.216.34"), "http://" + HOST + CLAIM_PATH,
             "Plain http is only allowed");
         assertRefused(rebinding("93.184.216.34", "169.254.169.254"),
-            "https://" + HOST + CLAIM_PATH, "cloud instance-metadata");
+            "https://" + HOST + CLAIM_PATH, addressRefusal);
     }
 
     @Test
