@@ -73,6 +73,7 @@ controlled by `trove.bootstrap.*` (`finance.trove.app.bootstrap.BootstrapPropert
 | `TROVE_ADMIN_EMAIL` | none — set it |
 | `TROVE_ADMIN_PASSWORD` | none — set it |
 | `TROVE_HOUSEHOLD_NAME` | `Household` |
+| `TROVE_ADMIN_COUNTRY` | `CA` — `CA` or `US`; also sets the currency (CAD or USD), and neither can change later |
 | `TROVE_REGISTRATION_OPEN` | `false` |
 
 Set these in `core/.env` before the first boot. Bootstrap runs exactly once (it checks

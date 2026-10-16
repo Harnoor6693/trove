@@ -239,14 +239,22 @@ cmd_bootstrap() {
   chmod 600 "$ENV_FILE"
 
   local domain="${TROVE_DOMAIN:-}" email="${ACME_EMAIL:-}" admin="${TROVE_ADMIN_EMAIL:-}"
+  local country="${TROVE_ADMIN_COUNTRY:-}"
   if [ -t 0 ]; then
     [ -n "$domain" ] || { printf '  Domain this install answers on (e.g. trove.example.com): '; read -r domain; }
     [ -n "$email" ]  || { printf '  Email for Let'\''s Encrypt notices: '; read -r email; }
     [ -n "$admin" ]  || { printf '  First admin account email: '; read -r admin; }
+    # Country and currency are fixed for good on the first boot, so ask rather than assume.
+    while [ "$country" != "CA" ] && [ "$country" != "US" ]; do
+      printf '  First admin country, CA or US (sets currency CAD or USD; cannot change later) [CA]: '
+      read -r country
+      country=$(printf '%s' "${country:-CA}" | tr '[:lower:]' '[:upper:]')
+    done
   fi
   [ -n "$domain" ] && upsert_env TROVE_DOMAIN "$domain"
   [ -n "$email" ]  && upsert_env ACME_EMAIL "$email"
   [ -n "$admin" ]  && upsert_env TROVE_ADMIN_EMAIL "$admin"
+  [ -n "$country" ] && upsert_env TROVE_ADMIN_COUNTRY "$country"
 
   local pg_pw jwt enc admin_pw backup_pw grafana_pw
   pg_pw=$(gen_b64 36)
@@ -269,6 +277,7 @@ cmd_bootstrap() {
   head1 "Write these down NOW — they are not shown again"
   say "  first admin email    : $(grep -E '^TROVE_ADMIN_EMAIL=' "$ENV_FILE" | cut -d= -f2-)"
   say "  first admin password : ${admin_pw}"
+  say "  first admin country  : $(grep -E '^TROVE_ADMIN_COUNTRY=' "$ENV_FILE" | cut -d= -f2-)"
   say "  backup passphrase    : ${backup_pw}"
   say ""
   say "Also copy TROVE_ENCRYPTION_KEY out of deploy/.env into your password"
