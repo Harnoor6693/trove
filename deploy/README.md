@@ -459,12 +459,14 @@ Done, and verifiable in this directory:
   Burst capacity must be at least the per-minute rate. An edit gives that route a full
   bucket again. Use your `POSTGRES_USER` and `POSTGRES_DB` if you changed them.
 - **No secret has a default.** Compose refuses to start naming any variable you
-  missed (`TROVE_ADMIN_PASSWORD` and `GRAFANA_ADMIN_PASSWORD` are checked by `./trove up`
-  and `./trove doctor` instead, see below); `bootstrap` generates all of them with
+  missed, except two the `./trove` script checks instead: `TROVE_ADMIN_PASSWORD`, which
+  `./trove up` checks on a first install only (no database volume yet), and
+  `GRAFANA_ADMIN_PASSWORD`, which `./trove up`, `update`, `restore` and `doctor` check
+  when the monitoring profile is on (see below). `bootstrap` generates all of them with
   `openssl rand`; `.env` is 0600.
 - **Grafana has no default password:** with `COMPOSE_PROFILES=monitoring`,
-  `GRAFANA_ADMIN_PASSWORD` must be set in `.env` (`./trove up` and `./trove doctor` fail
-  without it; bootstrap generates one). With the monitoring profile off it is not needed
+  `GRAFANA_ADMIN_PASSWORD` must be set in `.env` (`./trove up`, `update`, `restore` and
+  `doctor` fail without it; bootstrap generates one). With the monitoring profile off it is not needed
   and may be empty. Prometheus and Grafana bind to loopback only — reach them over an
   SSH tunnel, never through Traefik.
 - **Backups are encrypted** and include the encryption key, so a restore is a
