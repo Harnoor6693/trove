@@ -694,9 +694,19 @@ export interface paths {
          *     household ids, the generation instant and one entry per file with its
          *     byte count), `transactions.csv`, and one JSON document per dataset —
          *     accounts, categories, merchant rules, budget periods, envelopes, savings
-         *     goals, subscriptions, net-worth snapshots, assets, liabilities, receipts,
-         *     coach conversations, the member's own tax-line mappings and notification
+         *     goals, subscriptions, subscription alerts, net-worth snapshots, assets,
+         *     liabilities, receipts, and the member's own profile, webhook
+         *     subscriptions, notification inbox (dismissed notifications included),
+         *     coach conversations, coach insights, tax-line mappings and notification
          *     preferences.
+         *
+         *     **No secret is ever included.** No password hash, no second-factor
+         *     secret, no refresh token, no AI key, no bank-connection configuration
+         *     and no webhook signing secret: a webhook subscription is exported without
+         *     its secret and without saying whether one is set. Its target URL is
+         *     exported as stored, and a URL can carry an embedded token in its path or
+         *     query, so the archive should be treated as sensitive. Delivery logs are
+         *     not exported.
          *
          *     `transactions.csv` is the whole ledger, every transaction the household
          *     has: both legs of a transfer and pending rows are included. It uses the
@@ -723,7 +733,10 @@ export interface paths {
          *
          *     **The rows are the household's, the run is the member's.** The ledger is
          *     shared, so the archive contains the whole household's transactions; a
-         *     client should say that too before it starts one.
+         *     client should say that too before it starts one. The manifest's
+         *     `ledgerScope` says which datasets are the household's and which are the
+         *     member's own; the profile is the member's own row only, never another
+         *     member's.
          */
         post: operations["createDataExport"];
         delete?: never;
