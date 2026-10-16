@@ -305,6 +305,11 @@ class OutboundUrlPolicyTest {
             "fe80::1,           link-local",
             "64:ff9b::a9fe:a9fe, instance-metadata",
             "2002:a9fe:a9fe::1, instance-metadata",
+            "::a9fe:a9fe,       instance-metadata",
+            "::169.254.1.1,     link-local",
+            "::6464:64c8,       instance-metadata",
+            "::0.1.2.3,         0.0.0.0/8",
+            "::e000:1,          multicast",
             "100.100.100.200,   instance-metadata",
             "fd00:ec2::254,     instance-metadata",
             "0.0.0.0,           unspecified",
@@ -337,6 +342,21 @@ class OutboundUrlPolicyTest {
         @DisplayName("RFC 1918, loopback, CGNAT and ULA stay reachable with both keys")
         void theOptInStillLiftsPrivateRanges(String address) {
             assertThat(policy(true, address).check("http://ollama.lan:11434/v1", true).port())
+                .isEqualTo(11434);
+        }
+
+        @Test
+        @DisplayName("an IPv4-compatible ::a9fe:a9fe cannot slip past the always-blocked set via the opt-in")
+        void anIpv4CompatibleMetadataAddressIsRefusedEndToEndWithBothKeys() {
+            assertThatThrownBy(() -> policy(true, "::a9fe:a9fe")
+                .check("http://ollama.lan:11434/v1", true))
+                .isInstanceOf(OutboundUrlPolicyException.class);
+        }
+
+        @Test
+        @DisplayName("::1 is still plain IPv6 loopback, which the opt-in lifts")
+        void ipv6LoopbackIsNotMistakenForAnEmbeddedIpv4() {
+            assertThat(policy(true, "::1").check("http://ollama.lan:11434/v1", true).port())
                 .isEqualTo(11434);
         }
 

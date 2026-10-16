@@ -241,7 +241,7 @@ public class OutboundUrlPolicy {
 
     /**
      * The four IPv4 bytes {@code address} leads to, or null: the address itself, or the one
-     * embedded in {@code ::ffff:0:0/96} (mapped), {@code 64:ff9b::/96} (NAT64),
+     * embedded in {@code ::ffff:0:0/96} (mapped), {@code ::/96} (IPv4-compatible), {@code 64:ff9b::/96} (NAT64),
      * {@code 2002::/16} (6to4) or {@code 2001::/32} (Teredo, client address bit-inverted).
      *
      * <p>B3-11: on a host with NAT64, or a 6to4 or Teredo route, a connection to one of these is
@@ -252,7 +252,7 @@ public class OutboundUrlPolicy {
         if (bytes.length == 4) {
             return bytes;
         }
-        if (isIpv4Mapped(bytes) || isNat64(bytes)) {
+        if (isIpv4Mapped(bytes) || isNat64(bytes) || isIpv4Compatible(bytes)) {
             return Arrays.copyOfRange(bytes, 12, 16);
         }
         if ((bytes[0] & 0xFF) == 0x20 && bytes[1] == 0x02) {
@@ -263,6 +263,22 @@ public class OutboundUrlPolicy {
                 (byte) ~bytes[15]};
         }
         return null;
+    }
+
+    /**
+     * {@code ::/96} (deprecated IPv4-compatible): twelve zero bytes then an IPv4 address. Java keeps
+     * these as {@link Inet6Address}, so without this they carried no embedded address and
+     * {@code ::a9fe:a9fe} slipped past {@link #unconditionalBlockReason} and the opt-in. {@code ::}
+     * and {@code ::1} (and the rest of {@code ::/104}) are the IPv6 unspecified and loopback
+     * addresses, not embedded IPv4, so they are left to the checks that already name them.
+     */
+    private static boolean isIpv4Compatible(byte[] bytes) {
+        for (int i = 0; i < 12; i++) {
+            if (bytes[i] != 0) {
+                return false;
+            }
+        }
+        return (bytes[12] | bytes[13] | bytes[14]) != 0;
     }
 
     private static boolean isNat64(byte[] bytes) {
