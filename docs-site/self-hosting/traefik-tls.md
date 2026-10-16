@@ -18,6 +18,11 @@ edit `TROVE_TLS_MODE` in `deploy/.env` (plus `CF_DNS_API_TOKEN` for `acme-dns`, 
 `TROVE_HTTP_PORT`/`TROVE_HTTPS_PORT` for `off`), then run `./trove down && ./trove up` so Traefik
 restarts with the re-rendered static config. Data volumes are not touched.
 
+In `off` mode Traefik binds `127.0.0.1` by default (`TROVE_BIND_ADDR`), so only a proxy on the same
+host can reach it. This is a breaking change for an existing `off` install whose terminating proxy
+runs on another host: set `TROVE_BIND_ADDR` in `deploy/.env` to an interface that proxy can reach,
+then restart.
+
 For what Traefik does and does not protect once traffic reaches it (rate limiting,
 security headers, what a compromised container could still reach), see
 ["What is and is not secured"](https://github.com/Harnoor6693/trove/blob/canary/deploy/README.md#7-what-is-and-is-not-secured)

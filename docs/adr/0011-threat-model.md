@@ -11,7 +11,7 @@ Supersedes: —
 > and the superseded ADR-0002/0006/0007/0008 for the specific mechanisms this table used
 > to point at.
 
-> Update 2026-10-16: (a) refresh tokens are signed JWTs hashed at rest in `finance.trove.auth.session`; rotation marks the row replaced and allows a short reuse grace window, and reuse beyond it revokes the whole token family. They are not deleted on rotation. (b) The non-root user applies to `core/Dockerfile` only; the `apps/web` nginx image has no `USER` directive. (c) CI gates npm dependencies with `scripts/npm-audit-gate.mjs` (high and critical, with an expiring allowlist), not a bare `npm audit --audit-level=high`. (d) Trove signs outbound webhooks (`webhook-signature`, HMAC-SHA256); it does not verify inbound webhooks, and signature rejection happens in the receiver.
+> Update 2026-10-16: (a) refresh tokens are signed JWTs hashed at rest in `finance.trove.auth.session`; rotation marks the row replaced and allows a short reuse grace window, and reuse beyond it revokes the whole token family. They are not deleted on rotation. (b) Both images run as a non-root user: `core/Dockerfile` as before, and the `apps/web` image is now `nginxinc/nginx-unprivileged` (`USER 101`, listening on 8080; `scripts/web-healthcheck-probe.sh` asserts uid is not 0). (c) CI gates npm dependencies with `scripts/npm-audit-gate.mjs` (high and critical, with an expiring allowlist), not a bare `npm audit --audit-level=high`. (d) Trove signs outbound webhooks (`webhook-signature`, HMAC-SHA256); it does not verify inbound webhooks, and signature rejection happens in the receiver.
 
 ## Context
 
@@ -70,7 +70,7 @@ service to distribute a public key to.
 |---|---|---|
 | SSRF via outbound calls (webhooks, per-user AI endpoint, SimpleFIN) | URL allowlist rejects RFC 1918 / link-local / metadata IPs before HTTP dispatch, unless the operator opts a specific install into `TROVE_EGRESS_ALLOW_PRIVATE` for a LAN AI endpoint | `finance.trove.common.net.OutboundUrlPolicy` |
 | Webhook event forgery | HMAC-SHA-256 signature on every outbound webhook; the receiver verifies the signature | `finance.trove.notifications` |
-| Container escape | Non-root user (core image), minimal base image, no `--privileged` flags | `core/Dockerfile`, `apps/web/Dockerfile`, `deploy/docker-compose.yml` |
+| Container escape | Non-root user (core and web images), minimal base image, no `--privileged` flags | `core/Dockerfile`, `apps/web/Dockerfile`, `deploy/docker-compose.yml` |
 | Vulnerable third-party dependency | OWASP Dependency-Check (Java) and the npm audit gate (`scripts/npm-audit-gate.mjs`, high/critical, web + mobile) gate CI; Trivy scans the published core image | `.github/workflows/security.yml` (`owasp-dependency-check`, `dependency-audit`, `trivy-scan`) |
 | Secrets in source / git history | gitleaks gate on every PR with an explicit allowlist of placeholder values | `.gitleaks.toml`, `.github/workflows/security.yml` (`secret-scan`) |
 | Rate-limit bypass | In-process counter keyed by client IP and auth subject; a single instance is the only deployment shape this ships, so there is no cross-instance counter to keep consistent | `finance.trove.app.ratelimit` |
