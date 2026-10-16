@@ -449,7 +449,7 @@ export function ImportWizard({ account, onClose, onCommitted }: ImportWizardProp
               </p>
             )}
             <p className={styles.hint}>
-              You can undo this import from the account below for as long as the file is kept.
+              You can undo this import below, until you leave this page.
             </p>
             <div className={styles.dialogActions}>
               <QlButton variant="primary" onClick={onClose}>
