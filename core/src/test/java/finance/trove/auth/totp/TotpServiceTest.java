@@ -243,6 +243,31 @@ class TotpServiceTest {
     }
 
     @Test
+    @DisplayName("A recovery code typed without its hyphen, or with spaces, still matches (CI-43)")
+    void recoveryCodeHyphenIsOptional() {
+        TotpCredential credential = enrolled();
+        when(credentials.findByUserId(any())).thenReturn(Optional.of(credential));
+        String code = generator.codeAt("GEZDGNBVGY3TQOJQ", generator.timeStep(NOW, 30), 6);
+        String recovery = service.confirmEnrolment(credential.getUserId(), code, NOW).get(0);
+        backSpendsWithTheStoredRow(credential);
+
+        String retyped = recovery.replace("-", "").toLowerCase(java.util.Locale.ROOT);
+        assertThat(retyped).doesNotContain("-");
+        assertThat(service.verify(credential.getUserId(), retyped, NOW))
+            .as("the hyphen is display formatting; nobody should be locked out for omitting it")
+            .isTrue();
+    }
+
+    @Test
+    @DisplayName("normaliseRecovery strips spaces and hyphens and re-inserts one after five")
+    void normaliseRecoveryIsCanonical() {
+        assertThat(TotpService.normaliseRecovery(" abcde-fghjk ")).isEqualTo("ABCDE-FGHJK");
+        assertThat(TotpService.normaliseRecovery("abcdefghjk")).isEqualTo("ABCDE-FGHJK");
+        assertThat(TotpService.normaliseRecovery("ab cde fgh-jk")).isEqualTo("ABCDE-FGHJK");
+        assertThat(TotpService.normaliseRecovery("ABC")).isEqualTo("ABC");
+    }
+
+    @Test
     @DisplayName("Verification against a disabled or absent factor is false, never an exception")
     void verifyingWithoutAnEnabledFactorIsFalse() {
         when(credentials.findByUserId(any())).thenReturn(Optional.empty());

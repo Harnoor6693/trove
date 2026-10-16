@@ -216,11 +216,16 @@ public class TotpService {
     }
 
     /**
-     * Recovery codes are compared case-insensitively and ignoring spaces; the hyphen is part of
-     * the code.
+     * Recovery codes are compared case-insensitively and ignoring spaces and hyphens. The hyphen
+     * is display formatting: it is stripped from what the user typed and re-inserted after the
+     * first group, so the result matches the form that was hashed at enrolment whether or not the
+     * user typed it.
      */
     static String normaliseRecovery(String code) {
-        return code.trim().toUpperCase(Locale.ROOT).replace(" ", "");
+        String compact = code.toUpperCase(Locale.ROOT).replaceAll("[\\s-]", "");
+        return compact.length() > RECOVERY_GROUP
+            ? compact.substring(0, RECOVERY_GROUP) + "-" + compact.substring(RECOVERY_GROUP)
+            : compact;
     }
 
     static String hash(String value) {
