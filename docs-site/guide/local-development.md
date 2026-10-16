@@ -16,6 +16,8 @@ For a self-hosted install instead, see [Docker Compose](../self-hosting/docker-c
   nothing switched between clients) without a version-specific failure — install
   the pinned versions if you want to match CI exactly, otherwise whatever recent Node you
   have on `PATH` is a reasonable bet.
+- Node 22 or newer to build this documentation site (`cd docs-site && npm ci && npm run docs:build`;
+  `docs-site/package.json` `engines`, and `.github/workflows/docs.yml` builds it on Node 22)
 - Docker, for Postgres (see step 1)
 - A Postgres 16 whose contrib modules include `pgcrypto` and `pg_trgm` (any stock
   Postgres 16 image has them; the deploy stack uses `pgvector/pgvector:pg16`, but nothing
