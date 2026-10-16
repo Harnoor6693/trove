@@ -8008,10 +8008,12 @@ export interface components {
              */
             emailEnabled: boolean;
             /**
-             * @description Where email notifications go, or null. Separate from the sign-in
-             *     address on purpose: a member may want alerts somewhere other than
-             *     the mailbox their account is named after. The server also applies
-             *     Jakarta `@Email`, which is stricter than this pattern.
+             * @description Where email notifications go, or null. The email channel mails it
+             *     only when it matches the member's own sign-in address (letter case
+             *     aside): nothing proves a member owns any other address, so another
+             *     address is stored but never mailed until address verification
+             *     exists. The server also applies Jakarta `@Email`, which is stricter
+             *     than this pattern.
              * @example alerts@example.test
              */
             emailAddress: string | null;
@@ -8080,7 +8082,9 @@ export interface components {
             /**
              * @description An explicit `null` clears the stored address — this is the only way
              *     to unset it, and the one field where `null` and "omitted" differ.
-             *     The server also applies Jakarta `@Email`.
+             *     Mailed only when it matches the member's own sign-in address; any
+             *     other address is stored but never mailed. The server also applies
+             *     Jakarta `@Email`.
              * @example alerts@example.test
              */
             emailAddress?: string | null;

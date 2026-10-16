@@ -148,7 +148,7 @@ function NotificationsForm({ prefs }: { prefs: NotificationPreferencesResponse }
         type="email"
         value={form.emailAddress}
         onChange={(e) => set('emailAddress', e.target.value)}
-        hint="Separate from your sign-in address. This server's email channel may be off — ask your administrator."
+        hint="Email goes only to your own sign-in address; any other address is saved but not mailed. This server's email channel may be off — ask your administrator."
         error={save.error?.fieldError('emailAddress')}
       />
 
