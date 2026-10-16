@@ -23,6 +23,8 @@ import {
   type LiabilityResponse,
   type LiabilityType,
 } from '@api/types';
+import { normaliseAmountInput } from '@lib/amountInput';
+import { keyboardScrollProps } from '@components/ui/FormScroll/FormScroll';
 
 const LIABILITY_TYPES: LiabilityType[] = [
   'MORTGAGE',
@@ -95,6 +97,7 @@ export default function LiabilitiesScreen() {
         testID="liabilities"
       >
         <FlatList
+          {...keyboardScrollProps}
           data={liabilities.data ?? []}
           keyExtractor={(liability) => liability.id}
           contentContainerStyle={styles.list}
@@ -214,8 +217,8 @@ function LiabilityForm({
         {
           name: name.trim(),
           liabilityType,
-          balance: balance.trim(),
-          interestRate: interestRate.trim() === '' ? '0' : interestRate.trim(),
+          balance: normaliseAmountInput(balance),
+          interestRate: interestRate.trim() === '' ? '0' : normaliseAmountInput(interestRate),
           currency: currency ?? undefined,
         },
         { onSuccess: onDone }
@@ -228,8 +231,8 @@ function LiabilityForm({
         {
           name: name.trim(),
           liabilityType,
-          balance: balance.trim(),
-          interestRate: interestRate.trim() === '' ? '0' : interestRate.trim(),
+          balance: normaliseAmountInput(balance),
+          interestRate: interestRate.trim() === '' ? '0' : normaliseAmountInput(interestRate),
           accountId: liability?.accountId ?? null,
         },
         { onSuccess: onDone }

@@ -21,8 +21,9 @@ import java.util.UUID;
  * always has.
  *
  * <p><strong>The three tax figures stay here.</strong> They are reverse-calculated for Canadian
- * members only and are never exported: the tax-time export carries the member's own amounts and
- * labels with no rate and no computed figure of any kind (§2.9, §4.12, open question 1).
+ * members only and are never part of the tax export: the tax-time export carries the member's own
+ * amounts and labels with no rate and no computed figure of any kind (§2.9, §4.12, open question
+ * 1). The member data export includes the stored split.
  *
  * <p>camelCase throughout: §5 item 4 removes the source DTOs' snake_case
  * {@code @JsonProperty} overrides, which made receipts the one inconsistent surface in the

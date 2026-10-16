@@ -5,7 +5,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -27,6 +26,10 @@ import org.hibernate.type.SqlTypes;
  *
  * <p>{@code lastUsedStep} is the replay guard: the same six digits are accepted once, even though
  * they stay numerically valid for the rest of their thirty-second window.
+ *
+ * <p>Both are spent by {@link TotpCredentialRepository#claimStep} and
+ * {@link TotpCredentialRepository#consumeRecoveryCode}, never through this entity: those are the
+ * only writes that stay single-use when two logins present the same code at once.
  */
 @Entity
 @Table(name = "totp_credential")
@@ -93,16 +96,6 @@ public class TotpCredential {
 
     public List<String> getRecoveryCodesHashed() {
         return recoveryCodesHashed == null ? List.of() : List.of(recoveryCodesHashed);
-    }
-
-    /** Removes one hash; {@code true} when it was present, i.e. the code had not been used. */
-    public boolean consumeRecoveryCode(String hash) {
-        List<String> remaining = new ArrayList<>(getRecoveryCodesHashed());
-        boolean removed = remaining.remove(hash);
-        if (removed) {
-            this.recoveryCodesHashed = remaining.toArray(String[]::new);
-        }
-        return removed;
     }
 
     public int remainingRecoveryCodes() {

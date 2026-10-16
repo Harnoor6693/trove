@@ -62,6 +62,7 @@ export default function AdminMembersScreen() {
   const members = useHouseholdMembers();
   const settings = useAdminSettings();
   const saveSettings = useUpdateAdminSettings();
+  const saveSync = useUpdateAdminSettings();
 
   const remove = useDeleteHouseholdMember();
   const restore = useRestoreHouseholdMember();
@@ -130,6 +131,27 @@ export default function AdminMembersScreen() {
                 style={[styles.note, { color: theme.red }]}
               >
                 {toApiFailure(saveSettings.error, 'Could not save that setting.').message}
+              </Text>
+            )}
+          </MnCard>
+
+          {/* ------------------------------------------------------ bank sync */}
+          <MnEyebrow style={styles.section}>Bank sync</MnEyebrow>
+          <MnCard style={styles.card}>
+            <MnToggle
+              testID="admin-scheduled-sync-toggle"
+              label="Sync connected banks every day"
+              value={settings.data?.scheduledSyncEnabled ?? false}
+              onToggle={(value) => saveSync.mutate({ scheduledSyncEnabled: value })}
+            />
+            <Text style={[styles.note, { color: theme.ink3 }]}>
+              When this is on, the server syncs every SimpleFIN-connected account once a day, so
+              nobody has to press Sync. If a connection stops working, the person who connected it
+              is told only once, not every day.
+            </Text>
+            {saveSync.error != null && (
+              <Text accessibilityRole="alert" style={[styles.note, { color: theme.red }]}>
+                {toApiFailure(saveSync.error, 'Could not save that setting.').message}
               </Text>
             )}
           </MnCard>

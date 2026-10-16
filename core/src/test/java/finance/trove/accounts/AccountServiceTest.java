@@ -31,13 +31,11 @@ import org.springframework.dao.DataIntegrityViolationException;
  * The write path of {@link AccountService}, at the one point where a mocked repository can say
  * something an integration test cannot.
  *
- * <p>{@code create} advertises a 409 for a household that already holds an account for the
- * provider account being described, and {@code openapi/trove-core.yaml} documents it. Whether
- * that 409 is <em>producible</em> depends entirely on when the INSERT reaches the database:
- * {@code save()} on an entity whose UUID is generated in memory only queues it, so with a bare
- * {@code save()} the violation is raised at commit — after the method's own {@code catch} has
- * been left — and the specific conflict is unreachable code. {@code saveAndFlush} is what forces
- * the write inside the guarded region, and that is what these two tests hold in place.
+ * <p>{@code create} gives the account its own primary key as its external id, so the unique key
+ * on {@code (household_id, source_kind, external_account_id)} cannot collide for a hand-made
+ * account. Any {@link DataIntegrityViolationException} is therefore not "this household already
+ * has an account of that kind" (CI-41), and the service must not say so: it lets the exception
+ * reach the global handler, which does not claim a cause it has not established.
  */
 @ExtendWith(MockitoExtension.class)
 class AccountServiceTest {
@@ -72,16 +70,13 @@ class AccountServiceTest {
     }
 
     @Test
-    @DisplayName("The insert is FLUSHED inside the try, so a slot collision is a 409 and not "
-        + "an exception raised at commit with the catch already left behind")
-    void theInsertIsFlushedInsideTheGuardedRegion() {
+    @DisplayName("A hand-made account is saved once, with its own primary key as external id")
+    void aHandMadeAccountGetsItsOwnIdAsExternalId() {
         repositoryAssignsAnId();
-        when(accounts.saveAndFlush(any(ConnectedAccount.class)))
-            .thenAnswer(invocation -> invocation.getArgument(0));
 
         ConnectedAccount created = service().create(HOUSEHOLD, USER, request());
 
-        verify(accounts).saveAndFlush(any(ConnectedAccount.class));
+        verify(accounts).save(any(ConnectedAccount.class));
         assertThat(created.getExternalAccountId())
             .as("an account typed in by hand has no provider identity, so it is given its own "
                 + "primary key: V18's uniqueness key treats nulls as EQUAL, and a household needs "
@@ -93,21 +88,17 @@ class AccountServiceTest {
     }
 
     @Test
-    @DisplayName("A uniqueness violation from that flush is the documented conflict, with the "
-        + "wording that names the source kind")
-    void aSlotCollisionIsTheDocumentedConflict() {
-        repositoryAssignsAnId();
-        when(accounts.saveAndFlush(any(ConnectedAccount.class)))
-            .thenThrow(new DataIntegrityViolationException(
-                "duplicate key value violates unique constraint "
-                    + "\"connected_account_household_id_source_kind_external_account_id_key\""));
+    @DisplayName("A referenced-row violation is not reported as \"already has an account\"")
+    void aDataIntegrityViolationIsNotMistakenForADuplicateAccount() {
+        DataIntegrityViolationException violation = new DataIntegrityViolationException(
+            "insert or update on table \"connected_account\" violates foreign key constraint");
+        when(accounts.save(any(ConnectedAccount.class))).thenThrow(violation);
 
         AccountService service = service();
         AccountRequest request = request();
 
         assertThatThrownBy(() -> service.create(HOUSEHOLD, USER, request))
-            .isInstanceOf(ConflictException.class)
-            .hasMessageContaining("MANUAL")
-            .hasMessageContaining("Reuse it");
+            .isSameAs(violation)
+            .isNotInstanceOf(ConflictException.class);
     }
 }

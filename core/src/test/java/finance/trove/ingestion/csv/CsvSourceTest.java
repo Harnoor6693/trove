@@ -305,6 +305,41 @@ class CsvSourceTest {
     }
 
     @Test
+    @DisplayName("B1-01: a decimal-comma export reads at its face value, not a hundred times it")
+    void readsADecimalCommaExport() {
+        ParsedUpload parsed = fixture("decimal-comma.csv");
+
+        assertThat(parsed.rows()).hasSize(4).noneMatch(ParsedRow::hasError);
+        assertThat(amounts(parsed)).usingElementComparator(BigDecimal::compareTo)
+            .containsExactly(new BigDecimal("4.50"), new BigDecimal("1234.56"),
+                new BigDecimal("1234.56"), new BigDecimal("12.5"));
+        assertThat(types(parsed)).containsExactly(TransactionType.DEBIT, TransactionType.DEBIT,
+            TransactionType.CREDIT, TransactionType.DEBIT);
+    }
+
+    @Test
+    @DisplayName("B1-01: DR is spending and CR is a credit; an exponent is a row with a reason")
+    void readsACardExportWithSuffixes() {
+        ParsedUpload parsed = fixture("card-cr-dr.csv");
+
+        assertThat(parsed.rows().get(0).row().type()).isEqualTo(TransactionType.DEBIT);
+        assertThat(parsed.rows().get(0).row().amount()).isEqualByComparingTo("45.00");
+        assertThat(parsed.rows().get(1).row().type()).isEqualTo(TransactionType.CREDIT);
+        assertThat(parsed.rows().get(2).hasError())
+            .as("1.5e3 used to be read as 1.53 with the letter skipped")
+            .isTrue();
+        assertThat(parsed.rows().get(2).error()).contains("amount");
+    }
+
+    @Test
+    @DisplayName("B1-10: a credit the bank calls a refund is a REFUND, so it is not income")
+    void aRefundIsNotIncome() {
+        assertThat(types(fixture("refund.csv"))).containsExactly(TransactionType.DEBIT,
+            TransactionType.REFUND, TransactionType.CREDIT, TransactionType.REFUND,
+            TransactionType.CREDIT);
+    }
+
+    @Test
     @DisplayName("the deterministic id is stable across two parses of the same bytes")
     void theIdIsStableAcrossParses() {
         String file = """
@@ -336,6 +371,19 @@ class CsvSourceTest {
             .as("two coffees of the same amount on the same day are two purchases; the ±2 day, "
                 + "±$0.50 fuzzy window would have collapsed them into one")
             .isNotEqualTo(ids.get(1));
+    }
+
+    @Test
+    @DisplayName("B1-02: a wider export that overlaps an imported one gives the overlap the same ids")
+    void anOverlappingExportKeepsItsIds() {
+        List<String> january = ids(fixture("overlap-jan.csv"));
+        List<String> januaryAndFebruary = ids(fixture("overlap-jan-feb.csv"));
+
+        assertThat(januaryAndFebruary.subList(1, 3))
+            .as("COFFEE and RENT moved down one line; the row ordinal used to be in the hash, so "
+                + "they got new ids and the exact-match pass inserted them a second time")
+            .isEqualTo(january);
+        assertThat(januaryAndFebruary).doesNotHaveDuplicates();
     }
 
     @Test
@@ -486,6 +534,15 @@ class CsvSourceTest {
     private ParsedUpload read(String content) {
         return source.read(content.getBytes(StandardCharsets.UTF_8), null,
             new ImportContext(ACCOUNT));
+    }
+
+    private ParsedUpload fixture(String name) {
+        try (java.io.InputStream in = CsvSourceTest.class.getResourceAsStream("/csv/" + name)) {
+            return source.read(java.util.Objects.requireNonNull(in, name).readAllBytes(), null,
+                new ImportContext(ACCOUNT));
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
     }
 
     private static List<String> ids(ParsedUpload parsed) {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MnBtn } from '@components/ui/MnBtn/MnBtn';
@@ -17,6 +17,7 @@ import { toApiFailure } from '@api/errors';
 import { isUuid } from '@api/paths';
 import { useCommitImport, useImportPreview, useUndoImport } from '@hooks/useImports';
 import type { CsvColumnMappingRequest } from '@api/types';
+import { FormScroll } from '@components/ui/FormScroll/FormScroll';
 
 /**
  * One import batch: review, correct, commit, undo.
@@ -100,7 +101,7 @@ export default function ImportBatchScreen() {
       style={[styles.safe, { backgroundColor: theme.paper }]}
       testID="import-batch-screen"
     >
-      <ScrollView contentContainerStyle={styles.content}>
+      <FormScroll contentContainerStyle={styles.content}>
         <MnBtn label="Back" variant="ghost" onPress={() => router.back()} testID="import-back" />
         <MnEyebrow>Import batch</MnEyebrow>
 
@@ -310,7 +311,7 @@ export default function ImportBatchScreen() {
             </View>
           )}
         </ScreenState>
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }

@@ -15,6 +15,8 @@ import finance.trove.ingestion.importbatch.ImportLimits;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * What an OFX file becomes, and the three findings that made the pre-collapse version unusable.
@@ -90,6 +92,41 @@ class OfxSourceTest {
     @DisplayName("every row parses cleanly, so none carries a reason")
     void everyRowIsClean() {
         assertThat(read("bank-xml.ofx").rows()).noneMatch(ParsedRow::hasError);
+    }
+
+    @Test
+    @DisplayName("B1-04: an exponent bomb in TRNAMT costs nothing and never becomes an amount")
+    void anExponentBombNeverBecomesAnAmount() {
+        long started = System.nanoTime();
+        ParsedUpload parsed = read("bank-sgml-amount-bomb.ofx");
+
+        assertThat(System.nanoTime() - started).isLessThan(1_000_000_000L);
+        assertThat(parsed.rows().get(0).row().amount()).isEqualByComparingTo("42.50");
+        assertThat(parsed.rows())
+            .extracting(row -> row.row().amount())
+            .filteredOn(java.util.Objects::nonNull)
+            .as("1E9999999 is a ten-million-digit number the moment anything rounds it")
+            .allMatch(finance.trove.common.domain.Money::fitsColumn);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"bank-sgml-unreadable-rows.ofx", "bank-xml-unreadable-rows.ofx"})
+    @DisplayName("B1-13: a row with no FITID or an unreadable TRNAMT is shown with its reason")
+    void anUnreadableRowIsKeptWithItsReason(String file) {
+        ParsedUpload parsed = read(file);
+
+        assertThat(parsed.rows())
+            .as("both used to be dropped by the parser, so the preview counted three rows, or "
+                + "two, and nobody learned the statement had four")
+            .hasSize(4);
+        assertThat(parsed.rows().get(0).hasError()).isFalse();
+        assertThat(parsed.rows().get(1).error()).contains("FITID");
+        assertThat(parsed.rows().get(2).hasError())
+            .as("OFX allows a decimal comma in TRNAMT when it is the only separator")
+            .isFalse();
+        assertThat(parsed.rows().get(2).row().amount()).isEqualByComparingTo("12.50");
+        assertThat(parsed.rows().get(3).error()).contains("TRNAMT");
+        assertThat(parsed.rows().get(3).row().amount()).isNull();
     }
 
     @Test

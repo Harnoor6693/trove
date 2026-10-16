@@ -141,7 +141,8 @@ public class VisionExtractionStage implements PipelineStage {
         AiHandle handle = gateway.forUser(receipt.getUserId());
         if (!handle.isEnabled() || handle.visionModel() == null) {
             // The member switched AI off, or removed the vision model, between the upload and the
-            // run. Ordinary, and the same outcome as never having had one.
+            // run. Ordinary, and the same outcome as never having had one. A member deleted since
+            // the upload lands here too: the gateway reads an inactive member as AI-off (B3-14).
             markForReview(receipt, context);
             return;
         }

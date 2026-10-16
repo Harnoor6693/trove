@@ -1,7 +1,7 @@
 # ADR-0008: MinIO for Report Storage and Retrieval
 
 **Date**: 2026-04-27  
-Status: Superseded by ADR-0020 (monolith collapse, 2026-09-26 — MinIO was cut outright; receipts and exports are stored on local disk under `TROVE_DATA_DIR`, inside the deployment's own volume, see `finance.trove.receipts`)  
+Status: Superseded by [ADR-0020](0020-monolith-collapse.md) (monolith collapse, 2026-09-26 — MinIO was cut outright; receipts and exports are stored on local disk under `TROVE_DATA_DIR`, inside the deployment's own volume, see `finance.trove.receipts`)  
 **Deciders**: Architecture and infrastructure team
 
 ## Context

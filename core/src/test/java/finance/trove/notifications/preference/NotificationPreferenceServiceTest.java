@@ -169,8 +169,8 @@ class NotificationPreferenceServiceTest {
         assertThat(NotificationPreferencesResponse.class.getRecordComponents())
             .extracting(java.lang.reflect.RecordComponent::getName)
             .containsExactlyInAnyOrder("inAppEnabled", "emailEnabled", "emailAddress",
-                "weeklyDigestEnabled", "subscriptionAlertEnabled", "syncFailureAlertEnabled",
-                "budgetAlertThresholdPercent", "updatedAt")
+                "emailAvailable", "weeklyDigestEnabled", "subscriptionAlertEnabled",
+                "syncFailureAlertEnabled", "budgetAlertThresholdPercent", "updatedAt")
             .doesNotContain("pushEnabled", "apnsToken", "fcmToken", "taxReminderEnabled",
                 "pushTokens", "devices");
     }

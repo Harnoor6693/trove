@@ -1,5 +1,6 @@
 package finance.trove.users.admin;
 
+import finance.trove.auth.dto.AdminRoleRequest;
 import finance.trove.auth.dto.AdminSettingsRequest;
 import finance.trove.auth.dto.AdminSettingsResponse;
 import finance.trove.auth.dto.AdminUserResponse;
@@ -137,11 +138,30 @@ public class AdminController {
     }
 
     /**
+     * {@code PUT /v1/admin/users/{id}/role} — makes a member an administrator, or a member again
+     * (journey bug F1-B2).
+     *
+     * <p>Before this route the last administrator's 409 on {@code DELETE /v1/me} told them to
+     * "give another member the administrator role" and nothing could. The last-ADMIN guard, the
+     * household lock and the session revocation on demotion are {@link UserAdminService}'s, for
+     * the same reason the delete's are: a guard made of a read followed by a write is not a guard
+     * when two requests arrive at once.
+     */
+    @PutMapping("/users/{id}/role")
+    public ApiResponse<AdminUserResponse> changeRole(
+        @AuthenticationPrincipal TroveUserDetails principal, @PathVariable UUID id,
+        @Valid @RequestBody AdminRoleRequest request) {
+
+        User member = userAdmin.changeRole(principal.getHouseholdId(), id, request.role());
+        return ApiResponse.ok(AdminUserResponse.of(member, totp.isEnabled(member.getId())));
+    }
+
+    /**
      * {@code GET /v1/admin/invites} — a bare array in {@code data}, newest first.
      *
      * <p>{@code token} and {@code url} are populated for invites that can still be redeemed, and
      * null for the rest. The web admin UI reads the link from here rather than from the creation
-     * response ({@code apps/web/src/pages/Settings/index.tsx:215}), so the clock is passed in:
+     * response ({@code apps/web/src/pages/Settings/index.tsx:234-246}), so the clock is passed in:
      * "still redeemable" is a question about now.
      */
     @GetMapping("/invites")
@@ -154,7 +174,7 @@ public class AdminController {
      * {@code POST /v1/admin/invites} — 201 with the one and only readable copy of the token.
      *
      * <p>The body is optional and {@code {}} is the normal case: the web client sends literally
-     * {@code createInvite({})} ({@code apps/web/src/pages/Settings/index.tsx:167}). An
+     * {@code createInvite({})} ({@code apps/web/src/pages/Settings/index.tsx:180}). An
      * {@code @Valid @RequestBody} that was required would 400 that call.
      */
     @PostMapping("/invites")
@@ -179,12 +199,12 @@ public class AdminController {
     @GetMapping("/settings")
     public ApiResponse<AdminSettingsResponse> settings(
         @AuthenticationPrincipal TroveUserDetails principal) {
-        return ApiResponse.ok(
-            new AdminSettingsResponse(household(principal).isRegistrationOpen()));
+        return ApiResponse.ok(AdminSettingsResponse.of(household(principal)));
     }
 
     /**
-     * {@code PUT /v1/admin/settings} — {@code {registrationOpen}}.
+     * {@code PUT /v1/admin/settings} — {@code {registrationOpen, scheduledSyncEnabled}}, each
+     * optional.
      *
      * <p>Written to the household row rather than to configuration so that an admin's decision
      * survives a restart. The environment variable is only ever a seed for the first boot.
@@ -197,9 +217,12 @@ public class AdminController {
         Household household = household(principal);
         if (request.registrationOpen() != null) {
             household.setRegistrationOpen(request.registrationOpen());
-            households.save(household);
         }
-        return ApiResponse.ok(new AdminSettingsResponse(household.isRegistrationOpen()));
+        if (request.scheduledSyncEnabled() != null) {
+            household.setScheduledSyncEnabled(request.scheduledSyncEnabled());
+        }
+        households.save(household);
+        return ApiResponse.ok(AdminSettingsResponse.of(household));
     }
 
     /**
@@ -229,11 +252,11 @@ public class AdminController {
     }
 
     /**
-     * {@code POST /v1/admin/users/{id}/unlock} — clears a soft lock without changing a password.
+     * {@code POST /v1/admin/users/{id}/unlock} — ends every sign-in throttle on the account
+     * without changing a password (gap P2-5, B3-05).
      *
-     * <p>The intended way out of the long hard lock that repeated failures produce (gap P2-5). It
-     * exists because the alternative for a household member who mistyped their password ten times
-     * is waiting a day, and the alternative for an admin is a database edit.
+     * <p>Throttles end by themselves; this is for an account under attack from many addresses,
+     * which stays throttled for addresses it has not signed in from until the attack stops.
      */
     @PostMapping("/users/{id}/unlock")
     public ApiResponse<Void> unlock(@AuthenticationPrincipal TroveUserDetails principal,

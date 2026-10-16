@@ -26,6 +26,13 @@ public interface NetWorthSnapshotRepository extends UserScopedRepository<NetWort
         UUID householdId, LocalDate snapshotDate, CurrencyCode currency);
 
     /**
+     * Every snapshot of this household on exactly this date, one per currency;
+     * {@code takeSnapshot} uses it to find currencies to rewrite.
+     */
+    List<NetWorthSnapshot> findAllByHouseholdIdAndSnapshotDate(UUID householdId,
+                                                               LocalDate snapshotDate);
+
+    /**
      * Every snapshot of this household from {@code from} onward, across every currency, oldest
      * first. {@link NetWorthSeriesService} groups these by currency in memory to build one series
      * per currency (F2) — grouping in SQL here would gain nothing, since the whole range for a

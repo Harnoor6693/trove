@@ -30,8 +30,9 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>Deliberately separate from {@link finance.trove.categorisation.MerchantMappingWriter}: that
  * class is the automated, idempotent-upsert seam self-learning writes (USER, AI) go through
  * later; a member explicitly creating or editing a rule here is a distinct action with different
- * failure semantics — a second rule for a merchant that already has one is 409 {@code conflict}
- * (edit the existing one instead), never a silent overwrite.
+ * failure semantics — a second rule for a merchant that already has a non-AI mapping (a rule the
+ * member made) is 409 {@code conflict} (edit the existing one instead). An existing AI-sourced
+ * guess is replaced in place (B1-06).
  */
 @Service
 public class CategoryRuleService {
@@ -57,14 +58,29 @@ public class CategoryRuleService {
             MappingSource.RULE);
     }
 
-    /** Creates a rule. 409 {@code conflict} if this household already has one for the merchant. */
+    /**
+     * Creates a rule. 409 {@code conflict} if this household already has a non-AI mapping (a rule
+     * the member made) for the merchant. An existing AI-sourced guess is replaced in place (B1-06).
+     */
     @Transactional
     public MerchantCategoryMap create(UUID householdId, UUID userId, CategoryRuleRequest request) {
         String normalised = normalisedOrThrow(request.merchant());
         validateCategory(householdId, request.categoryId());
-        if (mappings.findByHouseholdIdAndNormalisedMerchant(householdId, normalised).isPresent()) {
+        Optional<MerchantCategoryMap> existing =
+            mappings.findByHouseholdIdAndNormalisedMerchant(householdId, normalised);
+        if (existing.isPresent() && existing.get().getSource() != MappingSource.AI) {
             throw new ConflictException(
                 "A rule for this merchant already exists in this household; update it instead");
+        }
+        if (existing.isPresent()) {
+            // A rule is the member's decision and replaces a machine guess in place (B1-06).
+            MerchantCategoryMap guess = existing.get();
+            guess.setMatchType(request.matchType());
+            guess.setCategoryId(request.categoryId());
+            guess.setConfidence(confidenceOrDefault(request.confidence()));
+            guess.setSource(MappingSource.RULE);
+            guess.setPriority(nextPriority(householdId));
+            return mappings.save(guess);
         }
         MerchantCategoryMap rule = new MerchantCategoryMap(householdId, normalised,
             request.matchType(), request.categoryId(), confidenceOrDefault(request.confidence()),
@@ -116,7 +132,11 @@ public class CategoryRuleService {
         mappings.saveAll(rules);
     }
 
-    /** "Test this rule against merchant X" — the live pipeline, nothing persisted. */
+    /**
+     * "Test this rule against merchant X" — runs the same rules-then-defaults pipeline as ingest,
+     * without the AI tier that {@code CategorisationListener} adds after commit. Nothing is
+     * persisted.
+     */
     @Transactional(readOnly = true)
     public CategorisationResult dryRun(UUID householdId, String merchant, String description) {
         return categorisationService.categorise(householdId, merchant, description, null, null);

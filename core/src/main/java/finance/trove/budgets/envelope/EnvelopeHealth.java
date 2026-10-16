@@ -9,8 +9,8 @@ import java.math.BigDecimal;
  * inside the period's month, which is a fact about the clock — and, since collapse step 3, about
  * the reader's own timezone — rather than about the row.
  *
- * @param healthPercentage     {@code spent / allocated} as a percentage, rounded; above 100 means
- *                             over budget, and zero when nothing is allocated
+ * @param healthPercentage     {@code spent / (allocated + rolloverAmount)} as a percentage, rounded;
+ *                             above 100 means over budget, and zero when that sum is zero
  * @param paceMarkerPercentage how far through the period's month the reader currently is, 0–100
  * @param overPace             {@code spent} exceeds 110 % of the linear-pace expectation; the
  *                             10 % buffer absorbs ordinary day-to-day variance

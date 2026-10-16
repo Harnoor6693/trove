@@ -9,12 +9,12 @@ an oversight; see the README's "What is not here".
 
 `.github/workflows/release.yml` runs on a `v*.*.*` tag push:
 
-1. Runs the same gate as every push (`./mvnw --batch-mode -pl core -am clean verify checkstyle:check -Pintegration,coverage`).
-2. Builds and pushes the `core` image to `ghcr.io/<owner>/trove-core:<tag>`.
+1. Runs the same backend gate as ci.yml (`./mvnw --batch-mode -pl core -am clean verify checkstyle:check -Pintegration,coverage`).
+2. Builds and pushes a multi-arch (linux/amd64 + linux/arm64) `core` image to `ghcr.io/<lower-case owner>/trove-core`, tagged `<tag>`, plus `latest` when the tag is a stable release (a pre-release tag containing `-`, for example v1.0.0-rc1, does not move `latest`).
 3. Builds a signed Android APK via `eas build --profile production --platform android`
    (`apps/mobile/eas.json`'s `production` profile is `distribution: "internal"`,
    `buildType: "apk"` — never an AAB, never submitted to Play).
-4. Publishes both as a GitHub Release (the APK as a downloadable asset).
+4. Creates a GitHub Release with generated notes and the signed APK attached. The core image is on GHCR, not on the release. Tags containing `-` (for example v1.0.0-rc1) are marked prerelease; the semver check only warns.
 
 Only `EXPO_TOKEN` is required as a secret. There is no Apple/Google credential, no
 `eas submit` call, and no iOS build in CI — iOS EAS builds remain available locally

@@ -1,11 +1,16 @@
 import * as LocalAuthentication from 'expo-local-authentication';
-import { checkBiometricAvailability, authenticateWithBiometrics } from './useBiometric';
+import {
+  checkBiometricAvailability,
+  checkDeviceAuthAvailability,
+  authenticateWithBiometrics,
+} from './useBiometric';
 import { logError } from '@lib/logError';
 
 jest.mock('expo-local-authentication', () => ({
   hasHardwareAsync: jest.fn(),
   isEnrolledAsync: jest.fn(),
   authenticateAsync: jest.fn(),
+  getEnrolledLevelAsync: jest.fn(),
 }));
 
 jest.mock('@lib/logError', () => ({
@@ -104,5 +109,23 @@ describe('authenticateWithBiometrics', () => {
     mockedAuthenticate.mockRejectedValueOnce(err);
     await authenticateWithBiometrics();
     expect(mockedLogError).toHaveBeenCalledWith('BIOMETRIC_AUTH_ERROR', err);
+  });
+});
+
+describe('checkDeviceAuthAvailability', () => {
+  const level = LocalAuthentication.getEnrolledLevelAsync as jest.Mock;
+
+  it.each([
+    [0, false],
+    [1, true],
+    [2, true],
+  ])('security level %s -> %s', async (value, expected) => {
+    level.mockResolvedValue(value);
+    await expect(checkDeviceAuthAvailability()).resolves.toBe(expected);
+  });
+
+  it('reads a failure as unavailable', async () => {
+    level.mockRejectedValue(new Error('boom'));
+    await expect(checkDeviceAuthAvailability()).resolves.toBe(false);
   });
 });

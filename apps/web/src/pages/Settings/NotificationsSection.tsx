@@ -19,6 +19,7 @@ import {
 } from '@hooks/useNotifications'
 import { notificationsErrorCopy } from '../Notifications/errorCopy'
 import type { NotificationPreferencesResponse } from '@api/types'
+import { WHOLE_NUMBER_ERROR, wholeNumber } from './wholeNumber'
 import styles from './Settings.module.css'
 
 interface FormState {
@@ -46,7 +47,11 @@ function formFrom(prefs: NotificationPreferencesResponse): FormState {
 function NotificationsForm({ prefs }: { prefs: NotificationPreferencesResponse }) {
   const [form, setForm] = useState<FormState>(() => formFrom(prefs))
   const [saved, setSaved] = useState(false)
+  const [tried, setTried] = useState(false)
   const save = useUpdateNotificationPreferencesMutation()
+  const threshold = wholeNumber(form.budgetAlertThresholdPercent)
+  // Absent (an older server) reads as false: offering email nothing will send is the bug (F1-B8).
+  const emailAvailable = prefs.emailAvailable === true
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setSaved(false)
@@ -56,17 +61,22 @@ function NotificationsForm({ prefs }: { prefs: NotificationPreferencesResponse }
   function submit(e: React.FormEvent) {
     e.preventDefault()
     setSaved(false)
+    setTried(true)
+    if (threshold === null) return
     save.mutate(
       {
         inAppEnabled: form.inAppEnabled,
-        emailEnabled: form.emailEnabled,
-        // A blank field is the member clearing it — the one field where an
-        // explicit null differs from "leave alone".
-        emailAddress: form.emailAddress.trim() === '' ? null : form.emailAddress.trim(),
+        // Hidden fields are not sent, so the partial update leaves them alone.
+        ...(emailAvailable && {
+          emailEnabled: form.emailEnabled,
+          // A blank field is the member clearing it — the one field where an
+          // explicit null differs from "leave alone".
+          emailAddress: form.emailAddress.trim() === '' ? null : form.emailAddress.trim(),
+        }),
         weeklyDigestEnabled: form.weeklyDigestEnabled,
         subscriptionAlertEnabled: form.subscriptionAlertEnabled,
         syncFailureAlertEnabled: form.syncFailureAlertEnabled,
-        budgetAlertThresholdPercent: Number(form.budgetAlertThresholdPercent),
+        budgetAlertThresholdPercent: threshold,
       },
       {
         onSuccess: (next) => {
@@ -81,8 +91,8 @@ function NotificationsForm({ prefs }: { prefs: NotificationPreferencesResponse }
     <form className={styles.section} onSubmit={submit}>
       <h2 className={styles.sectionTitle}>Notifications</h2>
       <p className={styles.note}>
-        There is no push notification on Trove — no device token, no phone alert. This inbox and
-        the bell in the top bar are the whole of it.
+        There is no push notification on Trove — no device token, no phone alert. This inbox and the
+        bell in the top bar are the whole of it.
       </p>
 
       <label className={styles.label}>
@@ -124,25 +134,36 @@ function NotificationsForm({ prefs }: { prefs: NotificationPreferencesResponse }
         value={form.budgetAlertThresholdPercent}
         onChange={(e) => set('budgetAlertThresholdPercent', e.target.value)}
         hint="How full an envelope gets before it tells you. Default 90."
-        error={save.error?.fieldError('budgetAlertThresholdPercent')}
+        error={
+          (tried && threshold === null ? WHOLE_NUMBER_ERROR : undefined) ??
+          save.error?.fieldError('budgetAlertThresholdPercent')
+        }
       />
 
-      <label className={styles.label}>
-        <input
-          type="checkbox"
-          checked={form.emailEnabled}
-          onChange={(e) => set('emailEnabled', e.target.checked)}
-        />{' '}
-        Also email me
-      </label>
-      <QlInput
-        label="Email address"
-        type="email"
-        value={form.emailAddress}
-        onChange={(e) => set('emailAddress', e.target.value)}
-        hint="Separate from your sign-in address. This server's email channel may be off — ask your administrator."
-        error={save.error?.fieldError('emailAddress')}
-      />
+      {emailAvailable ? (
+        <>
+          <label className={styles.label}>
+            <input
+              type="checkbox"
+              checked={form.emailEnabled}
+              onChange={(e) => set('emailEnabled', e.target.checked)}
+            />{' '}
+            Also email me
+          </label>
+          <QlInput
+            label="Email address"
+            type="email"
+            value={form.emailAddress}
+            onChange={(e) => set('emailAddress', e.target.value)}
+            hint="Email goes only to your own sign-in address; any other address is saved but not mailed."
+            error={save.error?.fieldError('emailAddress')}
+          />
+        </>
+      ) : (
+        <p className={styles.note} data-testid="email-unavailable-note">
+          Email is off on this server, so Trove cannot email you. Your administrator can turn it on.
+        </p>
+      )}
 
       {save.isError && (
         <p className={styles.error} role="alert" data-testid="notification-prefs-error">

@@ -64,6 +64,9 @@ function DialogShell({ title, onClose, children, testId }: DialogShellProps) {
   )
 }
 
+/** Amounts are 4-dp decimals; compare them at that precision, not as raw floating-point sums. */
+const differs = (a: number, b: number) => Math.round(a * 1e4) !== Math.round(b * 1e4)
+
 function currentMonthInput(): string {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -181,7 +184,7 @@ function EditPeriodDialog({
   // is the sole authority on the invariant (§202 scope item 6); a value that
   // this hint disagrees with is still submitted.
   const zeroBasedMismatch =
-    budgetType === 'ZERO_BASED' && Number(totalIncome) !== envelopeTotal
+    budgetType === 'ZERO_BASED' && differs(Number(totalIncome), envelopeTotal)
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -286,7 +289,7 @@ function CreateEnvelopeDialog({
   const zeroBasedMismatch =
     period.budgetType === 'ZERO_BASED' &&
     allocated !== '' &&
-    envelopeTotal + Number(allocated) !== Number(period.totalIncome)
+    differs(envelopeTotal + Number(allocated), Number(period.totalIncome))
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -365,7 +368,7 @@ function EditEnvelopeDialog({
   const zeroBasedMismatch =
     period.budgetType === 'ZERO_BASED' &&
     allocated !== '' &&
-    otherTotal + Number(allocated) !== Number(period.totalIncome)
+    differs(otherTotal + Number(allocated), Number(period.totalIncome))
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -502,7 +505,7 @@ function EnvelopeGrid({ period }: { period: BudgetPeriodResponse }) {
               is never conveyed by colour alone (§202 scope item 9). */}
           <span
             className={styles.envelopeHealthWord}
-            style={{ color: row.health.overPace ? 'var(--red)' : 'var(--ink-2)' }}
+            style={{ color: row.health.healthPercentage > 100 ? 'var(--red)' : row.health.overPace ? 'var(--amber)' : 'var(--ink-2)' }}
           >
             {row.health.overPace ? 'Over pace' : 'On pace'} · {row.health.healthPercentage}% of budget
           </span>
@@ -618,8 +621,7 @@ export default function Budgets() {
         <div>
           <h1 className={styles.heading}>Budgets</h1>
           <p className={styles.lede}>
-            Envelope allocations and spend are computed server-side; nothing here is estimated in
-            the browser.
+            What you have planned against what you have spent this month, envelope by envelope.
           </p>
         </div>
         <div className={styles.headerActions}>

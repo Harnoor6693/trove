@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MnBtn } from '@components/ui/MnBtn/MnBtn';
@@ -17,6 +17,7 @@ import {
   useUpdateCategory,
 } from '@hooks/useCategories';
 import type { CategoryResponse } from '@api/types';
+import { FormScroll } from '@components/ui/FormScroll/FormScroll';
 
 interface CategoryNode {
   category: CategoryResponse;
@@ -43,6 +44,22 @@ function buildTree(categories: CategoryResponse[]): CategoryNode[] {
   return roots;
 }
 
+/** The ids of `rootId` and everything below it, so a re-parent picker can leave them out. */
+function subtreeIds(categories: CategoryResponse[], rootId: string): Set<string> {
+  const ids = new Set<string>([rootId]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const c of categories) {
+      if (c.parentId !== null && ids.has(c.parentId) && !ids.has(c.id)) {
+        ids.add(c.id);
+        grew = true;
+      }
+    }
+  }
+  return ids;
+}
+
 /**
  * `/v1/categories*` — the household's category tree: every system category
  * (seeded, read-only) plus this household's own. A system category
@@ -67,7 +84,7 @@ export default function CategoriesScreen() {
       style={[styles.safe, { backgroundColor: theme.paper }]}
       testID="categories-screen"
     >
-      <ScrollView contentContainerStyle={styles.content}>
+      <FormScroll contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <MnBtn
             label="Back"
@@ -123,7 +140,7 @@ export default function CategoriesScreen() {
             ))}
           </View>
         </ScreenState>
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }
@@ -221,10 +238,11 @@ function CategoryForm({
   const failure: ApiFailure | null =
     pending.error == null ? null : toApiFailure(pending.error, 'Could not save that category.');
 
-  // A category cannot become its own ancestor, and it cannot pick itself as a
-  // parent — the server would 400 `validation-error`, but there is no reason
-  // to offer the choice the client already knows is wrong.
-  const parentChoices = categories.filter((c) => c.id !== category?.id);
+  // A category cannot be its own parent, and choosing one of its descendants
+  // would make it its own ancestor (the server answers 400 `validation-error`),
+  // so the picker leaves out the category and everything below it.
+  const excluded = category === undefined ? null : subtreeIds(categories, category.id);
+  const parentChoices = categories.filter((c) => excluded === null || !excluded.has(c.id));
 
   const submit = () => {
     const body = { name: name.trim(), parentId, icon: icon.trim() === '' ? null : icon.trim() };

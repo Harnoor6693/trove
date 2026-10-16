@@ -28,6 +28,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.mockito.quality.Strictness;
 
 /**
@@ -54,14 +55,17 @@ class FirstRunBootstrapTest {
     @Mock
     private LocalAccountService accounts;
 
+    @Mock
+    private PlatformTransactionManager transactions;
+
     private FirstRunBootstrap bootstrap(BootstrapProperties properties) {
         return new FirstRunBootstrap(properties, new AuthProperties(false, "https://trove.test"),
-            new TimeProperties("America/Toronto"), households, users, accounts);
+            new TimeProperties("America/Toronto"), households, users, accounts, transactions);
     }
 
     private static BootstrapProperties complete() {
         return new BootstrapProperties("Owner@Trove.Test", "a-perfectly-fine-passphrase",
-            "The Household");
+            "The Household", null);
     }
 
     @Test
@@ -104,7 +108,8 @@ class FirstRunBootstrapTest {
         when(users.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         new FirstRunBootstrap(complete(), new AuthProperties(true, "https://trove.test"),
-            new TimeProperties("UTC"), households, users, accounts).bootstrapIfEmpty(NOW);
+            new TimeProperties("UTC"), households, users, accounts, transactions)
+            .bootstrapIfEmpty(NOW);
 
         ArgumentCaptor<Household> household = ArgumentCaptor.forClass(Household.class);
         verify(households).save(household.capture());
@@ -128,9 +133,10 @@ class FirstRunBootstrapTest {
     void incompleteCredentialsDoNotFailTheBoot() {
         when(users.countAllUsers()).thenReturn(0L);
 
-        bootstrap(new BootstrapProperties(null, null, null)).bootstrapIfEmpty(NOW);
-        bootstrap(new BootstrapProperties("owner@trove.test", null, null)).bootstrapIfEmpty(NOW);
-        bootstrap(new BootstrapProperties(null, "a-passphrase", null)).bootstrapIfEmpty(NOW);
+        bootstrap(new BootstrapProperties(null, null, null, null)).bootstrapIfEmpty(NOW);
+        bootstrap(new BootstrapProperties("owner@trove.test", null, null, null))
+            .bootstrapIfEmpty(NOW);
+        bootstrap(new BootstrapProperties(null, "a-passphrase", null, null)).bootstrapIfEmpty(NOW);
 
         verify(households, never()).save(any());
     }
@@ -150,6 +156,37 @@ class FirstRunBootstrapTest {
     }
 
     @Test
+    @DisplayName("A refused admin password rolls the household and user back, so the next boot "
+        + "retries (CI-42)")
+    void aWeakPasswordRollsEverythingBack() {
+        when(users.countAllUsers()).thenReturn(0L);
+        when(households.save(any(Household.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(users.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        org.mockito.Mockito.doThrow(new PasswordPolicyException("too short"))
+            .when(accounts).createCredential(any(), anyString(), anyString(), any());
+
+        bootstrap(complete()).run(null);
+
+        verify(transactions).rollback(any());
+        verify(transactions, never()).commit(any());
+    }
+
+    @Test
+    @DisplayName("A successful bootstrap commits its single transaction")
+    void aSuccessfulBootstrapCommits() {
+        when(users.countAllUsers()).thenReturn(0L);
+        when(households.save(any(Household.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(users.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        bootstrap(complete()).run(null);
+
+        verify(transactions).commit(any());
+        verify(transactions, never()).rollback(any());
+    }
+
+    @Test
     @DisplayName("An unparseable default timezone falls back to UTC rather than failing")
     void unknownDefaultTimezoneFallsBackToUtc() {
         when(users.countAllUsers()).thenReturn(0L);
@@ -158,7 +195,7 @@ class FirstRunBootstrapTest {
         when(users.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         new FirstRunBootstrap(complete(), new AuthProperties(false, "https://trove.test"),
-            new TimeProperties("Nowhere/Special"), households, users, accounts)
+            new TimeProperties("Nowhere/Special"), households, users, accounts, transactions)
             .bootstrapIfEmpty(NOW);
 
         ArgumentCaptor<User> admin = ArgumentCaptor.forClass(User.class);
@@ -174,7 +211,7 @@ class FirstRunBootstrapTest {
             .thenAnswer(invocation -> invocation.getArgument(0));
         when(users.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        bootstrap(new BootstrapProperties("first.last@trove.test", "a-fine-passphrase", null))
+        bootstrap(new BootstrapProperties("first.last@trove.test", "a-fine-passphrase", null, null))
             .bootstrapIfEmpty(NOW);
 
         ArgumentCaptor<User> admin = ArgumentCaptor.forClass(User.class);
@@ -188,15 +225,59 @@ class FirstRunBootstrapTest {
     @Test
     @DisplayName("Blank properties bind as absent and the household name defaults")
     void propertiesNormalise() {
-        BootstrapProperties properties = new BootstrapProperties("  ", "  ", "  ");
+        BootstrapProperties properties = new BootstrapProperties("  ", "  ", "  ", null);
         assertThat(properties.email()).isNull();
         assertThat(properties.password()).isNull();
         assertThat(properties.householdName()).isEqualTo("Household");
         assertThat(properties.isComplete()).isFalse();
 
-        assertThat(new BootstrapProperties(" a@b.test ", "pw", " Home ").isComplete()).isTrue();
-        assertThat(new BootstrapProperties(" a@b.test ", "pw", " Home ").email())
+        assertThat(new BootstrapProperties(" a@b.test ", "pw", " Home ", null).isComplete())
+            .isTrue();
+        assertThat(new BootstrapProperties(" a@b.test ", "pw", " Home ", null).email())
             .isEqualTo("a@b.test");
+    }
+
+    @Test
+    @DisplayName("The country defaults to CA and is normalised to upper case")
+    void countryNormalises() {
+        assertThat(new BootstrapProperties("a@b.test", "pw", null, null).country())
+            .isEqualTo("CA");
+        assertThat(new BootstrapProperties("a@b.test", "pw", null, "  ").country())
+            .isEqualTo("CA");
+        assertThat(new BootstrapProperties("a@b.test", "pw", null, " us ").country())
+            .isEqualTo("US");
+    }
+
+    @Test
+    @DisplayName("TROVE_ADMIN_COUNTRY=US makes the first admin American, in US dollars")
+    void usCountryMakesAUsAdmin() {
+        when(users.countAllUsers()).thenReturn(0L);
+        when(households.save(any(Household.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(users.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        bootstrap(new BootstrapProperties("owner@trove.test", "a-fine-passphrase", null, "US"))
+            .bootstrapIfEmpty(NOW);
+
+        ArgumentCaptor<User> admin = ArgumentCaptor.forClass(User.class);
+        verify(users).save(admin.capture());
+        assertThat(admin.getValue().getCountry()).isEqualTo(Jurisdiction.US);
+        assertThat(admin.getValue().getCurrency())
+            .as("the currency follows the country; nothing can change either afterwards")
+            .isEqualTo(CurrencyCode.USD);
+    }
+
+    @Test
+    @DisplayName("An unsupported country creates nobody, and the boot still succeeds")
+    void unsupportedCountryCreatesNobody() {
+        when(users.countAllUsers()).thenReturn(0L);
+
+        bootstrap(new BootstrapProperties("owner@trove.test", "a-fine-passphrase", null, "UK"))
+            .bootstrapIfEmpty(NOW);
+
+        verify(households, never()).save(any());
+        verify(users, never()).save(any());
+        verify(accounts, never()).createCredential(any(), anyString(), anyString(), any());
     }
 
     @Test

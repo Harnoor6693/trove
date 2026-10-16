@@ -30,6 +30,8 @@ import finance.trove.receipts.receipt.ReceiptImage;
 import finance.trove.receipts.receipt.ReceiptRepository;
 import finance.trove.subscriptions.subscription.DetectedSubscription;
 import finance.trove.subscriptions.subscription.SubscriptionRepository;
+import finance.trove.taxexport.TaxLineMapping;
+import finance.trove.taxexport.TaxLineMappingRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
@@ -75,8 +77,12 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <h2>One read-only transaction</h2>
  * {@code Receipt} owns its images and line items as EAGER collections, and the coach page decrypts
- * inside its own read. Collecting inside one read-only transaction is what makes the whole archive
- * a consistent picture of one moment rather than thirteen pictures of thirteen different ones.
+ * inside its own read. Collecting the JSON datasets inside one read-only transaction makes them a
+ * consistent picture of one moment rather than fourteen pictures of fourteen different ones.
+ * {@code DataExportGenerationService} calls this inside its own REPEATABLE_READ read-only
+ * transaction, which this one joins, and reads {@code transactions.csv} in the same transaction,
+ * so the CSV and the JSON datasets are one snapshot. Called outside such a transaction it is a
+ * snapshot of the JSON datasets only (the default isolation level reads each statement afresh).
  */
 @Component
 public class DataExportCollector {
@@ -85,15 +91,11 @@ public class DataExportCollector {
     static final int LEDGER_SCALE = 4;
 
     /**
-     * How many coach turns one archive carries.
-     *
-     * <p>Bounded because the coach history is the one dataset with no natural ceiling — a member
-     * can ask questions for years — and this runs on a two-thread executor with the whole
-     * archive held in memory. Five thousand turns is far past any real conversation history and
-     * far short of a heap problem. A member with more than this gets their most recent turns and
-     * the manifest's entry count says how many.
+     * How many coach turns are read at a time. The history has no natural ceiling, so it is read
+     * a page at a time, but every page is read: an export that silently stops short is not a way
+     * to leave with your data (B2-15).
      */
-    static final int MAX_COACH_MESSAGES = 5000;
+    static final int COACH_PAGE_SIZE = 5000;
 
     private final ConnectedAccountRepository accounts;
     private final CategoryRepository categories;
@@ -108,6 +110,7 @@ public class DataExportCollector {
     private final ReceiptRepository receipts;
     private final CoachConversationService coach;
     private final NotificationPreferenceRepository notificationPreferences;
+    private final TaxLineMappingRepository taxLines;
 
     @SuppressWarnings("checkstyle:ParameterNumber")
     public DataExportCollector(ConnectedAccountRepository accounts, CategoryRepository categories,
@@ -117,7 +120,8 @@ public class DataExportCollector {
                                NetWorthSnapshotRepository snapshots, AssetRepository assets,
                                LiabilityRepository liabilities, ReceiptRepository receipts,
                                CoachConversationService coach,
-                               NotificationPreferenceRepository notificationPreferences) {
+                               NotificationPreferenceRepository notificationPreferences,
+                               TaxLineMappingRepository taxLines) {
         this.accounts = accounts;
         this.categories = categories;
         this.merchantRules = merchantRules;
@@ -131,13 +135,13 @@ public class DataExportCollector {
         this.receipts = receipts;
         this.coach = coach;
         this.notificationPreferences = notificationPreferences;
+        this.taxLines = taxLines;
     }
 
     /**
      * Every JSON dataset of one archive, keyed by the entry name it is written under.
      *
-     * <p>A {@code LinkedHashMap}, so the archive's entry order is stable across runs and two
-     * archives of the same account differ only where the data differs.
+     * <p>A {@code LinkedHashMap}, so the archive's entry order is stable across runs.
      */
     @Transactional(readOnly = true)
     public Map<String, Object> collect(UUID userId, UUID householdId) {
@@ -165,6 +169,8 @@ public class DataExportCollector {
         datasets.put("receipts.json", map(receipts.findAllByHouseholdId(householdId),
             DataExportCollector::receipt));
         datasets.put("coach-conversations.json", coachConversations(userId));
+        datasets.put("tax-line-mappings.json",
+            map(taxLines.findAllByUserId(userId), DataExportCollector::taxLineMapping));
         datasets.put("notification-preferences.json", notificationPreferences(userId));
         return datasets;
     }
@@ -246,6 +252,19 @@ public class DataExportCollector {
         out.put("allocated", money(row.getAllocated(), row.getCurrency()));
         out.put("spent", money(row.getSpent(), row.getCurrency()));
         out.put("rolloverAmount", money(row.getRolloverAmount(), row.getCurrency()));
+        out.put("createdAt", text(row.getCreatedAt()));
+        out.put("updatedAt", text(row.getUpdatedAt()));
+        return out;
+    }
+
+    private static Map<String, Object> taxLineMapping(TaxLineMapping row) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("id", id(row.getId()));
+        out.put("jurisdiction", name(row.getJurisdiction()));
+        out.put("categoryId", id(row.getCategoryId()));
+        out.put("lineCode", row.getLineCode());
+        out.put("lineLabel", row.getLineLabel());
+        out.put("deductible", row.isDeductible());
         out.put("createdAt", text(row.getCreatedAt()));
         out.put("updatedAt", text(row.getUpdatedAt()));
         return out;
@@ -408,19 +427,26 @@ public class DataExportCollector {
     }
 
     /**
-     * The member's coach history, grouped by conversation, newest turn first within the page.
+     * The member's coach history, grouped by conversation: conversations most recently updated
+     * first, and the turns inside each conversation oldest first.
      *
      * <p>Read through {@link CoachConversationService#page}, which owns the decryption and the
      * ownership check. This class never touches a ciphertext and holds no key.
      */
     private List<Map<String, Object>> coachConversations(UUID userId) {
-        PagedResult<CoachMessageResponse> page = coach.page(userId, null, 0, MAX_COACH_MESSAGES);
         Map<UUID, List<Map<String, Object>>> byConversation = new LinkedHashMap<>();
-        for (CoachMessageResponse message : page.content()) {
-            byConversation
-                .computeIfAbsent(message.sessionId(), key -> new ArrayList<>())
-                .add(coachMessage(message));
-        }
+        int pageNumber = 0;
+        PagedResult<CoachMessageResponse> page;
+        do {
+            page = coach.page(userId, null, pageNumber, COACH_PAGE_SIZE);
+            for (CoachMessageResponse message : page.content()) {
+                byConversation
+                    .computeIfAbsent(message.sessionId(), key -> new ArrayList<>())
+                    .add(coachMessage(message));
+            }
+            pageNumber++;
+        } while (!page.content().isEmpty()
+            && (long) pageNumber * COACH_PAGE_SIZE < page.totalElements());
         List<Map<String, Object>> conversations = new ArrayList<>(byConversation.size());
         for (Map.Entry<UUID, List<Map<String, Object>>> entry : byConversation.entrySet()) {
             Map<String, Object> conversation = new LinkedHashMap<>();

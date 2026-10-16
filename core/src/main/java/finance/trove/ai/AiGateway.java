@@ -33,8 +33,10 @@ import java.util.UUID;
  *       row still gets written.</li>
  *   <li>The egress policy runs, and the address is re-pinned, on <em>every</em> call — not once at
  *       save time. A later step needs no check of its own.</li>
- *   <li>Every call writes one {@code ai_audit_log} row, success or failure. A later step does not
- *       need to, and must not write the prompt or the answer to it.</li>
+ *   <li>Every call that is attempted writes one {@code ai_audit_log} row, success or failure. A
+ *       call refused before any request is made (AI off, privacy tier, egress policy) throws
+ *       and writes no row. A later step does not need to write audit rows, and must not write the
+ *       prompt or the answer to one.</li>
  * </ul>
  */
 public interface AiGateway {

@@ -22,15 +22,18 @@ import org.springframework.stereotype.Component;
  * ({@code docs/recovery/06-COLLAPSE-PLAN.md} §2.9, §6; gap P2-16).
  *
  * <p><strong>This builder is also collapse step 18's.</strong> {@code POST /v1/me/export}'s full
- * data export is specified to be a filtered view of the same file, which is why the column list
+ * data export reuses it through {@code buildLedger} (the same 11 columns plus {@code accountId},
+ * {@code transferGroupId} and {@code pending}, no totals section), which is why the column list
  * and — critically — the formula-injection escaping live HERE and not in a controller. A second
  * copy of the escaping is a second chance to forget it.
  *
  * <h2>The columns are fixed</h2>
  * {@code date, merchant, description, notes, amount, currency, category, taxLineCode,
- * taxLineLabel, receiptId}, in that order, and {@code CsvExportBuilderTest} asserts the set
- * exactly. {@code notes} is its OWN column (RS-6). There is <strong>no {@code gst_amount} column
- * and no computed figure of any kind</strong>: the source computed GST as {@code amount x 0.05}
+ * taxLineLabel, receiptId, type}, in that order, and {@code CsvExportBuilderTest} asserts the set
+ * exactly. {@code buildLedger} appends {@code accountId}, {@code transferGroupId} and
+ * {@code pending} for the full data export. {@code notes} is its OWN column (RS-6). There is
+ * <strong>no {@code gst_amount} column and no computed figure of any kind</strong>: the source
+ * computed GST as {@code amount x 0.05}
  * on a tax-INCLUSIVE bank amount, which overstates it on every line of every export (the correct
  * form is {@code x 5/105}), and its own test asserted the wrong answer as correct (RS-1 /
  * 01-FINDINGS M7). The fix is not better arithmetic — owner decision 2 and §9 risk 15 mean this
@@ -53,7 +56,9 @@ import org.springframework.stereotype.Component;
  *
  * <h2>Totals</h2>
  * A totals section follows the transactions: one line per {@code (taxLineCode, currency)} pair,
- * each a plain sum of the member's own amounts. Per currency and never blended — a household
+ * the net spending on that line, DEBIT rows added and REFUND rows subtracted. Other types (income,
+ * fees, interest) are listed per row but not added in, and rows with no amount, currency or type
+ * are skipped. Per currency and never blended — a household
  * holding CAD and USD gets two rows for one line, because no exchange rate exists anywhere in
  * this system (findings F1/F2; gap row 40's rate feed is deferred and is not this step's).
  */
@@ -62,7 +67,7 @@ public class CsvExportBuilder {
 
     /** The column list §2.9 fixes. {@code CsvExportBuilderTest} asserts this set exactly. */
     public static final List<String> HEADERS = List.of("date", "merchant", "description", "notes",
-        "amount", "currency", "category", "taxLineCode", "taxLineLabel", "receiptId");
+        "amount", "currency", "category", "taxLineCode", "taxLineLabel", "receiptId", "type");
 
     /** The heading above the per-line totals. */
     public static final String TOTALS_SECTION_TITLE = "Totals by tax line";
@@ -77,16 +82,40 @@ public class CsvExportBuilder {
     /** The scale every ledger amount is stored and summed at, from {@code NUMERIC(19,4)}. */
     private static final int LEDGER_SCALE = 4;
 
-    /** Builds the whole document. Never returns null. */
+    private static final byte[] UTF8_BOM = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
+
+    /** The extra columns the full data export adds after {@link #HEADERS} (B2-03). */
+    public static final List<String> LEDGER_HEADERS = List.of("accountId", "transferGroupId",
+        "pending");
+
+    /** Builds the tax document: the fixed columns plus the totals section. Never returns null. */
     public byte[] build(List<ExportRow> rows) {
+        return render(rows, false);
+    }
+
+    /**
+     * Builds the full-ledger document for the data export: one row per transaction with the
+     * account, transfer group and pending flag, and no totals section, so it stays rectangular
+     * for an importer (B2-03).
+     */
+    public byte[] buildLedger(List<ExportRow> rows) {
+        return render(rows, true);
+    }
+
+    private byte[] render(List<ExportRow> rows, boolean ledger) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
+        // UTF-8 byte order mark: without it Excel on Windows reads the file as Latin-1 and
+        // mangles accented merchants (B2-14).
+        out.writeBytes(UTF8_BOM);
         try (OutputStreamWriter writer = new OutputStreamWriter(out, StandardCharsets.UTF_8);
              CSVPrinter printer = new CSVPrinter(writer,
-                 CSVFormat.DEFAULT.builder().setHeader(HEADERS.toArray(String[]::new)).get())) {
+                 CSVFormat.DEFAULT.builder().setHeader(headers(ledger)).get())) {
             for (ExportRow row : rows) {
-                printer.printRecord(transactionRecord(row));
+                printer.printRecord(ledger ? ledgerRecord(row) : transactionRecord(row));
             }
-            printTotals(printer, rows);
+            if (!ledger) {
+                printTotals(printer, rows);
+            }
         } catch (IOException e) {
             // A ByteArrayOutputStream does no I/O, so this is unreachable in practice. It is
             // rethrown rather than swallowed so that it can never become a silently truncated
@@ -94,6 +123,22 @@ public class CsvExportBuilder {
             throw new UncheckedIOException("Could not render the export as CSV", e);
         }
         return out.toByteArray();
+    }
+
+    private static String[] headers(boolean ledger) {
+        List<String> all = new ArrayList<>(HEADERS);
+        if (ledger) {
+            all.addAll(LEDGER_HEADERS);
+        }
+        return all.toArray(String[]::new);
+    }
+
+    private static List<String> ledgerRecord(ExportRow row) {
+        List<String> record = new ArrayList<>(transactionRecord(row));
+        record.add(escape(text(row.accountId())));
+        record.add(escape(text(row.transferGroupId())));
+        record.add(String.valueOf(row.pending()));
+        return record;
     }
 
     private static List<String> transactionRecord(ExportRow row) {
@@ -107,7 +152,8 @@ public class CsvExportBuilder {
             escape(text(row.category())),
             escape(text(row.taxLineCode())),
             escape(text(row.taxLineLabel())),
-            escape(text(row.receiptId())));
+            escape(text(row.receiptId())),
+            escape(text(row.type())));
     }
 
     private void printTotals(CSVPrinter printer, List<ExportRow> rows) throws IOException {
@@ -133,13 +179,23 @@ public class CsvExportBuilder {
     static List<LineTotal> totalsByLineAndCurrency(List<ExportRow> rows) {
         Map<String, LineTotal> accumulated = new LinkedHashMap<>();
         for (ExportRow row : rows) {
-            if (row.amount() == null || row.currency() == null) {
+            if (row.amount() == null || row.currency() == null || row.type() == null) {
+                continue;
+            }
+            // Spending only (B2-01): a debit adds, a refund subtracts, and income, fees,
+            // interest and the rest are listed per row but never added into an expense total.
+            BigDecimal signed = switch (row.type()) {
+                case DEBIT -> row.amount();
+                case REFUND -> row.amount().negate();
+                default -> null;
+            };
+            if (signed == null) {
                 continue;
             }
             String code = text(row.taxLineCode());
             String key = code + ' ' + row.currency().name();
             LineTotal running = accumulated.get(key);
-            BigDecimal sum = running == null ? row.amount() : running.total().add(row.amount());
+            BigDecimal sum = running == null ? signed : running.total().add(signed);
             accumulated.put(key,
                 new LineTotal(code, text(row.taxLineLabel()), row.currency(), sum));
         }
@@ -150,7 +206,7 @@ public class CsvExportBuilder {
     }
 
     /**
-     * A plain sum of the member's own amounts for one tax line in one currency.
+     * The net spending on one tax line in one currency: DEBIT rows added, REFUND rows subtracted.
      *
      * <p>No conversion, no rate, no blended figure: two currencies are two rows.
      */

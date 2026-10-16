@@ -16,7 +16,7 @@ import {
   syncAccount,
   updateAccount,
 } from '@api/accounts'
-import { dashboardTodayKey } from './useDashboardToday'
+import { invalidateLedger } from './useTransactions'
 import type { ApiError } from '@api/client'
 import type { AccountRequest, AccountResponse, AccountUpdateRequest, SyncLogResponse } from '@api/types'
 
@@ -30,13 +30,14 @@ export const accountSyncLogsKey = (accountId: string) =>
  * Pattern 2: a mutation invalidates by FAMILY PREFIX in `onSuccess`, and never
  * hand-patches the cache. Anything that changes an account can also change the
  * ledger rows hanging off it (a sync inserts transactions, a delete cascades
- * them away), and the dashboard figures are derived from those rows — so all
- * three prefixes go, and nothing else does.
+ * them away), and the dashboard figures are derived from those rows — so the
+ * accounts, transactions, dashboard-today, budgets and notifications prefixes
+ * all go (envelope spent/health and alerts are derived from the ledger rows),
+ * and nothing else does.
  */
 export function invalidateAccountsAndLedger(qc: QueryClient): void {
   void qc.invalidateQueries({ queryKey: accountsKey })
-  void qc.invalidateQueries({ queryKey: ['transactions'] })
-  void qc.invalidateQueries({ queryKey: dashboardTodayKey })
+  invalidateLedger(qc)
 }
 
 export function useAccounts() {

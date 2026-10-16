@@ -1,13 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Linking,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -33,6 +25,7 @@ import { ErrorSlug, type LocaleCode } from '@api/types';
 import { appVersion } from '@api/meta';
 import { logError } from '@lib/logError';
 import { useUserFormat } from '@lib/useUserFormat';
+import { checkDeviceAuthAvailability } from '@hooks/useBiometric';
 import { useAuthStore } from '@stores/authStore';
 import {
   APP_LOCK_TIMEOUT_CHOICES,
@@ -40,6 +33,7 @@ import {
   type AppLockTimeout,
   type ThemePreference,
 } from '@stores/uiStore';
+import { FormScroll } from '@components/ui/FormScroll/FormScroll';
 
 /**
  * `locale` is a closed set on the server — §4.2 states `locale ∈ {en-CA, en-US}`
@@ -59,13 +53,18 @@ const MUTATION_ERROR_COPY: Record<string, string> = {
     'That password was rejected. Use 12–128 characters and avoid common passwords.',
 };
 
+/** The public repository — the AGPL-3.0 section 13 source offer. */
+const SOURCE_CODE_URL = 'https://github.com/Harnoor6693/trove';
+
 /**
  * Settings.
  *
- * Structure follows §4: **Server** (the connection this app is paired with),
- * **Account** (`/v1/auth/me`, `PUT /v1/me`, `POST /v1/auth/password`,
- * `/v1/auth/totp`), **Preferences** (`/v1/me/preferences`), **Security** (the
- * device app lock plus `GET /v1/me/security-events`), **Data**, **About**.
+ * Sections in render order: **Server** (the connection this app is paired
+ * with), **Account** (`/v1/auth/me`, `PUT /v1/me`, `POST /v1/auth/password`,
+ * `/v1/auth/totp`), **Preferences** (`/v1/me/preferences`), **Appearance**,
+ * **Security** (the device app lock plus `GET /v1/me/security-events`), **AI**,
+ * **Categories and rules**, **Notifications**, **Webhooks**, **Data**,
+ * **Admin** (ADMIN only, a cosmetic gate) and **About**.
  *
  * Three contract details worth stating at the call site:
  *
@@ -87,9 +86,6 @@ const MUTATION_ERROR_COPY: Record<string, string> = {
  * built a new object on every call and re-rendered forever under zustand v5,
  * whose default equality is `Object.is`.
  */
-/** The public repository — the AGPL-3.0 section 13 source offer. */
-const SOURCE_CODE_URL = 'https://github.com/Harnoor6693/trove';
-
 export default function SettingsScreen() {
   const theme = useTheme();
   const router = useRouter();
@@ -107,6 +103,16 @@ export default function SettingsScreen() {
   const setThemePreference = useUiStore((s) => s.setTheme);
   const appLockEnabled = useUiStore((s) => s.appLockEnabled);
   const setAppLockEnabled = useUiStore((s) => s.setAppLockEnabled);
+  const [appLockUnavailable, setAppLockUnavailable] = useState(false);
+  /** Turning the lock ON needs a way to open it: refuse when the device has none. */
+  const toggleAppLock = async (value: boolean) => {
+    if (value && !(await checkDeviceAuthAvailability())) {
+      setAppLockUnavailable(true);
+      return;
+    }
+    setAppLockUnavailable(false);
+    await setAppLockEnabled(value);
+  };
   const appLockTimeoutMinutes = useUiStore((s) => s.appLockTimeoutMinutes);
   const setAppLockTimeoutMinutes = useUiStore((s) => s.setAppLockTimeoutMinutes);
 
@@ -229,7 +235,7 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.paper }]} testID="settings-screen">
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <FormScroll contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {notice !== null && (
           <Text testID="settings-notice" style={[styles.notice, { color: theme.sage }]}>
             {notice}
@@ -418,10 +424,10 @@ export default function SettingsScreen() {
         <MnCard style={styles.card}>
           <Text style={labelStyle}>Country and currency</Text>
           <Text testID="settings-currency" style={valueStyle}>
-            {/* Guarded on the fields, not just on `me`: §4.1's `/v1/auth/me`
-                table does not list `currency`/`country` (§4.2 and the session
-                contract do), so a server that implements only the narrow body
-                must render a dash here, never "undefined · undefined". */}
+            {/* Guarded on the fields as well as on `me`: `MeResponse` always
+                carries `currency` and `country`, but a server older than the
+                contract could omit them, and the screen must show a dash
+                rather than "undefined · undefined". */}
             {me?.country && me?.currency ? `${me.country} · ${me.currency}` : '—'}
           </Text>
           <Text style={[styles.note, { color: theme.ink3 }]}>
@@ -478,8 +484,18 @@ export default function SettingsScreen() {
             testID="settings-app-lock-toggle"
             label="Require unlock"
             value={appLockEnabled}
-            onToggle={(value) => void setAppLockEnabled(value)}
+            onToggle={(value) => void toggleAppLock(value)}
           />
+          {appLockUnavailable ? (
+            <Text
+              accessibilityRole="alert"
+              style={[styles.note, { color: theme.red }]}
+              testID="settings-app-lock-unavailable"
+            >
+              This device has no passcode or biometrics set up, so the app lock cannot be turned on.
+              Set a device passcode in your phone settings first.
+            </Text>
+          ) : null}
           <Text style={[styles.note, { color: theme.ink3 }]}>
             Trove locks on launch, and after this long in the background.
           </Text>
@@ -584,7 +600,7 @@ export default function SettingsScreen() {
             void signOut().then(() => router.replace('/(auth)/login'));
           }}
         />
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }

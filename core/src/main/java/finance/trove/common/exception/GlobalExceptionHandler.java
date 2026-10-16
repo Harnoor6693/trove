@@ -3,6 +3,7 @@ package finance.trove.common.exception;
 import finance.trove.common.observability.RequestPath;
 import finance.trove.common.dto.ApiResponse;
 import finance.trove.common.dto.ErrorResponse;
+import finance.trove.common.json.TroveJsonModule;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
@@ -26,6 +27,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import tools.jackson.core.JacksonException;
 
 /**
  * The monolith's single exception-to-response translator
@@ -34,8 +36,9 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
  *
  * <p>What the rewrite adds over the seven handlers it replaces: {@link ResponseStatusException}
  * (its own status, so Spring's own 404/415 keep the envelope), {@link AccessDeniedException}
- * → 403 and {@link AuthenticationException} → 401 (today an admin-route 403 falls through to a
- * bare 500 — gap P2-7), {@link ConstraintViolationException} alongside
+ * → 403 and {@link AuthenticationException} → 401 (in the handler this replaces, an admin-route
+ * 403 fell through to a bare 500 — gap P2-7, now closed here), {@link ConstraintViolationException}
+ * alongside
  * {@link MethodArgumentNotValidException}, {@link MaxUploadSizeExceededException} → 413 (a
  * receipt over the 20 MB multipart cap, §1.6), and {@link DataIntegrityViolationException} /
  * {@link OptimisticLockingFailureException} → 409.
@@ -144,10 +147,23 @@ public class GlobalExceptionHandler {
     /**
      * Malformed JSON. The parser message is deliberately dropped: it quotes the offending bytes,
      * which for a login request means the password lands in the response body.
+     *
+     * <p>The one exception is an amount the money columns cannot hold (B2-02): the JSON is fine,
+     * the value is not, so it is a field error. Its message names the rule, never the value.
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<Void>> handleNotReadable(HttpMessageNotReadableException ex,
                                                                HttpServletRequest request) {
+        for (Throwable cause = ex.getCause(); cause != null; cause = cause.getCause()) {
+            if (cause instanceof TroveJsonModule.AmountOutOfRangeException amount) {
+                List<JacksonException.Reference> path = amount.getPath();
+                String field = path.isEmpty() || path.getLast().getPropertyName() == null
+                    ? "body" : path.getLast().getPropertyName();
+                return respond(HttpStatus.BAD_REQUEST, "validation-error",
+                    "One or more fields failed validation.", request,
+                    List.of(new ErrorResponse.FieldError(field, amount.getOriginalMessage())));
+            }
+        }
         LOG.debug("Unreadable request body at {}", RequestPath.describe(request), ex);
         return respond(HttpStatus.BAD_REQUEST, "malformed-request",
             "The request body could not be parsed as JSON.", request);

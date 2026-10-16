@@ -1,13 +1,24 @@
 package finance.trove.app.bootstrap;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import finance.trove.app.support.AuthFlowSupport;
 import finance.trove.app.support.Json;
+import finance.trove.auth.AuthProperties;
+import finance.trove.auth.local.LocalAccountService;
+import finance.trove.auth.local.PasswordPolicyException;
+import finance.trove.common.time.TimeProperties;
+import finance.trove.households.HouseholdRepository;
+import finance.trove.users.UserRepository;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.AdditionalAnswers;
+import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.PlatformTransactionManager;
 
 /**
  * Readiness gap P2-7's first boot, asserted against the install this suite actually runs on.
@@ -101,6 +112,52 @@ class FirstRunBootstrapIT extends AuthFlowSupport {
             .isEqualTo(hashBefore);
     }
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Test
+    @DisplayName("A refused admin password rolls the household and user back (CI-42)")
+    void aRefusedPasswordLeavesNothingBehind() {
+        // The shared IT database already has users, so the real bootstrap is a no-op here. Build
+        // one over the real repositories with the "install is empty" check forced, which is the
+        // only way to drive the first-run writes against a real transaction manager.
+        UserRepository emptyLooking = Mockito.mock(UserRepository.class,
+            AdditionalAnswers.delegatesTo(users));
+        Mockito.doReturn(0L).when(emptyLooking).countAllUsers();
+        FirstRunBootstrap firstRun = new FirstRunBootstrap(
+            new BootstrapProperties("rollback-probe@trove.test", "short", "Rollback Probe Home",
+                null),
+            authProperties, timeProperties, households, emptyLooking, localAccounts,
+            transactionManager);
+
+        assertThatThrownBy(() -> firstRun.bootstrapIfEmpty(java.time.Instant.now()))
+            .isInstanceOf(PasswordPolicyException.class);
+
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT count(*) FROM households WHERE name = 'Rollback Probe Home'", Long.class))
+            .as("the household must not survive a refused credential: the next boot would see "
+                + "users, never retry, and leave an administrator with no password")
+            .isZero();
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT count(*) FROM users WHERE lower(email) = 'rollback-probe@trove.test'",
+            Long.class)).isZero();
+    }
+
+    @Autowired
     private FirstRunBootstrap bootstrap;
+
+    @Autowired
+    private UserRepository users;
+
+    @Autowired
+    private HouseholdRepository households;
+
+    @Autowired
+    private LocalAccountService localAccounts;
+
+    @Autowired
+    private AuthProperties authProperties;
+
+    @Autowired
+    private TimeProperties timeProperties;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 }

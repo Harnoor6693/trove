@@ -56,8 +56,8 @@ public class SyncStateWriter {
     /**
      * Releases the claim on <strong>every</strong> path out of a run, exceptions included.
      *
-     * <p>A claim that is not released is an account nobody can ever sync again, and there is no
-     * screen anywhere that would let a member clear it.
+     * <p>A claim that is not released leaves the account answering 409 until the one-hour lease
+     * expires, and there is no screen anywhere that would let a member clear it sooner.
      *
      * @param durablyStored whether the run actually <strong>stored</strong> what it read, which
      *                      is the only thing that may move {@code last_synced_at}. Reaching the

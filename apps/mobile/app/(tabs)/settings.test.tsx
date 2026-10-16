@@ -1,6 +1,7 @@
 import React from 'react';
 import { Linking } from 'react-native';
-import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
+import * as LocalAuthentication from 'expo-local-authentication';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createTestQueryClient } from '@/test/queryClient';
 import * as SecureStore from 'expo-secure-store';
@@ -187,7 +188,7 @@ beforeEach(async () => {
 
 describe('about section', () => {
   it('links to the source code — the AGPL-3.0 section 13 offer', async () => {
-    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue();
     const { getByTestId } = await renderSettings();
     expect(within(getByTestId('settings-source-code')).getByText(/AGPL-3\.0/)).toBeTruthy();
     await fireEvent.press(getByTestId('settings-source-code'));
@@ -399,6 +400,18 @@ describe('appearance', () => {
 });
 
 describe('security section', () => {
+  it('refuses to turn the app lock on when the device has no passcode or biometrics', async () => {
+    (LocalAuthentication.getEnrolledLevelAsync as jest.Mock).mockResolvedValueOnce(0);
+    await act(async () => {
+      await useUiStore.getState().setAppLockEnabled(false);
+    });
+    const { getByTestId } = await renderSettings();
+    await fireEvent(getByTestId('settings-app-lock-toggle'), 'onToggle', true);
+    const message = await screen.findByTestId('settings-app-lock-unavailable');
+    expect(message.props.accessibilityRole).toBe('alert');
+    expect(useUiStore.getState().appLockEnabled).toBe(false);
+  });
+
   it('toggles the app lock and persists it', async () => {
     const { getByTestId } = await renderSettings();
     await fireEvent(getByTestId('settings-app-lock-toggle'), 'onToggle', false);

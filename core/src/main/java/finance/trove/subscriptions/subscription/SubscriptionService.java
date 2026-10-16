@@ -52,11 +52,15 @@ public class SubscriptionService {
         this.properties = properties;
     }
 
-    /** The household's active subscriptions, alphabetically. */
+    /**
+     * The household's active subscriptions, alphabetically: not dismissed, and still charging
+     * (see {@link DetectedSubscription#hasStopped}) by the caller's own today.
+     */
     @Transactional(readOnly = true)
-    public List<DetectedSubscription> listActive(UUID householdId) {
+    public List<DetectedSubscription> listActive(UUID householdId, UUID userId) {
+        LocalDate today = clock.today(userId);
         return subscriptions.findAllByHouseholdIdAndCancelledFalseOrderByMerchantNameAsc(
-            householdId);
+            householdId).stream().filter(subscription -> !subscription.hasStopped(today)).toList();
     }
 
     /**
@@ -90,14 +94,15 @@ public class SubscriptionService {
      * does not read figures in.
      *
      * <p>The upcoming window is counted from the CALLER's today, so two household mates in
-     * different timezones can briefly disagree about whether a charge is "in the next fourteen
-     * days". That is the right trade for a read: the window is a display convenience, whereas
+     * different timezones can briefly disagree about whether a charge is "in the next
+     * {@code trove.subscriptions.upcoming-days} days (14 by default)". That is the right trade
+     * for a read: the window is a display convenience, whereas
      * {@code nextChargeDate} itself is a stored fact about the household and is computed once, in
      * the household's own zone.
      */
     @Transactional(readOnly = true)
     public SubscriptionSummaryResponse summary(UUID householdId, UUID userId) {
-        List<DetectedSubscription> active = listActive(householdId);
+        List<DetectedSubscription> active = listActive(householdId, userId);
         CurrencyCode currency = users.findByIdAndHouseholdId(userId, householdId)
             .map(User::getCurrency)
             .orElseThrow(() -> ResourceNotFoundException.of("User", userId));

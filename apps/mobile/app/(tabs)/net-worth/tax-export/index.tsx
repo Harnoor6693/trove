@@ -11,6 +11,7 @@ import { FontFamily, FontSize, Radius, Space } from '@design/tokens';
 import { useTheme } from '@design/useTheme';
 import { toApiFailure, type ApiFailure } from '@api/errors';
 import { useUserFormat } from '@lib/useUserFormat';
+import { defaultTaxYear } from '@lib/taxYear';
 import {
   isTerminalTaxExportStatus,
   useCreateTaxExportRun,
@@ -22,8 +23,8 @@ import {
 } from '@hooks/useTaxExport';
 import type { TaxExportFile } from '@api/taxexport';
 import type { TaxExportFormat, TaxExportRunResponse } from '@api/types';
+import { keyboardScrollProps } from '@components/ui/FormScroll/FormScroll';
 
-const CURRENT_YEAR = new Date().getFullYear();
 const FORMATS: TaxExportFormat[] = ['CSV', 'PDF'];
 
 const STATUS_LABEL: Record<TaxExportRunResponse['status'], string> = {
@@ -111,6 +112,7 @@ export default function TaxExportRunsScreen() {
         testID="tax-export-runs"
       >
         <FlatList
+          {...keyboardScrollProps}
           data={rows}
           keyExtractor={(run) => run.id}
           contentContainerStyle={styles.list}
@@ -124,7 +126,7 @@ export default function TaxExportRunsScreen() {
               <Text style={[styles.footer, { color: theme.ink3 }]} testID="tax-export-loading-more">
                 Loading more…
               </Text>
-            ) : null
+            ) : undefined
           }
         />
       </ScreenState>
@@ -133,9 +135,10 @@ export default function TaxExportRunsScreen() {
 }
 
 function CreateRunForm({ onDone, testID }: { onDone: () => void; testID: string }) {
+  const { timeZone } = useUserFormat();
   const theme = useTheme();
   const create = useCreateTaxExportRun();
-  const [taxYear, setTaxYear] = useState(String(CURRENT_YEAR));
+  const [taxYear, setTaxYear] = useState(() => String(defaultTaxYear(timeZone)));
   const [taxFormat, setTaxFormat] = useState<TaxExportFormat>('CSV');
 
   const failure: ApiFailure | null =

@@ -1,5 +1,7 @@
 # notification-service — inventory for trove-core collapse
 
+> **Historical record, 2026-09-03.** Inventory of the pre-rebuild code, since removed. Current state: `docs-site/guide/architecture.md`.
+
 All paths repo-relative to the repository root. Verified against source on
 2026-09-03. Cross-checked against `docs/recovery/01-FINDINGS.md` §O (supersedes earlier
 sections) — this report agrees with and sharpens D3 and D9, and adds new verified detail

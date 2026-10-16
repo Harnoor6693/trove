@@ -1,5 +1,5 @@
 Trove, Copyright (C) the Trove contributors, licensed under the GNU Affero General Public
-License v3.0 (AGPL-3.0; see LICENSE). Source code: https://github.com/Harnoor6693/trove
+License v3.0 (AGPL-3.0-or-later; see LICENSE). Source code: https://github.com/Harnoor6693/trove
 
 This file lists the third-party components shipped with each part of Trove and
 their licences. It is generated from the real dependency manifests (commands in
@@ -8,18 +8,18 @@ AGPL-3.0) is listed first in the server section.
 
 Server: trove-core (Maven runtime and compile scope)
 ====================================================
-156 third-party components, grouped by licence.
+155 third-party components, grouped by licence.
 
 --- GNU Affero General Public License v3 (AGPL-3.0) ---
-com.itextpdf:bouncy-castle-connector:9.7.1 — GNU Affero General Public License v3
-com.itextpdf:commons:9.7.1 — GNU Affero General Public License v3
-com.itextpdf:io:9.7.1 — GNU Affero General Public License v3
-com.itextpdf:kernel:9.7.1 — GNU Affero General Public License v3
-com.itextpdf:layout:9.7.1 — GNU Affero General Public License v3
+com.itextpdf:bouncy-castle-connector:9.8.0 — GNU Affero General Public License v3
+com.itextpdf:commons:9.8.0 — GNU Affero General Public License v3
+com.itextpdf:io:9.8.0 — GNU Affero General Public License v3
+com.itextpdf:kernel:9.8.0 — GNU Affero General Public License v3
+com.itextpdf:layout:9.8.0 — GNU Affero General Public License v3
 
 --- Apache License 2.0 ---
 jakarta.validation:jakarta.validation-api:3.1.1 — Apache License 2.0
-org.hibernate.validator:hibernate-validator:9.1.0.Final — Apache License 2.0
+org.hibernate.validator:hibernate-validator:9.1.3.Final — Apache License 2.0
 org.jboss.logging:jboss-logging:3.6.3.Final — Apache License 2.0
 
 --- Apache License Version 2.0 ---
@@ -28,89 +28,89 @@ org.hibernate.models:hibernate-models:1.1.1 — Apache License Version 2.0
 --- Apache License, Version 2.0 ---
 com.fasterxml:classmate:1.7.3 — Apache License, Version 2.0
 com.github.stephenc.jcip:jcip-annotations:1.0-1 — Apache License, Version 2.0
-net.bytebuddy:byte-buddy:1.18.10 — Apache License, Version 2.0
-org.apache.httpcomponents.client5:httpclient5:5.6.3 — Apache License, Version 2.0
-org.apache.httpcomponents.core5:httpcore5-h2:5.4.3 — Apache License, Version 2.0
-org.apache.httpcomponents.core5:httpcore5:5.4.3 — Apache License, Version 2.0
-org.apache.tomcat.embed:tomcat-embed-core:11.0.26 — Apache License, Version 2.0
-org.apache.tomcat.embed:tomcat-embed-el:11.0.26 — Apache License, Version 2.0
-org.apache.tomcat.embed:tomcat-embed-websocket:11.0.26 — Apache License, Version 2.0
+net.bytebuddy:byte-buddy:1.18.11 — Apache License, Version 2.0
+org.apache.httpcomponents.client5:httpclient5:5.6.5 — Apache License, Version 2.0
+org.apache.httpcomponents.core5:httpcore5-h2:5.4.4 — Apache License, Version 2.0
+org.apache.httpcomponents.core5:httpcore5:5.4.4 — Apache License, Version 2.0
+org.apache.tomcat.embed:tomcat-embed-core:11.0.27 — Apache License, Version 2.0
+org.apache.tomcat.embed:tomcat-embed-el:11.0.27 — Apache License, Version 2.0
+org.apache.tomcat.embed:tomcat-embed-websocket:11.0.27 — Apache License, Version 2.0
 org.flywaydb:flyway-core:12.11.0 — Apache License, Version 2.0
 org.flywaydb:flyway-database-postgresql:12.11.0 — Apache License, Version 2.0
-org.hibernate.orm:hibernate-core:7.4.1.Final — Apache License, Version 2.0
-org.springframework.boot:spring-boot-actuator-autoconfigure:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-actuator:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-autoconfigure:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-configuration-processor:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-data-commons:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-data-jpa:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-flyway:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-health:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-hibernate:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-http-client:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-http-converter:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-jackson:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-jdbc:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-jpa:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-mail:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-micrometer-metrics:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-micrometer-observation:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-persistence:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-restclient:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-security-oauth2-client:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-security:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-servlet:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-sql:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-starter-actuator:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-starter-data-jpa:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-starter-jackson:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-starter-jdbc:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-starter-logging:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-starter-mail:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-starter-micrometer-metrics:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-starter-oauth2-client:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-starter-security:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-starter-thymeleaf:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-starter-tomcat-runtime:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-starter-tomcat:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-starter-validation:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-starter-web:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-starter:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-thymeleaf:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-tomcat:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-transaction:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-validation:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-web-server:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot-webmvc:4.1.0 — Apache License, Version 2.0
-org.springframework.boot:spring-boot:4.1.0 — Apache License, Version 2.0
-org.springframework.data:spring-data-commons:4.1.0 — Apache License, Version 2.0
-org.springframework.data:spring-data-jpa:4.1.0 — Apache License, Version 2.0
-org.springframework.security:spring-security-config:7.1.0 — Apache License, Version 2.0
-org.springframework.security:spring-security-core:7.1.0 — Apache License, Version 2.0
-org.springframework.security:spring-security-crypto:7.1.0 — Apache License, Version 2.0
-org.springframework.security:spring-security-oauth2-client:7.1.0 — Apache License, Version 2.0
-org.springframework.security:spring-security-oauth2-core:7.1.0 — Apache License, Version 2.0
-org.springframework.security:spring-security-oauth2-jose:7.1.0 — Apache License, Version 2.0
-org.springframework.security:spring-security-web:7.1.0 — Apache License, Version 2.0
-org.springframework:spring-aop:7.0.8 — Apache License, Version 2.0
-org.springframework:spring-aspects:7.0.8 — Apache License, Version 2.0
-org.springframework:spring-beans:7.0.8 — Apache License, Version 2.0
-org.springframework:spring-context-support:7.0.8 — Apache License, Version 2.0
-org.springframework:spring-context:7.0.8 — Apache License, Version 2.0
-org.springframework:spring-core:7.0.8 — Apache License, Version 2.0
-org.springframework:spring-expression:7.0.8 — Apache License, Version 2.0
-org.springframework:spring-jdbc:7.0.8 — Apache License, Version 2.0
-org.springframework:spring-orm:7.0.8 — Apache License, Version 2.0
-org.springframework:spring-tx:7.0.8 — Apache License, Version 2.0
-org.springframework:spring-web:7.0.8 — Apache License, Version 2.0
-org.springframework:spring-webmvc:7.0.8 — Apache License, Version 2.0
+org.hibernate.orm:hibernate-core:7.4.5.Final — Apache License, Version 2.0
+org.springframework.boot:spring-boot-actuator-autoconfigure:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-actuator:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-autoconfigure:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-configuration-processor:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-data-commons:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-data-jpa:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-flyway:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-health:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-hibernate:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-http-client:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-http-converter:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-jackson:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-jdbc:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-jpa:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-mail:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-micrometer-metrics:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-micrometer-observation:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-persistence:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-restclient:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-security-oauth2-client:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-security:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-servlet:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-sql:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-starter-actuator:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-starter-data-jpa:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-starter-jackson:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-starter-jdbc:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-starter-logging:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-starter-mail:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-starter-micrometer-metrics:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-starter-oauth2-client:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-starter-security:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-starter-thymeleaf:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-starter-tomcat-runtime:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-starter-tomcat:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-starter-validation:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-starter-web:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-starter:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-thymeleaf:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-tomcat:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-transaction:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-validation:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-web-server:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot-webmvc:4.1.1 — Apache License, Version 2.0
+org.springframework.boot:spring-boot:4.1.1 — Apache License, Version 2.0
+org.springframework.data:spring-data-commons:4.1.1 — Apache License, Version 2.0
+org.springframework.data:spring-data-jpa:4.1.1 — Apache License, Version 2.0
+org.springframework.security:spring-security-config:7.1.1 — Apache License, Version 2.0
+org.springframework.security:spring-security-core:7.1.1 — Apache License, Version 2.0
+org.springframework.security:spring-security-crypto:7.1.1 — Apache License, Version 2.0
+org.springframework.security:spring-security-oauth2-client:7.1.1 — Apache License, Version 2.0
+org.springframework.security:spring-security-oauth2-core:7.1.1 — Apache License, Version 2.0
+org.springframework.security:spring-security-oauth2-jose:7.1.1 — Apache License, Version 2.0
+org.springframework.security:spring-security-web:7.1.1 — Apache License, Version 2.0
+org.springframework:spring-aop:7.0.9 — Apache License, Version 2.0
+org.springframework:spring-aspects:7.0.9 — Apache License, Version 2.0
+org.springframework:spring-beans:7.0.9 — Apache License, Version 2.0
+org.springframework:spring-context-support:7.0.9 — Apache License, Version 2.0
+org.springframework:spring-context:7.0.9 — Apache License, Version 2.0
+org.springframework:spring-core:7.0.9 — Apache License, Version 2.0
+org.springframework:spring-expression:7.0.9 — Apache License, Version 2.0
+org.springframework:spring-jdbc:7.0.9 — Apache License, Version 2.0
+org.springframework:spring-orm:7.0.9 — Apache License, Version 2.0
+org.springframework:spring-tx:7.0.9 — Apache License, Version 2.0
+org.springframework:spring-web:7.0.9 — Apache License, Version 2.0
+org.springframework:spring-webmvc:7.0.9 — Apache License, Version 2.0
 org.yaml:snakeyaml:2.6 — Apache License, Version 2.0
-
---- Apache License, version 2.0 ---
-com.nimbusds:oauth2-oidc-sdk:11.37.2 — Apache License, version 2.0
 
 --- Apache License, Version 2.0 / MIT License ---
 net.logstash.logback:logstash-logback-encoder:9.0 — Apache License, Version 2.0 / MIT License
+
+--- Apache License, version 2.0 ---
+com.nimbusds:oauth2-oidc-sdk:11.38.2 — Apache License, version 2.0
 
 --- Apache-2.0 ---
 commons-codec:commons-codec:1.21.0 — Apache-2.0
@@ -120,14 +120,11 @@ io.jsonwebtoken:jjwt-api:0.13.0 — Apache-2.0
 io.jsonwebtoken:jjwt-impl:0.13.0 — Apache-2.0
 io.jsonwebtoken:jjwt-jackson:0.13.0 — Apache-2.0
 org.apache.commons:commons-csv:1.14.1 — Apache-2.0
-org.apache.logging.log4j:log4j-api:2.25.4 — Apache-2.0
-org.apache.logging.log4j:log4j-to-slf4j:2.25.4 — Apache-2.0
-
---- Bouncy Castle Licence ---
-org.bouncycastle:bcprov-jdk18on:1.86 — Bouncy Castle Licence
+org.apache.logging.log4j:log4j-api:2.25.5 — Apache-2.0
+org.apache.logging.log4j:log4j-to-slf4j:2.25.5 — Apache-2.0
 
 --- BSD-2-Clause ---
-org.postgresql:postgresql:42.7.13 — BSD-2-Clause
+org.postgresql:postgresql:42.7.14 — BSD-2-Clause
 
 --- BSD-2-Clause / Public Domain, per Creative Commons CC0 ---
 org.hdrhistogram:HdrHistogram:2.2.2 — BSD-2-Clause / Public Domain, per Creative Commons CC0
@@ -136,18 +133,8 @@ org.hdrhistogram:HdrHistogram:2.2.2 — BSD-2-Clause / Public Domain, per Creati
 org.antlr:antlr4-runtime:4.13.2 — BSD-3-Clause
 org.ow2.asm:asm:9.7.1 — BSD-3-Clause
 
---- Eclipse Distribution License - v 1.0 ---
-com.sun.istack:istack-commons-runtime:4.1.2 — Eclipse Distribution License - v 1.0
-jakarta.xml.bind:jakarta.xml.bind-api:4.0.5 — Eclipse Distribution License - v 1.0
-org.glassfish.jaxb:jaxb-core:4.0.9 — Eclipse Distribution License - v 1.0
-org.glassfish.jaxb:jaxb-runtime:4.0.9 — Eclipse Distribution License - v 1.0
-org.glassfish.jaxb:txw2:4.0.9 — Eclipse Distribution License - v 1.0
-
---- Eclipse Distribution License v. 1.0 / Eclipse Public License v. 2.0 ---
-jakarta.persistence:jakarta.persistence-api:3.2.0 — Eclipse Distribution License v. 1.0 / Eclipse Public License v. 2.0
-
---- Eclipse Public License - v 2.0 ---
-org.aspectj:aspectjweaver:1.9.25.1 — Eclipse Public License - v 2.0
+--- Bouncy Castle Licence ---
+org.bouncycastle:bcprov-jdk18on:1.86 — Bouncy Castle Licence
 
 --- EDL 1.0 ---
 jakarta.activation:jakarta.activation-api:2.1.4 — EDL 1.0
@@ -162,39 +149,52 @@ jakarta.annotation:jakarta.annotation-api:3.0.0 — EPL 2.0 / GPL2 w/ CPE
 jakarta.transaction:jakarta.transaction-api:2.0.1 — EPL 2.0 / GPL2 w/ CPE
 
 --- EPL-2.0 / LGPL-2.1-only ---
-ch.qos.logback:logback-classic:1.5.34 — EPL-2.0 / LGPL-2.1-only
-ch.qos.logback:logback-core:1.5.34 — EPL-2.0 / LGPL-2.1-only
+ch.qos.logback:logback-classic:1.5.38 — EPL-2.0 / LGPL-2.1-only
+ch.qos.logback:logback-core:1.5.38 — EPL-2.0 / LGPL-2.1-only
+
+--- Eclipse Distribution License - v 1.0 ---
+com.sun.istack:istack-commons-runtime:4.1.2 — Eclipse Distribution License - v 1.0
+jakarta.xml.bind:jakarta.xml.bind-api:4.0.5 — Eclipse Distribution License - v 1.0
+org.glassfish.jaxb:jaxb-core:4.0.9 — Eclipse Distribution License - v 1.0
+org.glassfish.jaxb:jaxb-runtime:4.0.9 — Eclipse Distribution License - v 1.0
+org.glassfish.jaxb:txw2:4.0.9 — Eclipse Distribution License - v 1.0
+
+--- Eclipse Distribution License v. 1.0 / Eclipse Public License v. 2.0 ---
+jakarta.persistence:jakarta.persistence-api:3.2.0 — Eclipse Distribution License v. 1.0 / Eclipse Public License v. 2.0
+
+--- Eclipse Public License - v 2.0 ---
+org.aspectj:aspectjweaver:1.9.25.1 — Eclipse Public License - v 2.0
 
 --- MIT ---
 org.slf4j:jul-to-slf4j:2.0.18 — MIT
 org.slf4j:slf4j-api:2.0.18 — MIT
 
 --- MIT License ---
-net.coobird:thumbnailator:0.4.20 — MIT License
+net.coobird:thumbnailator:0.4.21 — MIT License
 
 --- The Apache License, Version 2.0 ---
-org.jspecify:jspecify:1.0.0 — The Apache License, Version 2.0
+org.jspecify:jspecify:1.0.1 — The Apache License, Version 2.0
 
 --- The Apache Software License, Version 2.0 ---
 com.bucket4j:bucket4j-core:8.10.1 — The Apache Software License, Version 2.0
-com.fasterxml.jackson.core:jackson-annotations:2.21 — The Apache Software License, Version 2.0
-com.fasterxml.jackson.core:jackson-core:2.21.4 — The Apache Software License, Version 2.0
-com.fasterxml.jackson.core:jackson-databind:2.21.4 — The Apache Software License, Version 2.0
+com.fasterxml.jackson.core:jackson-annotations:2.22 — The Apache Software License, Version 2.0
+com.fasterxml.jackson.core:jackson-core:2.22.3 — The Apache Software License, Version 2.0
+com.fasterxml.jackson.core:jackson-databind:2.22.3 — The Apache Software License, Version 2.0
 com.nimbusds:content-type:2.3 — The Apache Software License, Version 2.0
 com.nimbusds:lang-tag:1.7 — The Apache Software License, Version 2.0
-com.nimbusds:nimbus-jose-jwt:10.9 — The Apache Software License, Version 2.0
+com.nimbusds:nimbus-jose-jwt:10.9.1 — The Apache Software License, Version 2.0
 com.zaxxer:HikariCP:7.0.2 — The Apache Software License, Version 2.0
-io.micrometer:micrometer-commons:1.17.0 — The Apache Software License, Version 2.0
-io.micrometer:micrometer-core:1.17.0 — The Apache Software License, Version 2.0
-io.micrometer:micrometer-jakarta9:1.17.0 — The Apache Software License, Version 2.0
-io.micrometer:micrometer-observation:1.17.0 — The Apache Software License, Version 2.0
-io.micrometer:micrometer-registry-prometheus:1.17.0 — The Apache Software License, Version 2.0
-io.prometheus:prometheus-metrics-config:1.5.1 — The Apache Software License, Version 2.0
-io.prometheus:prometheus-metrics-core:1.5.1 — The Apache Software License, Version 2.0
-io.prometheus:prometheus-metrics-exposition-formats:1.5.1 — The Apache Software License, Version 2.0
-io.prometheus:prometheus-metrics-exposition-textformats:1.5.1 — The Apache Software License, Version 2.0
-io.prometheus:prometheus-metrics-model:1.5.1 — The Apache Software License, Version 2.0
-io.prometheus:prometheus-metrics-tracer-common:1.5.1 — The Apache Software License, Version 2.0
+io.micrometer:micrometer-commons:1.17.1 — The Apache Software License, Version 2.0
+io.micrometer:micrometer-core:1.17.1 — The Apache Software License, Version 2.0
+io.micrometer:micrometer-jakarta9:1.17.1 — The Apache Software License, Version 2.0
+io.micrometer:micrometer-observation:1.17.1 — The Apache Software License, Version 2.0
+io.micrometer:micrometer-registry-prometheus:1.17.1 — The Apache Software License, Version 2.0
+io.prometheus:prometheus-metrics-config:1.7.0 — The Apache Software License, Version 2.0
+io.prometheus:prometheus-metrics-core:1.7.0 — The Apache Software License, Version 2.0
+io.prometheus:prometheus-metrics-exposition-formats:1.7.0 — The Apache Software License, Version 2.0
+io.prometheus:prometheus-metrics-exposition-textformats:1.7.0 — The Apache Software License, Version 2.0
+io.prometheus:prometheus-metrics-model:1.7.0 — The Apache Software License, Version 2.0
+io.prometheus:prometheus-metrics-tracer-common:1.7.0 — The Apache Software License, Version 2.0
 jakarta.inject:jakarta.inject-api:2.0.1 — The Apache Software License, Version 2.0
 net.javacrumbs.shedlock:shedlock-core:6.10.0 — The Apache Software License, Version 2.0
 net.javacrumbs.shedlock:shedlock-provider-jdbc-template:6.10.0 — The Apache Software License, Version 2.0
@@ -205,16 +205,15 @@ org.attoparser:attoparser:2.0.7.RELEASE — The Apache Software License, Version
 org.thymeleaf:thymeleaf-spring6:3.1.5.RELEASE — The Apache Software License, Version 2.0
 org.thymeleaf:thymeleaf:3.1.5.RELEASE — The Apache Software License, Version 2.0
 org.unbescape:unbescape:1.1.6.RELEASE — The Apache Software License, Version 2.0
-tools.jackson.core:jackson-core:3.1.4 — The Apache Software License, Version 2.0
-tools.jackson.core:jackson-databind:3.1.4 — The Apache Software License, Version 2.0
+tools.jackson.core:jackson-core:3.2.3 — The Apache Software License, Version 2.0
+tools.jackson.core:jackson-databind:3.2.3 — The Apache Software License, Version 2.0
 
 --- The MIT License ---
 org.checkerframework:checker-qual:3.55.1 — The MIT License
-org.projectlombok:lombok:1.18.46 — The MIT License
 
 Web app: apps/web (npm production dependencies)
 ===============================================
-77 third-party components, grouped by licence.
+78 third-party components, grouped by licence.
 
 --- BSD-3-Clause ---
 d3-ease@3.0.1 — BSD-3-Clause
@@ -234,11 +233,10 @@ internmap@2.0.3 — ISC
 
 --- MIT ---
 @reduxjs/toolkit@2.11.2 — MIT
-@remix-run/router@1.23.4 — MIT
 @standard-schema/spec@1.1.0 — MIT
 @standard-schema/utils@0.3.0 — MIT
-@tanstack/query-core@5.101.4 — MIT
-@tanstack/react-query@5.101.4 — MIT
+@tanstack/query-core@5.104.2 — MIT
+@tanstack/react-query@5.104.2 — MIT
 @types/d3-array@3.2.2 — MIT
 @types/d3-color@3.1.3 — MIT
 @types/d3-ease@3.0.2 — MIT
@@ -248,14 +246,15 @@ internmap@2.0.3 — ISC
 @types/d3-shape@3.1.8 — MIT
 @types/d3-time@3.0.4 — MIT
 @types/d3-timer@3.0.2 — MIT
-@types/react@19.2.18 — MIT
+@types/react@19.3.0 — MIT
 @types/use-sync-external-store@0.0.6 — MIT
 agent-base@6.0.2 — MIT
 asynckit@0.4.0 — MIT
-axios@1.19.0 — MIT
+axios@1.20.0 — MIT
 call-bind-apply-helpers@1.0.2 — MIT
 clsx@2.1.1 — MIT
 combined-stream@1.0.8 — MIT
+cookie@1.1.1 — MIT
 csstype@3.2.3 — MIT
 debug@4.4.3 — MIT
 decimal.js-light@2.5.1 — MIT
@@ -283,27 +282,28 @@ mime-db@1.52.0 — MIT
 mime-types@2.1.35 — MIT
 ms@2.1.3 — MIT
 proxy-from-env@2.1.0 — MIT
-react-dom@19.2.8 — MIT
+react-dom@19.3.0 — MIT
 react-is@17.0.2 — MIT
 react-redux@9.2.0 — MIT
-react-router-dom@6.30.6 — MIT
-react-router@6.30.6 — MIT
-react@19.2.8 — MIT
+react-router-dom@7.18.4 — MIT
+react-router@7.18.4 — MIT
+react@19.3.0 — MIT
 recharts@3.10.1 — MIT
 redux-thunk@3.1.0 — MIT
 redux@5.0.1 — MIT
 reselect@5.2.0 — MIT
-scheduler@0.27.0 — MIT
+scheduler@0.28.0 — MIT
+set-cookie-parser@2.7.2 — MIT
 tiny-invariant@1.3.3 — MIT
 use-sync-external-store@1.6.0 — MIT
-zustand@5.0.14 — MIT
+zustand@5.0.15 — MIT
 
 --- MIT AND ISC ---
 victory-vendor@37.3.6 — MIT AND ISC
 
 Mobile app: apps/mobile (npm production dependencies)
 =====================================================
-796 third-party components, grouped by licence.
+756 third-party components, grouped by licence.
 
 --- (BSD-3-Clause OR GPL-2.0) ---
 node-forge@1.4.0 — (BSD-3-Clause OR GPL-2.0)
@@ -317,30 +317,17 @@ type-fest@0.7.1 — (MIT OR CC0-1.0)
 
 --- 0BSD ---
 jsc-safe-url@0.2.4 — 0BSD
-tslib@2.8.1 — 0BSD
 
 --- Apache-2.0 ---
 baseline-browser-mapping@2.11.20 — Apache-2.0
 bser@2.1.1 — Apache-2.0
-chrome-launcher@0.15.2 — Apache-2.0
-chromium-edge-launcher@0.3.0 — Apache-2.0
 detect-libc@2.1.2 — Apache-2.0
 exponential-backoff@3.1.3 — Apache-2.0
 fb-watchman@2.0.2 — Apache-2.0
 human-signals@2.1.0 — Apache-2.0
-lighthouse-logger@1.4.2 — Apache-2.0
-marky@1.3.0 — Apache-2.0
 typescript@5.9.3 — Apache-2.0
 walker@1.0.8 — Apache-2.0
 xcode@3.0.1 — Apache-2.0
-
---- BlueOak-1.0.0 ---
-glob@13.0.6 — BlueOak-1.0.0
-lru-cache@11.5.3 — BlueOak-1.0.0
-minimatch@10.2.5 — BlueOak-1.0.0
-minipass@7.1.3 — BlueOak-1.0.0
-path-scurry@2.0.2 — BlueOak-1.0.0
-sax@1.6.0 — BlueOak-1.0.0
 
 --- BSD-2-Clause ---
 css-select@5.2.2 — BSD-2-Clause
@@ -350,20 +337,18 @@ domhandler@5.0.3 — BSD-2-Clause
 domutils@3.2.2 — BSD-2-Clause
 entities@4.5.0 — BSD-2-Clause
 esprima@4.0.1 — BSD-2-Clause
-fontfaceobserver@2.3.0 — BSD-2-Clause
 nth-check@2.1.1 — BSD-2-Clause
 regjsparser@0.13.1 — BSD-2-Clause
 terser@5.46.2 — BSD-2-Clause
 
 --- BSD-3-Clause ---
-@expo/xcpretty@4.4.5 — BSD-3-Clause
-@react-native/debugger-frontend@0.86.3 — BSD-3-Clause
+@react-native/debugger-frontend@0.88.0 — BSD-3-Clause
+@react-native/debugger-frontend@0.88.0-rc.4 — BSD-3-Clause
 @sinonjs/commons@3.0.1 — BSD-3-Clause
 @sinonjs/fake-timers@10.3.0 — BSD-3-Clause
 babel-plugin-istanbul@6.1.1 — BSD-3-Clause
 d3-ease@3.0.1 — BSD-3-Clause
 d3-voronoi@1.1.4 — BSD-3-Clause
-hoist-non-react-statics@3.3.2 — BSD-3-Clause
 istanbul-lib-coverage@3.2.2 — BSD-3-Clause
 istanbul-lib-instrument@5.2.1 — BSD-3-Clause
 istanbul-lib-instrument@6.0.3 — BSD-3-Clause
@@ -371,11 +356,19 @@ istanbul-lib-report@3.0.1 — BSD-3-Clause
 istanbul-lib-source-maps@4.0.1 — BSD-3-Clause
 istanbul-reports@3.2.0 — BSD-3-Clause
 makeerror@1.0.12 — BSD-3-Clause
-source-map-js@1.2.1 — BSD-3-Clause
+source-map-js@1.2.2 — BSD-3-Clause
 source-map@0.5.7 — BSD-3-Clause
 source-map@0.6.1 — BSD-3-Clause
 sprintf-js@1.0.3 — BSD-3-Clause
 tmpl@1.0.5 — BSD-3-Clause
+
+--- BlueOak-1.0.0 ---
+glob@13.0.6 — BlueOak-1.0.0
+lru-cache@11.5.3 — BlueOak-1.0.0
+minimatch@10.2.5 — BlueOak-1.0.0
+minipass@7.1.3 — BlueOak-1.0.0
+path-scurry@2.0.2 — BlueOak-1.0.0
+sax@1.6.1 — BlueOak-1.0.0
 
 --- CC-BY-4.0 ---
 caniuse-lite@1.0.30001810 — CC-BY-4.0
@@ -434,10 +427,10 @@ wrappy@1.0.2 — ISC
 write-file-atomic@4.0.2 — ISC
 y18n@5.0.8 — ISC
 yallist@3.1.1 — ISC
-yaml@2.8.4 — ISC
 yargs-parser@21.1.1 — ISC
 
 --- MIT ---
+2g@1.0.1 — MIT
 @babel/code-frame@7.29.7 — MIT
 @babel/compat-data@7.29.7 — MIT
 @babel/core@7.29.7 — MIT
@@ -521,43 +514,42 @@ yargs-parser@21.1.1 — ISC
 @babel/traverse@7.29.7 — MIT
 @babel/types@7.29.7 — MIT
 @bcoe/v8-coverage@0.2.3 — MIT
-@egjs/hammerjs@2.0.17 — MIT
-@expo/cli@57.0.27 — MIT
-@expo/code-signing-certificates@0.0.6 — MIT
-@expo/config-plugins@57.0.9 — MIT
-@expo/config-types@57.0.2 — MIT
-@expo/config@57.0.9 — MIT
-@expo/devcert@1.2.1 — MIT
-@expo/devtools@57.0.1 — MIT
-@expo/dom-webview@57.0.1 — MIT
-@expo/env@2.4.3 — MIT
-@expo/expo-modules-macros-plugin@0.6.1 — MIT
-@expo/fingerprint@0.20.13 — MIT
-@expo/image-utils@0.11.5 — MIT
-@expo/inline-modules@0.1.7 — MIT
-@expo/json-file@11.0.1 — MIT
-@expo/local-build-cache-provider@57.0.8 — MIT
-@expo/log-box@57.0.4 — MIT
-@expo/metro-config@57.0.12 — MIT
-@expo/metro-file-map@57.0.3 — MIT
-@expo/metro-runtime@57.0.16 — MIT
-@expo/metro@56.0.2 — MIT
-@expo/osascript@2.7.1 — MIT
-@expo/package-manager@1.13.1 — MIT
-@expo/plist@0.8.1 — MIT
-@expo/prebuild-config@57.0.16 — MIT
-@expo/require-utils@57.0.5 — MIT
-@expo/router-server@57.0.11 — MIT
-@expo/schema-utils@57.0.2 — MIT
-@expo/sdk-runtime-versions@1.0.0 — MIT
+@expo/cli@58.1.9 — MIT
+@expo/code-signing-certificates@0.0.7 — MIT
+@expo/config-plugins@58.0.9 — MIT
+@expo/config-types@58.0.3 — MIT
+@expo/config@58.0.6 — MIT
+@expo/devcert@1.2.2 — MIT
+@expo/devtools@58.0.2 — MIT
+@expo/dom-webview@58.0.2 — MIT
+@expo/env@2.5.2 — MIT
+@expo/fingerprint@0.21.5 — MIT
+@expo/image-utils@0.12.5 — MIT
+@expo/inline-modules@0.2.6 — MIT
+@expo/json-file@11.2.1 — MIT
+@expo/local-build-cache-provider@58.0.6 — MIT
+@expo/log-box-utils@58.0.2 — MIT
+@expo/log-box@58.0.12 — MIT
+@expo/metro-config@58.0.14 — MIT
+@expo/metro-file-map@58.0.5 — MIT
+@expo/metro-runtime@58.0.14 — MIT
+@expo/metro@58.0.0 — MIT
+@expo/osascript@2.8.1 — MIT
+@expo/package-manager@1.14.2 — MIT
+@expo/platforms@58.0.1 — MIT
+@expo/plist@0.10.1 — MIT
+@expo/prebuild-config@58.0.14 — MIT
+@expo/require-utils@58.0.4 — MIT
+@expo/router-server@58.0.14 — MIT
+@expo/schema-utils@58.0.1 — MIT
+@expo/sdk-runtime-versions@1.0.1 — MIT
 @expo/spawn-async@1.8.0 — MIT
 @expo/sudo-prompt@9.3.2 — MIT
-@expo/ui@57.0.20 — MIT
-@expo/ws-tunnel@2.0.0 — MIT
+@expo/ws-tunnel@2.0.1 — MIT
+@expo/xcpretty@4.4.7 — MIT
 @istanbuljs/schema@0.1.6 — MIT
 @jest/console@29.7.0 — MIT
 @jest/core@29.7.0 — MIT
-@jest/create-cache-key-function@29.7.0 — MIT
 @jest/diff-sequences@30.4.0 — MIT
 @jest/environment@29.7.0 — MIT
 @jest/expect-utils@29.7.0 — MIT
@@ -579,45 +571,46 @@ yargs-parser@21.1.1 — ISC
 @jridgewell/source-map@0.3.11 — MIT
 @jridgewell/sourcemap-codec@1.5.5 — MIT
 @jridgewell/trace-mapping@0.3.31 — MIT
+@noxcturnal/noxcturnal-darwin-arm64@0.1.1 — MIT
+@oxc-project/types@0.141.0 — MIT
 @radix-ui/primitive@1.1.3 — MIT
 @radix-ui/react-collection@1.1.7 — MIT
 @radix-ui/react-compose-refs@1.1.2 — MIT
+@radix-ui/react-compose-refs@1.1.5 — MIT
 @radix-ui/react-context@1.1.2 — MIT
-@radix-ui/react-dialog@1.1.15 — MIT
 @radix-ui/react-direction@1.1.1 — MIT
-@radix-ui/react-dismissable-layer@1.1.11 — MIT
-@radix-ui/react-focus-guards@1.1.3 — MIT
-@radix-ui/react-focus-scope@1.1.7 — MIT
 @radix-ui/react-id@1.1.1 — MIT
-@radix-ui/react-portal@1.1.9 — MIT
 @radix-ui/react-presence@1.1.5 — MIT
 @radix-ui/react-primitive@2.1.3 — MIT
 @radix-ui/react-roving-focus@1.1.11 — MIT
-@radix-ui/react-slot@1.2.0 — MIT
 @radix-ui/react-slot@1.2.3 — MIT
+@radix-ui/react-slot@1.5.0 — MIT
 @radix-ui/react-tabs@1.1.13 — MIT
 @radix-ui/react-use-callback-ref@1.1.1 — MIT
 @radix-ui/react-use-controllable-state@1.2.2 — MIT
 @radix-ui/react-use-effect-event@0.0.2 — MIT
-@radix-ui/react-use-escape-keydown@1.1.1 — MIT
 @radix-ui/react-use-layout-effect@1.1.1 — MIT
 @react-native-masked-view/masked-view@0.3.2 — MIT
-@react-native/assets-registry@0.86.3 — MIT
-@react-native/babel-plugin-codegen@0.86.3 — MIT
-@react-native/codegen@0.86.3 — MIT
-@react-native/community-cli-plugin@0.86.3 — MIT
-@react-native/debugger-shell@0.86.3 — MIT
-@react-native/dev-middleware@0.86.3 — MIT
-@react-native/gradle-plugin@0.86.3 — MIT
-@react-native/jest-preset@0.86.3 — MIT
-@react-native/js-polyfills@0.86.3 — MIT
-@react-native/normalize-colors@0.86.3 — MIT
-@react-native/virtualized-lists@0.86.3 — MIT
+@react-native/asset-utils@0.88.0 — MIT
+@react-native/asset-utils@0.88.0-rc.4 — MIT
+@react-native/babel-plugin-codegen@0.88.0 — MIT
+@react-native/codegen@0.88.0 — MIT
+@react-native/codegen@0.88.0-rc.4 — MIT
+@react-native/community-cli-plugin@0.88.0-rc.4 — MIT
+@react-native/debugger-shell@0.88.0 — MIT
+@react-native/debugger-shell@0.88.0-rc.4 — MIT
+@react-native/dev-middleware@0.88.0 — MIT
+@react-native/dev-middleware@0.88.0-rc.4 — MIT
+@react-native/gradle-plugin@0.88.0-rc.4 — MIT
+@react-native/js-polyfills@0.88.0 — MIT
+@react-native/normalize-colors@0.88.0 — MIT
+@react-native/normalize-colors@0.88.0-rc.4 — MIT
+@react-native/virtualized-lists@0.88.0-rc.4 — MIT
 @sinclair/typebox@0.27.10 — MIT
 @sinclair/typebox@0.34.49 — MIT
-@tanstack/query-core@5.101.4 — MIT
-@tanstack/react-query@5.101.4 — MIT
-@testing-library/react-native@13.3.3 — MIT
+@tanstack/query-core@5.104.2 — MIT
+@tanstack/react-query@5.104.2 — MIT
+@testing-library/react-native@14.1.0 — MIT
 @types/babel__core@7.20.5 — MIT
 @types/babel__generator@7.27.0 — MIT
 @types/babel__template@7.4.4 — MIT
@@ -632,19 +625,18 @@ yargs-parser@21.1.1 — ISC
 @types/d3-time@3.0.4 — MIT
 @types/d3-timer@3.0.2 — MIT
 @types/graceful-fs@4.1.9 — MIT
-@types/hammerjs@2.0.46 — MIT
 @types/istanbul-lib-coverage@2.0.6 — MIT
 @types/istanbul-lib-report@3.0.3 — MIT
 @types/istanbul-reports@3.0.4 — MIT
 @types/node@18.19.130 — MIT
+@types/react-reconciler@0.34.0 — MIT
 @types/react-test-renderer@19.3.0 — MIT
-@types/react@19.2.18 — MIT
+@types/react@19.3.0 — MIT
 @types/stack-utils@2.0.3 — MIT
 @types/yargs-parser@21.0.3 — MIT
 @types/yargs@17.0.35 — MIT
 @xmldom/xmldom@0.8.15 — MIT
 @xmldom/xmldom@0.9.12 — MIT
-abort-controller@3.0.0 — MIT
 accepts@1.3.8 — MIT
 accepts@2.0.0 — MIT
 acorn@8.16.0 — MIT
@@ -660,22 +652,20 @@ ansi-styles@4.3.0 — MIT
 ansi-styles@5.2.0 — MIT
 arg@5.0.2 — MIT
 argparse@1.0.10 — MIT
-aria-hidden@1.2.6 — MIT
 asap@2.0.6 — MIT
 asynckit@0.4.0 — MIT
-axios@1.19.0 — MIT
+axios@1.20.0 — MIT
 babel-jest@29.7.0 — MIT
 babel-plugin-jest-hoist@29.6.3 — MIT
 babel-plugin-polyfill-corejs2@0.4.17 — MIT
 babel-plugin-polyfill-corejs3@0.13.0 — MIT
 babel-plugin-polyfill-regenerator@0.6.8 — MIT
 babel-plugin-react-compiler@1.0.0 — MIT
-babel-plugin-react-native-web@0.21.3 — MIT
+babel-plugin-react-native-web@0.21.4 — MIT
 babel-plugin-syntax-hermes-parser@0.36.0 — MIT
-babel-plugin-syntax-hermes-parser@0.36.1 — MIT
 babel-plugin-transform-flow-enums@0.0.2 — MIT
 babel-preset-current-node-syntax@1.2.0 — MIT
-babel-preset-expo@57.0.13 — MIT
+babel-preset-expo@58.0.15 — MIT
 babel-preset-jest@29.6.3 — MIT
 balanced-match@1.0.2 — MIT
 balanced-match@4.0.4 — MIT
@@ -683,8 +673,8 @@ base64-js@1.5.1 — MIT
 bplist-creator@0.1.0 — MIT
 bplist-parser@0.3.1 — MIT
 bplist-parser@0.3.2 — MIT
-brace-expansion@1.1.18 — MIT
-brace-expansion@5.0.9 — MIT
+brace-expansion@1.1.21 — MIT
+brace-expansion@5.0.12 — MIT
 braces@3.0.3 — MIT
 browserslist@4.28.8 — MIT
 buffer-from@1.1.2 — MIT
@@ -696,7 +686,6 @@ camelcase@6.3.0 — MIT
 chalk@2.4.2 — MIT
 chalk@4.1.2 — MIT
 char-regex@1.0.2 — MIT
-ci-info@2.0.0 — MIT
 ci-info@3.9.0 — MIT
 cjs-module-lexer@1.4.3 — MIT
 cli-cursor@2.1.0 — MIT
@@ -730,15 +719,14 @@ date-fns@4.4.0 — MIT
 debug@2.6.9 — MIT
 debug@3.2.7 — MIT
 debug@4.4.3 — MIT
-decode-uri-component@0.2.2 — MIT
 dedent@1.7.2 — MIT
 deepmerge@4.3.1 — MIT
 defaults@1.0.4 — MIT
+define-lazy-prop@2.0.0 — MIT
 delayed-stream@1.0.0 — MIT
 depd@2.0.0 — MIT
 destroy@1.2.0 — MIT
 detect-newline@3.1.0 — MIT
-detect-node-es@1.1.0 — MIT
 diff-sequences@29.6.3 — MIT
 dnssd-advertise@1.1.6 — MIT
 dom-serializer@2.0.0 — MIT
@@ -758,42 +746,43 @@ escalade@3.2.0 — MIT
 escape-html@1.0.3 — MIT
 escape-string-regexp@1.0.5 — MIT
 escape-string-regexp@2.0.0 — MIT
-escape-string-regexp@4.0.0 — MIT
 etag@1.8.1 — MIT
-event-target-shim@5.0.1 — MIT
 execa@5.1.1 — MIT
 exit@0.1.2 — MIT
 expect@29.7.0 — MIT
-expo-asset@57.0.18 — MIT
-expo-build-properties@57.0.22 — MIT
-expo-constants@57.0.19 — MIT
-expo-file-system@57.0.7 — MIT
-expo-font@57.0.4 — MIT
-expo-glass-effect@57.0.4 — MIT
-expo-image-loader@57.0.1 — MIT
-expo-image-picker@57.0.20 — MIT
-expo-keep-awake@57.0.2 — MIT
-expo-linking@57.0.11 — MIT
-expo-local-authentication@57.0.3 — MIT
-expo-modules-autolinking@57.0.13 — MIT
-expo-modules-core@57.0.19 — MIT
-expo-modules-jsi@57.1.1 — MIT
-expo-router@57.0.23 — MIT
-expo-secure-store@57.0.4 — MIT
-expo-server@57.0.3 — MIT
-expo-splash-screen@57.0.9 — MIT
-expo-status-bar@57.0.1 — MIT
-expo-symbols@57.0.3 — MIT
-expo@57.0.25 — MIT
-fast-deep-equal@3.1.3 — MIT
+expo-asset@58.0.16 — MIT
+expo-build-properties@58.0.10 — MIT
+expo-constants@58.0.12 — MIT
+expo-file-system@58.0.9 — MIT
+expo-font@58.0.8 — MIT
+expo-glass-effect@58.0.3 — MIT
+expo-image-loader@58.0.3 — MIT
+expo-image-picker@58.0.10 — MIT
+expo-keep-awake@58.0.3 — MIT
+expo-linking@58.0.13 — MIT
+expo-local-authentication@58.0.2 — MIT
+expo-modules-autolinking@58.0.13 — MIT
+expo-modules-core@58.0.19 — MIT
+expo-modules-jsi@58.0.14 — MIT
+expo-modules-macros@0.20.0 — MIT
+expo-router@58.0.20 — MIT
+expo-secure-store@58.0.2 — MIT
+expo-server@58.0.5 — MIT
+expo-sharing@58.0.18 — MIT
+expo-splash-screen@58.0.9 — MIT
+expo-status-bar@58.0.3 — MIT
+expo@58.0.11 — MIT
 fast-json-stable-stringify@2.1.0 — MIT
 fdir@6.5.0 — MIT
 fetch-nodeshim@0.4.10 — MIT
 fill-range@7.1.1 — MIT
-filter-obj@1.1.0 — MIT
 finalhandler@1.1.2 — MIT
 find-up@4.1.0 — MIT
 flow-enums-runtime@0.0.6 — MIT
+flow-estree@0.327.0 — MIT
+flow-estree@0.331.0 — MIT
+flow-parser@0.327.0 — MIT
+flow-parser@0.331.0 — MIT
 follow-redirects@1.16.0 — MIT
 form-data@4.0.6 — MIT
 fresh@0.5.2 — MIT
@@ -801,7 +790,6 @@ fsevents@2.3.3 — MIT
 function-bind@1.1.2 — MIT
 gensync@1.0.0-beta.2 — MIT
 get-intrinsic@1.3.0 — MIT
-get-nonce@1.0.1 — MIT
 get-package-type@0.1.0 — MIT
 get-proto@1.0.1 — MIT
 get-stream@6.0.1 — MIT
@@ -812,11 +800,9 @@ has-flag@4.0.0 — MIT
 has-symbols@1.1.0 — MIT
 has-tostringtag@1.0.2 — MIT
 hasown@2.0.4 — MIT
-hermes-compiler@250829098.0.17 — MIT
-hermes-estree@0.35.0 — MIT
+hermes-compiler@260318099.0.4 — MIT
 hermes-estree@0.36.0 — MIT
 hermes-estree@0.36.1 — MIT
-hermes-parser@0.35.0 — MIT
 hermes-parser@0.36.0 — MIT
 hermes-parser@0.36.1 — MIT
 html-escaper@2.0.2 — MIT
@@ -886,34 +872,20 @@ make-dir@4.0.0 — MIT
 math-intrinsics@1.1.0 — MIT
 memoize-one@5.2.1 — MIT
 merge-stream@2.0.0 — MIT
-metro-babel-transformer@0.84.5 — MIT
-metro-babel-transformer@0.84.6 — MIT
-metro-cache-key@0.84.5 — MIT
-metro-cache-key@0.84.6 — MIT
-metro-cache@0.84.5 — MIT
-metro-cache@0.84.6 — MIT
-metro-config@0.84.5 — MIT
-metro-config@0.84.6 — MIT
-metro-core@0.84.5 — MIT
-metro-core@0.84.6 — MIT
-metro-file-map@0.84.5 — MIT
-metro-file-map@0.84.6 — MIT
-metro-minify-terser@0.84.5 — MIT
-metro-minify-terser@0.84.6 — MIT
-metro-resolver@0.84.5 — MIT
-metro-resolver@0.84.6 — MIT
-metro-runtime@0.84.5 — MIT
-metro-runtime@0.84.6 — MIT
-metro-source-map@0.84.5 — MIT
-metro-source-map@0.84.6 — MIT
-metro-symbolicate@0.84.5 — MIT
-metro-symbolicate@0.84.6 — MIT
-metro-transform-plugins@0.84.5 — MIT
-metro-transform-plugins@0.84.6 — MIT
-metro-transform-worker@0.84.5 — MIT
-metro-transform-worker@0.84.6 — MIT
-metro@0.84.5 — MIT
-metro@0.84.6 — MIT
+metro-babel-transformer@0.87.1 — MIT
+metro-cache-key@0.87.1 — MIT
+metro-cache@0.87.1 — MIT
+metro-config@0.87.1 — MIT
+metro-core@0.87.1 — MIT
+metro-file-map@0.87.1 — MIT
+metro-minify-terser@0.87.1 — MIT
+metro-resolver@0.87.1 — MIT
+metro-runtime@0.87.1 — MIT
+metro-source-map@0.87.1 — MIT
+metro-symbolicate@0.87.1 — MIT
+metro-transform-plugins@0.87.1 — MIT
+metro-transform-worker@0.87.1 — MIT
+metro@0.87.1 — MIT
 micromatch@4.0.8 — MIT
 mime-db@1.52.0 — MIT
 mime-db@1.54.0 — MIT
@@ -923,11 +895,10 @@ mime@1.6.0 — MIT
 mimic-fn@1.2.0 — MIT
 mimic-fn@2.1.0 — MIT
 min-indent@1.0.1 — MIT
-mkdirp@1.0.4 — MIT
 ms@2.0.0 — MIT
 ms@2.1.3 — MIT
 multitars@1.0.2 — MIT
-nanoid@3.3.18 — MIT
+nanoid@3.3.20 — MIT
 natural-compare@1.4.0 — MIT
 negotiator@0.6.3 — MIT
 negotiator@0.6.4 — MIT
@@ -935,16 +906,16 @@ negotiator@1.1.0 — MIT
 node-int64@0.4.0 — MIT
 node-releases@2.0.54 — MIT
 normalize-path@3.0.0 — MIT
+noxcturnal@0.1.1 — MIT
 npm-run-path@4.0.1 — MIT
 nullthrows@1.1.1 — MIT
-ob1@0.84.5 — MIT
-ob1@0.84.6 — MIT
+ob1@0.87.1 — MIT
 on-finished@2.3.0 — MIT
 on-finished@2.4.1 — MIT
 on-headers@1.1.0 — MIT
 onetime@2.0.1 — MIT
 onetime@5.1.2 — MIT
-open@7.4.2 — MIT
+open@8.4.2 — MIT
 ora@3.4.0 — MIT
 p-limit@2.3.0 — MIT
 p-limit@3.1.0 — MIT
@@ -963,7 +934,7 @@ pirates@4.0.7 — MIT
 pkg-dir@4.2.0 — MIT
 plist@3.1.1 — MIT
 pngjs@3.4.0 — MIT
-postcss@8.5.28 — MIT
+postcss@8.5.30 — MIT
 pretty-format@29.7.0 — MIT
 pretty-format@30.4.1 — MIT
 progress@2.0.3 — MIT
@@ -971,30 +942,25 @@ promise@8.3.0 — MIT
 prompts@2.4.2 — MIT
 proxy-from-env@2.1.0 — MIT
 pure-rand@6.1.0 — MIT
-query-string@7.1.3 — MIT
 range-parser@1.2.1 — MIT
 react-devtools-core@6.1.5 — MIT
 react-fast-compare@3.2.2 — MIT
 react-freeze@1.0.4 — MIT
-react-is@16.13.1 — MIT
 react-is@18.3.1 — MIT
 react-is@19.2.6 — MIT
 react-is@19.3.0 — MIT
-react-native-drawer-layout@4.2.10 — MIT
-react-native-gesture-handler@2.32.0 — MIT
+react-native-drawer-layout@4.2.12 — MIT
+react-native-gesture-handler@3.3.0 — MIT
 react-native-is-edge-to-edge@1.3.1 — MIT
-react-native-reanimated@4.5.1 — MIT
-react-native-safe-area-context@5.7.0 — MIT
-react-native-screens@4.26.2 — MIT
-react-native-svg@15.15.4 — MIT
-react-native-worklets@0.10.1 — MIT
-react-native@0.86.3 — MIT
+react-native-reanimated@4.7.1 — MIT
+react-native-safe-area-context@5.10.1 — MIT
+react-native-screens@4.30.0 — MIT
+react-native-svg@15.16.0 — MIT
+react-native-worklets@0.13.0 — MIT
+react-native@0.88.0-rc.4 — MIT
+react-reconciler@0.34.0 — MIT
 react-refresh@0.14.2 — MIT
-react-remove-scroll-bar@2.3.8 — MIT
-react-remove-scroll@2.7.2 — MIT
-react-style-singleton@2.2.3 — MIT
-react-test-renderer@19.2.3 — MIT
-react@19.2.3 — MIT
+react@19.3.0 — MIT
 redent@3.0.0 — MIT
 regenerate-unicode-properties@10.2.2 — MIT
 regenerate@1.4.2 — MIT
@@ -1010,16 +976,15 @@ resolve@1.22.12 — MIT
 restore-cursor@2.0.0 — MIT
 safe-buffer@5.2.1 — MIT
 sandbox-cli-detector@0.2.0 — MIT
-scheduler@0.27.0 — MIT
+scheduler@0.28.0 — MIT
 send@0.19.2 — MIT
 serialize-error@2.1.0 — MIT
 serve-static@1.16.3 — MIT
 server-only@0.0.1 — MIT
 sf-symbols-typescript@2.2.0 — MIT
-shallowequal@1.1.0 — MIT
 shebang-command@2.0.0 — MIT
 shebang-regex@3.0.0 — MIT
-shell-quote@1.10.0 — MIT
+shell-quote@1.12.0 — MIT
 simple-plist@1.3.1 — MIT
 simple-swizzle@0.2.4 — MIT
 sisteransi@1.0.5 — MIT
@@ -1027,14 +992,12 @@ slash@3.0.0 — MIT
 slugify@1.6.9 — MIT
 source-map-support@0.5.13 — MIT
 source-map-support@0.5.21 — MIT
-split-on-first@1.1.0 — MIT
 stack-utils@2.0.6 — MIT
 stackframe@1.3.4 — MIT
 stacktrace-parser@0.1.11 — MIT
 standard-navigation@0.0.5 — MIT
 statuses@1.5.0 — MIT
 statuses@2.0.2 — MIT
-strict-uri-encode@2.0.0 — MIT
 string-length@4.0.2 — MIT
 string-width@4.2.3 — MIT
 strip-ansi@5.2.0 — MIT
@@ -1050,6 +1013,7 @@ supports-color@8.1.1 — MIT
 supports-hyperlinks@2.3.0 — MIT
 supports-preserve-symlinks-flag@1.0.0 — MIT
 terminal-link@2.1.1 — MIT
+test-renderer@1.3.1 — MIT
 throat@5.0.0 — MIT
 tinyglobby@0.2.16 — MIT
 to-regex-range@5.0.1 — MIT
@@ -1063,13 +1027,10 @@ unicode-match-property-value-ecmascript@2.2.1 — MIT
 unicode-property-aliases-ecmascript@2.2.0 — MIT
 unpipe@1.0.0 — MIT
 update-browserslist-db@1.3.2 — MIT
-use-callback-ref@1.3.3 — MIT
 use-latest-callback@0.2.6 — MIT
-use-sidecar@1.1.3 — MIT
 utils-merge@1.0.1 — MIT
 uuid@7.0.3 — MIT
 vary@1.1.2 — MIT
-vaul@1.1.2 — MIT
 victory-area@36.9.2 — MIT
 victory-axis@36.9.2 — MIT
 victory-bar@36.9.2 — MIT
@@ -1103,20 +1064,17 @@ vlq@1.0.1 — MIT
 warn-once@0.1.1 — MIT
 wcwidth@1.0.1 — MIT
 whatwg-fetch@3.6.20 — MIT
-whatwg-url-minimum@0.1.2 — MIT
+whatwg-url-minimum@0.2.0 — MIT
 wrap-ansi@7.0.0 — MIT
 ws@7.5.13 — MIT
-ws@8.20.0 — MIT
+ws@8.22.0 — MIT
 xml2js@0.6.0 — MIT
 xmlbuilder@11.0.1 — MIT
 xmlbuilder@15.1.1 — MIT
 yargs@17.7.2 — MIT
 yocto-queue@0.1.0 — MIT
 zod@3.25.76 — MIT
-zustand@5.0.14 — MIT
-
---- MIT AND Apache-2.0 ---
-@expo-google-fonts/material-symbols@0.4.48 — MIT AND Apache-2.0
+zustand@5.0.15 — MIT
 
 --- MIT AND ISC ---
 victory-vendor@36.9.2 — MIT AND ISC

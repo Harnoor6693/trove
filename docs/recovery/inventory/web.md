@@ -1,5 +1,7 @@
 # apps/web Inventory — for the monolith collapse & web rebuild
 
+> **Historical record, 2026-09-03.** Inventory of the pre-rebuild `apps/web`. The app was rebuilt in step 20a and the 20b sub-wave (201-205); versions and file lists are those of 2026-09-03 and are not current. Current state: `docs-site/guide/architecture.md`.
+
 Scope: `apps/web` only (React 19.2.8 + Vite + react-router-dom 6.30.4 + TanStack Query 5 +
 zustand 5). Read-only pass against source; nothing here was executed (no `npm install`,
 no `vitest`, no `eslint`, no `vite build` — a build is running elsewhere on this machine).

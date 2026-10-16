@@ -18,7 +18,7 @@
   padding: var(--space-5, 20px) var(--space-6, 24px); border-bottom: 1px solid var(--line);
 }
 .title { font-family: Fraunces, Georgia, serif; font-size: var(--font-xl, 24px); font-weight: 600; color: var(--ink); margin: 0; }
-.close { background: none; border: none; font-size: 24px; color: var(--ink-3, #8c8578); cursor: pointer; padding: 0 4px; line-height: 1; }
+.close { background: none; border: none; font-size: 24px; color: var(--ink-3, #6b6558); cursor: pointer; padding: 0 4px; line-height: 1; }
 .close:hover { color: var(--ink); }
 .body { padding: var(--space-6, 24px); overflow-y: auto; }
 @media (max-width: 768px) {

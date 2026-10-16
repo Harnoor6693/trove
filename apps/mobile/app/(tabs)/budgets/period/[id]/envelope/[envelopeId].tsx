@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MnBtn } from '@components/ui/MnBtn/MnBtn';
@@ -14,6 +14,8 @@ import { fieldError, toApiFailure } from '@api/errors';
 import { isUuid } from '@api/paths';
 import { useDeleteEnvelope, useEnvelope, useUpdateEnvelope } from '@hooks/useBudgets';
 import type { CurrencyCode } from '@api/types';
+import { normaliseAmountInput } from '@lib/amountInput';
+import { FormScroll } from '@components/ui/FormScroll/FormScroll';
 
 /**
  * One envelope: its live health (spent / allocated / remaining, the pace
@@ -48,12 +50,15 @@ export default function EnvelopeDetailScreen() {
   };
 
   const save = () => {
-    update.mutate({ allocated: allocated.trim() }, { onSuccess: () => setEditing(false) });
+    update.mutate(
+      { allocated: normaliseAmountInput(allocated) },
+      { onSuccess: () => setEditing(false) }
+    );
   };
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.paper }]} testID="envelope-screen">
-      <ScrollView contentContainerStyle={styles.content}>
+      <FormScroll contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <MnBtn
             label="Back"
@@ -221,7 +226,7 @@ export default function EnvelopeDetailScreen() {
             </>
           ) : null}
         </ScreenState>
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }

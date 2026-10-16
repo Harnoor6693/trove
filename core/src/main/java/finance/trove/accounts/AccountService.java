@@ -9,6 +9,7 @@ import finance.trove.common.plugin.SourceKind;
 import finance.trove.common.time.UserClock;
 import finance.trove.users.UserRepository;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -72,14 +73,14 @@ public class AccountService {
      * unique to the row is the honest thing to store, and rows step 7 creates with real provider
      * ids are still held to one per household per kind.
      *
-     * <p>That also means the {@link ConflictException} below is not reachable through this
-     * endpoint <em>today</em> — a synthetic id unique to the row cannot collide with anything. It
-     * becomes reachable in step 7, where a re-exchange or a repeat upload supplies the provider's
-     * real id, and the write is flushed inside the {@code try} precisely so that it will be
-     * raised here rather than escaping to the global handler's generic wording.
-     *
-     * @throws ConflictException when an account of this kind already occupies the household's slot
-     *                           for the provider account being described
+     * <p>That also means this method has no conflict to report: a synthetic id unique to the row
+     * cannot collide with anything, so there is no "this household already has an account of that
+     * kind" case. A {@link DataIntegrityViolationException} here would mean the database refused
+     * the write with an integrity or data error that request validation did not catch: no
+     * expected path produces one, and it is not a duplicate-account signal. It is left to the
+     * global handler, whose generic answer is 409 {@code conflict}, rather than given a cause it
+     * has not established. Provider accounts go through {@code upsertProviderAccount}, which
+     * inserts only if absent.
      */
     @Transactional
     public ConnectedAccount create(UUID householdId, UUID userId, AccountRequest request) {
@@ -93,19 +94,10 @@ public class AccountService {
             request.displayName().trim(), trimToNull(request.institution()),
             request.accountType(), currency, clock.now());
 
-        ConnectedAccount saved;
-        try {
-            saved = accounts.save(account);
-            saved.setExternalAccountId(saved.getId().toString());
-            // saveAndFlush, NOT save. The id is generated in memory, so persist() only queues the
-            // INSERT; with a bare save() nothing would reach the database until commit — after
-            // this catch clause had been left — and the specific conflict below would be
-            // unreachable code guarding a violation that surfaced somewhere else entirely.
-            saved = accounts.saveAndFlush(saved);
-        } catch (DataIntegrityViolationException e) {
-            throw new ConflictException("This household already has a " + request.sourceKind()
-                + " account for that source. Reuse it rather than adding a second one.", e);
-        }
+        ConnectedAccount saved = accounts.save(account);
+        // The id is generated in memory by save(); the managed entity is flushed at commit with
+        // the external id already set.
+        saved.setExternalAccountId(saved.getId().toString());
         return saved;
     }
 
@@ -124,10 +116,10 @@ public class AccountService {
      * written in it).
      *
      * <p><strong>The currency of a NEW row comes from the provider, then from the creating
-     * member's own {@code users.currency}. Never a literal</strong> — §9 risk 5, and finding F4's
-     * exact shape: an account created in the wrong denomination mis-states every amount ever
-     * stored against it, and no later edit can repair it because the amounts were never wrong,
-     * only their unit.
+     * member's own {@code users.currency}. Never a literal</strong> — §9 risk 5, and finding
+     * F4's exact shape: an account created in the wrong denomination mis-states every amount
+     * ever stored against it, and no later edit can repair it because the amounts were never
+     * wrong, only their unit.
      *
      * @param externalAccountId the provider's own id — a SimpleFIN account id, an OFX
      *                          {@code ACCTID}. Never null here: the caller has one or it does not
@@ -159,25 +151,23 @@ public class AccountService {
                                           String externalAccountId, String displayName,
                                           String institution, AccountType accountType,
                                           CurrencyCode currency) {
+        Optional<ConnectedAccount> existing = accounts
+            .findByHouseholdIdAndSourceKindAndExternalAccountId(householdId, sourceKind,
+                externalAccountId);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        // Insert-if-absent, then read: a concurrent first upsert of the same account makes this a
+        // no-op that reads the winner's row, where a caught unique violation would have aborted
+        // this transaction (B1-15).
+        accounts.insertProviderAccountIfAbsent(householdId, userId, sourceKind.name(),
+            externalAccountId, displayName.trim(), trimToNull(institution), accountType.name(),
+            (currency != null ? currency : creatorCurrency(householdId, userId)).name(),
+            clock.now());
         return accounts.findByHouseholdIdAndSourceKindAndExternalAccountId(householdId, sourceKind,
                 externalAccountId)
-            .orElseGet(() -> {
-                ConnectedAccount created = new ConnectedAccount(householdId, userId, sourceKind,
-                    displayName.trim(), trimToNull(institution), accountType,
-                    currency != null ? currency : creatorCurrency(householdId, userId),
-                    clock.now());
-                created.setExternalAccountId(externalAccountId);
-                try {
-                    return accounts.saveAndFlush(created);
-                } catch (DataIntegrityViolationException e) {
-                    // Two requests raced on the same provider account. The winner's row is the one
-                    // to use: the point of the key is that there is exactly one.
-                    return accounts.findByHouseholdIdAndSourceKindAndExternalAccountId(householdId,
-                            sourceKind, externalAccountId)
-                        .orElseThrow(() -> new ConflictException("This household already has a "
-                            + sourceKind + " account for that source.", e));
-                }
-            });
+            .orElseThrow(() -> new ConflictException("This household already has a "
+                + sourceKind + " account for that source."));
     }
 
     private CurrencyCode creatorCurrency(UUID householdId, UUID userId) {
@@ -206,6 +196,7 @@ public class AccountService {
      */
     @Transactional
     public void delete(UUID householdId, UUID accountId) {
+        accounts.freeTransferPartners(accountId, householdId);
         if (accounts.deleteByIdAndHouseholdId(accountId, householdId) == 0) {
             throw ResourceNotFoundException.of("Account", accountId);
         }

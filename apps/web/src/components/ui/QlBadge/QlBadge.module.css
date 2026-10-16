@@ -5,7 +5,7 @@
 }
 .sage    { background: var(--sage-soft, #dfe7dc);  color: var(--sage, #4a6b4f); }
 .red     { background: var(--red-soft, #efd9d0);   color: var(--red, #9b3a2a); }
-.amber   { background: var(--amber-soft, #f3e6cc); color: var(--amber, #a06a1e); }
+.amber   { background: var(--amber-soft, #f3e6cc); color: var(--amber, #8f5c14); }
 .blue    { background: #d6e4f0;                    color: var(--blue, #3c5a7a); }
 .neutral { background: var(--mist, #e8e4db); color: var(--ink-2, #4a453d); border: 1px solid var(--line); }
 .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }

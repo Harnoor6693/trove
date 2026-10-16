@@ -24,7 +24,7 @@
   "info": {
     "_postman_id": "00000000-0000-0000-0000-000000000026",
     "description": {
-      "content": "The HTTP contract of the Trove core service. Four rules run through all of it.\n\n**The envelope.** Every route below answers with\n`ApiResponse{success, data, error, meta}`. A success is `{\"success\": true}`\nplus `data` when the operation returns a value (`data` is *omitted*, not\nnull, when it returns none — Jackson serialises the envelope with\n`@JsonInclude(NON_NULL)`). A failure is `{\"success\": false, \"error\": {…}}`\nwith no `data`. `meta` carries pagination and is absent on every operation\nin this version. The single exception to the envelope in the whole API is\n`GET /v1/status`, which is bare so an uptime probe has something trivial to\nkey off.\n\n**Auth modes.** One session, two carriers, chosen per request with\n`X-Trove-Auth-Mode`. In **bearer** mode (the default when the header is\nabsent, and what the mobile client uses) the tokens come back in the\nresponse body and the caller sends `Authorization: Bearer …`. In **cookie**\nmode (`X-Trove-Auth-Mode: cookie`, what the web client sends) the body\ncarries no tokens at all and the server sets `__Host-trove_access` and\n`__Host-trove_refresh` — HttpOnly, Secure, SameSite=Lax, Path=/. Because\nthe two modes return different shapes, every session-bearing response is a\n`oneOf` and the client discriminates on which fields are present.\n\n**CSRF.** Demanded only of requests that carry an ambient browser\ncredential — but the two demands are separate rules with different\ntriggers, and a client that conflates them will send a header the server\nnever asked for or, worse, expect one it does not get.\n\n* The **double-submit token** (`X-XSRF-TOKEN`, echoing the non-HttpOnly\n  `XSRF-TOKEN` cookie the server plants) is demanded of any mutating\n  request that either presents a session cookie or declares\n  `X-Trove-Auth-Mode: cookie` — *including the browser's anonymous login\n  and register*, because login CSRF, logging a victim into the attacker's\n  account, is a real attack and only the token stops it.\n* **`X-Requested-With: XMLHttpRequest`** is demanded only once a request\n  has actually authenticated **through the session cookie**. An anonymous\n  cookie-mode login or register has no session to ride and does not need\n  it, though the web client sends it on everything anyway.\n\nA bearer caller sends neither and is never checked — a third-party page\ncannot set an `Authorization` header, so there is nothing to ride. A\nmissing token is 403 `forbidden`; a missing `X-Requested-With` on a\ncookie-authenticated mutation is 403 `csrf-header-missing`.\n\n**Errors.** RFC 7807 inside the envelope:\n`error{type, title, status, detail, instance, requestId, fieldErrors}`.\n`type` is always `https://trove.finance/errors/<slug>` and the slug — not\nthe status, not the prose — is what clients switch on. `instance` is the\nmatched route template (`/api/v1/auth/invites/{token}`), never the caller's\nraw URI. `requestId` is echoed in the `X-Request-Id` response header and is\nthe string to quote when reporting a 500. `fieldErrors` is present only on\na 400 that failed field validation, as `[{field, message}]`.\n\nRequests that match no operation are answered outside this document:\nan unknown path is 404 `not-found`, a known path with an unsupported method\nis 405 `method-not-allowed`, and a body sent with an unsupported media type\ncurrently falls through to 500 `internal-server-error`.\n\n\nContact Support:\n Name: Trove",
+      "content": "The HTTP contract of the Trove core service. Four rules run through all of it.\n\n**The envelope.** Every route below answers with\n`ApiResponse{success, data, error, meta}`. A success is `{\"success\": true}`\nplus `data` when the operation returns a value (`data` is *omitted*, not\nnull, when it returns none — Jackson serialises the envelope with\n`@JsonInclude(NON_NULL)`). A failure is `{\"success\": false, \"error\": {…}}`\nwith no `data`. `meta` carries pagination (`PaginationMeta`) and is present\nonly on paged list operations such as `GET /v1/audit` and `GET\n/v1/me/export`; it is absent everywhere else. The only JSON response that is not an envelope is\n`GET /v1/status`, which is bare so an uptime probe has something trivial to\nkey off.\n\n**Auth modes.** One session, two carriers, chosen per request with\n`X-Trove-Auth-Mode`. In **bearer** mode (the default when the header is\nabsent, and what the mobile client uses) the tokens come back in the\nresponse body and the caller sends `Authorization: Bearer …`. In **cookie**\nmode (`X-Trove-Auth-Mode: cookie`, what the web client sends) the body\ncarries no tokens at all and the server sets `__Host-trove_access` and\n`__Host-trove_refresh` — HttpOnly, Secure, SameSite=Lax, Path=/. Because\nthe two modes return different shapes, every session-bearing response is a\n`oneOf` and the client discriminates on which fields are present.\n\n**CSRF.** Demanded only of requests that carry an ambient browser\ncredential — but the two demands are separate rules with different\ntriggers, and a client that conflates them will send a header the server\nnever asked for or, worse, expect one it does not get.\n\n* The **double-submit token** (`X-XSRF-TOKEN`, echoing the non-HttpOnly\n  `XSRF-TOKEN` cookie the server plants) is demanded of any mutating\n  request that either presents a session cookie or declares\n  `X-Trove-Auth-Mode: cookie` — *including the browser's anonymous login\n  and register*, because login CSRF, logging a victim into the attacker's\n  account, is a real attack and only the token stops it.\n* The **`XSRF-TOKEN` cookie is replaced** on every cookie-mode sign-in\n  (`/v1/auth/register`, `/v1/auth/login` when it returns a session,\n  `/v1/auth/login/totp`, and OIDC). A client must re-read the cookie and\n  send the new value from then on. `POST /v1/auth/refresh` keeps the\n  existing token, so a request replayed after a refresh still carries a\n  valid value. A bearer-mode sign-in does not replace it.\n* **`X-Requested-With: XMLHttpRequest`** is demanded only once a request\n  has actually authenticated **through the session cookie**. An anonymous\n  cookie-mode login or register has no session to ride and does not need\n  it, though the web client sends it on everything anyway.\n\nA bearer caller sends neither and is never checked — a third-party page\ncannot set an `Authorization` header, so there is nothing to ride. A\nmissing token is 403 `forbidden`; a missing `X-Requested-With` on a\ncookie-authenticated mutation is 403 `csrf-header-missing`.\n\n**Errors.** RFC 7807 inside the envelope:\n`error{type, title, status, detail, instance, requestId, fieldErrors}`.\n`type` is always `https://trove.finance/errors/<slug>` and the slug — not\nthe status, not the prose — is what clients switch on. `instance` is the\nmatched route template (`/api/v1/auth/invites/{token}`), never the caller's\nraw URI. `requestId` is echoed in the `X-Request-Id` response header and is\nthe string to quote when reporting a 500. `fieldErrors` is present only on\na 400 that failed field validation, as `[{field, message}]`.\n\nRequests that match no operation are answered outside this document:\nan unknown path is 404 `not-found`, a known path with an unsupported method\nis 405 `method-not-allowed`, and a body sent with an unsupported media type\ncurrently falls through to 500 `internal-server-error`.\n\n\nContact Support:\n Name: Trove",
       "type": "text/plain"
     },
     "name": "Trove core API",
@@ -157,7 +157,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "The unauthenticated, detail-free probe. **The one route in the API whose\nbody is not the `ApiResponse` envelope** — it is bare so that an uptime\ncheck, the SPA's degraded state and `trove status` all have something\ntrivial to key off.\n\n`status` is the actuator aggregate collapsed to two words: anything that\nis not `UP` is `DEGRADED`. Which component is unhappy is management-port\ninformation (port 9090) and never crosses this boundary.\n",
+              "content": "The unauthenticated, detail-free probe. **The one JSON route whose\nbody is not the `ApiResponse` envelope** — it is bare so that an uptime\ncheck and the SPA's degraded state have something trivial to key off.\n\n`status` is the actuator aggregate collapsed to two words: anything that\nis not `UP` is `DEGRADED`. Which component is unhappy is management-port\ninformation (port 9090) and never crosses this boundary.\n",
               "type": "text/plain"
             },
             "header": [
@@ -192,7 +192,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "The session read both clients hydrate from on every app start. Read fresh\nfrom the database rather than assembled from token claims: a token lives\nfifteen minutes, and a display name, locale or `onboardingCompleted` flag\nchanged inside that window has to be visible on the next read — the\nalternative is a settings screen that appears not to have saved.\n\nIt lives under `/v1/auth/` rather than `/v1/me` because that is where the\nshipped clients call it, and it is on their never-refresh list.\n\nIdentity comes from the signed token. No route in this group takes a user\nid from a path, a query or a body.\n",
+              "content": "The session read both clients hydrate from on every app start. Read fresh\nfrom the database rather than assembled from token claims: a token lives\nfifteen minutes, and a display name, locale or `onboardingCompleted` flag\nchanged inside that window has to be visible on the next read — the\nalternative is a settings screen that appears not to have saved.\n\nIt lives under `/v1/auth/` rather than `/v1/me` because that is where\nthe shipped clients call it; the web client calls it with refresh-on-401\nswitched off for the first-visit probe (`skipAuthRefresh`), so an\nanonymous 401 stays a 401.\n\nIdentity comes from the signed token. No route in this group takes a user\nid from a path, a query or a body.\n",
               "type": "text/plain"
             },
             "header": [
@@ -631,7 +631,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "Every non-cancelled `detected_subscription` of the caller's household,\nordered by normalised merchant name. One shared ledger per household\n(owner decision), so a household mate sees exactly the same list;\n`createdBy` records the member the detection was attributed to and is\nfor audit only, never for scoping.\n\nRows here are written **only** by detection — the nightly\n`subscription-scan` job, `POST /v1/subscriptions/scan`, and the listener\nthat runs after an import or a sync writes transactions. There is no\ncreate or update route: a subscription is an observation about the\nledger, not something a member authors.\n\nCancelled rows are excluded. `DELETE /v1/subscriptions/{id}` is a soft\ndelete, so a cancelled subscription disappears from this list but is\nstill readable by id.\n",
+              "content": "Every non-cancelled `detected_subscription` of the caller's household\nwhose charges have not stopped (a next charge more than three whole\nbilling cycles overdue hides the row until charges resume), ordered by\nnormalised merchant name. One shared ledger per household\n(owner decision), so a household mate sees exactly the same list;\n`createdBy` records the member the detection was attributed to and is\nfor audit only, never for scoping.\n\nRows here are written **only** by detection — the nightly\n`subscription-scan` job, `POST /v1/subscriptions/scan`, and the listener\nthat runs after an import or a sync writes transactions. There is no\ncreate or update route: a subscription is an observation about the\nledger, not something a member authors.\n\nCancelled rows are excluded. `DELETE /v1/subscriptions/{id}` is a soft\ndelete, so a cancelled subscription disappears from this list but is\nstill readable by id.\n",
               "type": "text/plain"
             },
             "header": [
@@ -783,7 +783,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "One page of the caller's undismissed notifications, newest first.\n\n**Per member, not per household.** This is one of the three areas of\nthis API where a household mate is refused rather than served: the\nledger is shared, but a notification is addressed to one person and\nanother member's inbox is 404, never 403. The rows are written by\n`NotificationService` on the events the ledger raises — an envelope\ncrossing that member's own alert threshold, a detected price change, a\nfailed account sync — and by the Monday digest.\n\nDismissing a notification (`DELETE /v1/notifications/{id}`) removes it\nfrom this list permanently; the row itself is retained, so this is a\nhide rather than a delete.\n",
+              "content": "One page of the caller's undismissed notifications, newest first.\n\n**Per member, not per household.** This is one of the areas of this API\nwhere a household mate is refused rather than served: the\nledger is shared, but a notification is addressed to one person and\nanother member's inbox is 404, never 403. The rows are written by\n`NotificationService` on the events the ledger raises — an envelope\ncrossing that member's own alert threshold, a detected price change, a\nfailed account sync — and by the Monday digest.\n\nDismissing a notification (`DELETE /v1/notifications/{id}`) removes it\nfrom this list permanently; the row itself is retained, so this is a\nhide rather than a delete.\n",
               "type": "text/plain"
             },
             "header": [
@@ -959,7 +959,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "The unauthenticated, detail-free probe. **The one route in the API whose\nbody is not the `ApiResponse` envelope** — it is bare so that an uptime\ncheck, the SPA's degraded state and `trove status` all have something\ntrivial to key off.\n\n`status` is the actuator aggregate collapsed to two words: anything that\nis not `UP` is `DEGRADED`. Which component is unhappy is management-port\ninformation (port 9090) and never crosses this boundary.\n",
+              "content": "The unauthenticated, detail-free probe. **The one JSON route whose\nbody is not the `ApiResponse` envelope** — it is bare so that an uptime\ncheck and the SPA's degraded state have something trivial to key off.\n\n`status` is the actuator aggregate collapsed to two words: anything that\nis not `UP` is `DEGRADED`. Which component is unhappy is management-port\ninformation (port 9090) and never crosses this boundary.\n",
               "type": "text/plain"
             },
             "header": [
@@ -1009,7 +1009,7 @@
               "raw": "{\n  \"inviteToken\": \"aW52aXRlLXRva2VuLUVYQU1QTEUtbm90LXJlYWw\",\n  \"email\": \"invitee@example.test\",\n  \"password\": \"not-a-real-password-example\",\n  \"displayName\": \"Example Member\",\n  \"currency\": \"CAD\",\n  \"country\": \"CA\",\n  \"timezone\": \"America/Halifax\"\n}"
             },
             "description": {
-              "content": "201 with the same body shape as a login. Registration is closed by\ndefault: the ordinary path is redeeming an invite an admin minted, and\nthe household comes from that invite — never from this body.\n\nAn unrecognised `timezone` does not fail the request; it falls back to\n`UTC`. `currency` and `country` default to `CAD` and `CA`.\n",
+              "content": "201 with the same body shape as a login. Registration is closed by\ndefault: the ordinary path is redeeming an invite an admin minted, and\nthe household comes from that invite — never from this body.\n\nAn unrecognised `timezone` does not fail the request; it falls back to\n`UTC`. `currency` and `country` default to `CAD` and `CA`.\n\n**`email-taken` tells the caller the address has an account.** A new\naddress is signed straight in, so the two answers cannot be made the\nsame without a success that creates nothing, and no email is sent that\ncould carry the difference instead. Only a caller holding an invite\nwithout a bound address, or any caller once registration is open, can\nask. Each `email-taken` counts as a failed sign-in from the caller's\naddress, so asking meets the gate that guessing passwords meets: 429\n`account-locked` after 20 inside 10 minutes.\n",
               "type": "text/plain"
             },
             "header": [
@@ -1576,7 +1576,7 @@
       "name": "Authentication"
     },
     {
-      "description": "Credential management for an account that is already signed in — password\nchange, admin-minted reset links, TOTP enrolment and removal. Every route\nhere except the two reset endpoints re-proves the password (step-up).\n",
+      "description": "Credential management for an account that is already signed in — password\nchange, admin-minted reset links, TOTP enrolment and removal. Every route\nhere re-proves the password (step-up) except the two reset endpoints and\n`POST /v1/auth/totp/confirm`, which confirms an enrolment that was itself\nstarted behind a password.\n",
       "item": [
         {
           "event": [],
@@ -2119,7 +2119,7 @@
       "name": "Account security"
     },
     {
-      "description": "The caller's own profile, preferences and security history.",
+      "description": "The caller's own profile, preferences and security history, plus self-service account deletion and full data export.",
       "item": [
         {
           "event": [],
@@ -2131,7 +2131,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "The session read both clients hydrate from on every app start. Read fresh\nfrom the database rather than assembled from token claims: a token lives\nfifteen minutes, and a display name, locale or `onboardingCompleted` flag\nchanged inside that window has to be visible on the next read — the\nalternative is a settings screen that appears not to have saved.\n\nIt lives under `/v1/auth/` rather than `/v1/me` because that is where the\nshipped clients call it, and it is on their never-refresh list.\n\nIdentity comes from the signed token. No route in this group takes a user\nid from a path, a query or a body.\n",
+              "content": "The session read both clients hydrate from on every app start. Read fresh\nfrom the database rather than assembled from token claims: a token lives\nfifteen minutes, and a display name, locale or `onboardingCompleted` flag\nchanged inside that window has to be visible on the next read — the\nalternative is a settings screen that appears not to have saved.\n\nIt lives under `/v1/auth/` rather than `/v1/me` because that is where\nthe shipped clients call it; the web client calls it with refresh-on-401\nswitched off for the first-visit probe (`skipAuthRefresh`), so an\nanonymous 401 stays a 401.\n\nIdentity comes from the signed token. No route in this group takes a user\nid from a path, a query or a body.\n",
               "type": "text/plain"
             },
             "header": [
@@ -2641,7 +2641,7 @@
               "raw": "{\n  \"password\": \"not-a-real-password-example\",\n  \"code\": \"000000\"\n}"
             },
             "description": {
-              "content": "**Step-up**, with the same body and the same rules as `DELETE /v1/me`: a\npassword, a code where a second factor is enrolled, and for a member who\nsigns in only through an identity provider the code alone. An archive is\na copy of everything the member has, so holding a session is not enough\nto ask for one.\n\nRecords a run as `PENDING`, hands the generation to a bounded background\nexecutor and answers **202** with the row. Poll\n`GET /v1/me/export/{id}` until `status` is `COMPLETE`, then download it.\nIf the executor's queue is full the row is flipped to `FAILED` before this\nresponse is sent — the answer is still 202 and still carries a real,\nqueryable id.\n\n**One run per member per day**, counted over the member's own local day\nfrom their timezone, not the server's. A second request the same day is\n409 `conflict` and the message says when they may ask again. This is\ndeliberately not expressed in the rate limiter, which buckets by path and\nclient address rather than by member and so cannot say it.\n\n**What the archive contains.** A ZIP holding `manifest.json` (a schema\nversion, the generating server version, the run id, the member and\nhousehold ids, the generation instant and one entry per file with its\nbyte count), `transactions.csv`, and one JSON document per dataset —\naccounts, categories, merchant rules, budget periods, envelopes, savings\ngoals, subscriptions, net-worth snapshots, assets, liabilities, receipts,\ncoach conversations and notification preferences.\n\nThe transactions file is written by the same builder the tax export uses,\nwith the same columns and the same protection: a cell that begins with an\nequals sign, a plus, a minus, an at sign, a tab or a carriage return is\nprefixed with an apostrophe, so a merchant literally named\n`=HYPERLINK(\"http://evil\",\"click\")` opens as text rather than as a live\nformula.\n\n**Receipts are metadata only.** Ids, status, source, merchant, amounts,\nthe tax split, the matched transaction, the uploader, timestamps and the\nimage file names — never the image bytes, never a storage key and never a\nURL. An archive that inlined every photograph a household ever took would\nnot fit in the memory this export is allowed. A client should say so: the\nmember downloads the receipt images from `GET /v1/receipts/{id}/download`.\n\nEvery amount is a decimal string at the ledger's four-decimal scale and\ncarries its own currency on its own row. Nothing is converted and no\ntotal is blended across currencies. The only computed figures anywhere in\nthe archive are the plain per-currency sums in the `Totals by tax line`\nsection that the shared builder appends under the last row of\n`transactions.csv`: one row per tax line per currency, added and nothing\nelse. Dates are the member's own local dates.\n\n**The rows are the household's, the run is the member's.** The ledger is\nshared, so the archive contains the whole household's transactions; a\nclient should say that too before it starts one.\n",
+              "content": "**Step-up**, with the same body and the same rules as `DELETE /v1/me`: a\npassword, a code where a second factor is enrolled, and for a member who\nsigns in only through an identity provider the code alone. An archive is\na copy of everything the member has, so holding a session is not enough\nto ask for one.\n\nRecords a run as `PENDING`, hands the generation to a bounded background\nexecutor and answers **202** with the row. Poll\n`GET /v1/me/export/{id}` until `status` is `COMPLETE`, then download it.\nIf the executor's queue is full the row is flipped to `FAILED` before this\nresponse is sent — the answer is still 202 and still carries a real,\nqueryable id.\n\n**One run per member per day**, counted over the member's own local day\nfrom their timezone, not the server's. A second request the same day is\n409 `conflict` and the message says when they may ask again. This is\ndeliberately not expressed in the rate limiter, which buckets by path and\nclient address rather than by member and so cannot say it.\n\n**What the archive contains.** A ZIP holding `manifest.json` (a schema\nversion, the generating server version, the run id, the member and\nhousehold ids, the generation instant and one entry per file with its\nbyte count), `transactions.csv`, and one JSON document per dataset —\naccounts, categories, merchant rules, budget periods, envelopes, savings\ngoals, subscriptions, net-worth snapshots, assets, liabilities, receipts,\ncoach conversations, the member's own tax-line mappings and notification\npreferences.\n\n`transactions.csv` is the whole ledger, every transaction the household\nhas: both legs of a transfer and pending rows are included. It uses the\ntax export's columns followed by `type`, `accountId`, `transferGroupId`\nand `pending`, and it has no totals section, so it is one rectangular\ntable an importer can read. It is UTF-8 with a byte order mark. The cell\nprotection is the tax export's: a cell that begins with an equals sign,\na plus, a minus, an at sign, a tab or a carriage return is prefixed with\nan apostrophe, so a merchant literally named\n`=HYPERLINK(\"http://evil\",\"click\")` opens as text rather than as a live\nformula.\n\n**Receipts are metadata only.** Ids, status, source, merchant, amounts,\nthe tax split, the matched transaction, the uploader, timestamps and the\nimage file names — never the image bytes, never a storage key and never a\nURL. An archive that inlined every photograph a household ever took would\nnot fit in the memory this export is allowed. A client should say so: the\nmember downloads the receipt images from `GET /v1/receipts/{id}/download`.\n\nEvery amount is a decimal string at the ledger's four-decimal scale and\ncarries its own currency on its own row. Nothing is converted and no\ntotal is blended across currencies. No figure in the archive is computed.\nDates are the member's own local dates.\n\n**The rows are the household's, the run is the member's.** The ledger is\nshared, so the archive contains the whole household's transactions; a\nclient should say that too before it starts one.\n",
               "type": "text/plain"
             },
             "header": [
@@ -3025,7 +3025,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "**Requires the `ADMIN` role.**\n\nThe intended way out of the long lock repeated failures produce. It\nexists because the alternative for a household member who mistyped their\npassword ten times is waiting a day, and the alternative for an admin is\na database edit. It does not change the password.\n\n**A self-target is 403 `step-up-required`**, so that \"an admin route\nnever acts on the admin's own security state\" is one rule rather than a\nlist of exceptions. An administrator who has locked themselves out uses\nthe server console, which requires shell access — a credential a stolen\nsession does not confer.\n",
+              "content": "**Requires the `ADMIN` role.**\n\nEnds every sign-in throttle on the member's account, from every address,\nby forgetting its failed attempts. Throttles end by themselves within\nfifteen minutes, but an account under attack from many addresses stays\nthrottled for addresses it has not signed in from until the attack\nstops; this is the way out for a member signing in from somewhere new.\nIt does not change the password.\n\n**A self-target is 403 `step-up-required`**, so that \"an admin route\nnever acts on the admin's own security state\" is one rule rather than a\nlist of exceptions. An administrator who has locked themselves out uses\nthe server console, which requires shell access — a credential a stolen\nsession does not confer.\n",
               "type": "text/plain"
             },
             "header": [
@@ -3149,6 +3149,95 @@
                 "users",
                 ":id",
                 "totp"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "description": {
+                    "content": "(Required) The target member's id. Resolved inside the caller's own household, so an\nid from another household is 404 rather than 403.\n",
+                    "type": "text/plain"
+                  },
+                  "disabled": false,
+                  "key": "id",
+                  "type": "any",
+                  "value": "00000000-0000-4000-8000-000000000002"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "event": [],
+          "name": "Make a member an administrator, or a member again",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              },
+              "raw": "{\n  \"role\": \"ADMIN\"\n}"
+            },
+            "description": {
+              "content": "**Requires the `ADMIN` role.**\n\nSets a member's role to `ADMIN` or `MEMBER`. This is how the last\nadministrator hands the household over before deleting their account\nor leaving: `DELETE /v1/me` refuses the last `ADMIN` with 409.\n\n**The household always keeps at least one active `ADMIN`.** Demoting\nthe household's last active administrator — another member or the\ncaller themselves — is **409 `conflict`**. The count is taken inside\none transaction behind a lock on the household row, the same lock\n`DELETE /v1/admin/users/{id}` takes, so two administrators demoting\neach other at the same instant cannot both succeed.\n\n**A demotion revokes every session of the demoted member**, so the\n`ADMIN` claim in their current access token stops working at once\nrather than when it expires; they sign in again as a `MEMBER`. A\npromotion revokes nothing: the new role reaches the member's token at\ntheir next refresh or sign-in. Setting the role a member already has\nchanges nothing and answers 200.\n\nA member of another household, or an unknown id, is **404**. A member\ninside the deletion grace is **409**: restore them first.\n",
+              "type": "text/plain"
+            },
+            "header": [
+              {
+                "description": {
+                  "content": "Must be exactly `XMLHttpRequest` on a mutating request that was\nauthenticated by cookie. Missing it is 403 `csrf-header-missing`. Bearer\ncallers are not checked (the mobile client sends it anyway).\n (This can only be one of XMLHttpRequest)",
+                  "type": "text/plain"
+                },
+                "disabled": false,
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest"
+              },
+              {
+                "description": {
+                  "content": "The CSRF double-submit token, echoing the value of the non-HttpOnly\n`XSRF-TOKEN` cookie the server plants on the first request. Required on\nany mutating request that carries a session cookie or declares\n`X-Trove-Auth-Mode: cookie`; a missing or stale token is 403 `forbidden`.\nBearer callers omit it.\n",
+                  "type": "text/plain"
+                },
+                "disabled": false,
+                "key": "X-XSRF-TOKEN",
+                "value": "11111111-2222-4333-8444-555555555555"
+              },
+              {
+                "description": {
+                  "content": "An optional caller-supplied correlation id. It is honoured **only if it\nparses as a UUID**, otherwise the server generates one; either way the id\nin force comes back in the `X-Request-Id` response header and in\n`error.requestId`.\n",
+                  "type": "text/plain"
+                },
+                "disabled": false,
+                "key": "X-Request-Id",
+                "value": "99999999-8888-4777-8666-555555555555"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "PUT",
+            "name": "Make a member an administrator, or a member again",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "users",
+                ":id",
+                "role"
               ],
               "query": [],
               "variable": [
@@ -3373,7 +3462,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "**Requires the `ADMIN` role.**\n\nOne flag in this version. It is read from the household row rather than\nfrom configuration, so an admin's runtime decision — not the boot-time\nenvironment variable — is what the sign-in page reflects.\n",
+              "content": "**Requires the `ADMIN` role.**\n\nTwo flags. `registrationOpen` is seeded once from the environment on\nfirst boot; `scheduledSyncEnabled` has no environment seed and starts\noff. Both are then read from the household row, so the admin's decision\nis what the sign-in page and the scheduled bank sync obey.\n",
               "type": "text/plain"
             },
             "header": [
@@ -3427,7 +3516,7 @@
               "raw": "{\n  \"registrationOpen\": true\n}"
             },
             "description": {
-              "content": "**Requires the `ADMIN` role.**\n\nA partial update: an absent or null `registrationOpen` leaves the flag\nalone and the current settings come back unchanged. The value is written\nto the household row so it survives a restart; the environment variable\nis only ever a seed for the first boot.\n",
+              "content": "**Requires the `ADMIN` role.**\n\nA partial update: an absent or null field leaves that flag alone, and\nan empty body returns the current settings unchanged. A value is written\nto the household row so it survives a restart; the environment variable\n(for `registrationOpen` only) is only ever a seed for the first boot;\n`scheduledSyncEnabled` has none.\n",
               "type": "text/plain"
             },
             "header": [
@@ -3494,7 +3583,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "**Requires the `ADMIN` role.**\n\nOne row per mutating request (`POST`, `PUT`, `PATCH`, `DELETE`) the\ninstall handled: what was called, what it answered, who was signed in,\nfrom where, and how long it took. Newest first, paged. Reads are not\nrecorded — they would dominate the table, and the question it exists to\nanswer is \"what changed, and who changed it\".\n\n`path` is the matched **route template** (`/api/v1/admin/users/{id}`),\nnever the caller's raw URI. Two routes on this API carry a live credential\nin the path, and a table that stored the URI would become a second,\npermanent, plaintext copy of every invitation token this install has ever\nissued. Nothing else about the request is kept: no body, no headers, no\nquery string, no token.\n\nScoped to the caller's own household. `userId` and `clientIp` are null\nwhen the server had neither — an unauthenticated request has no user, and\na request made in-process has no address — and `userId` keeps the raw id\nof an account that is later deleted, because an incident review must not\nbe erasable by deleting an account.\n",
+              "content": "**Requires the `ADMIN` role.**\n\nOne row per mutating request (`POST`, `PUT`, `PATCH`, `DELETE`) the\ninstall handled: what was called, what it answered, who was signed in,\nfrom where, and how long it took. Newest first, paged. Reads are not\nrecorded — they would dominate the table, and the question it exists to\nanswer is \"what changed, and who changed it\".\n\n`path` is the matched **route template** (`/api/v1/admin/users/{id}`),\nnever the caller's raw URI. One route on this API (`GET\n/v1/auth/invites/{token}`) carries a live credential in the path. It is\na read, so it is never recorded, but the table stores the route template\nregardless, so that a future change to the audit scope could never turn\nit into a second, permanent, plaintext copy of every invitation token\nthis install has issued. Nothing else about the request is kept: no body, no headers, no\nquery string, no token.\n\nScoped to the caller's own household. `userId` and `clientIp` are null\nwhen the server had neither — an unauthenticated request has no user, and\na request made in-process has no address — and `userId` keeps the raw id\nof an account that is later deleted, because an incident review must not\nbe erasable by deleting an account.\n",
               "type": "text/plain"
             },
             "header": [
@@ -4340,7 +4429,7 @@
               "raw": "{\n  \"sourceKind\": \"MANUAL\",\n  \"displayName\": \"Cash\",\n  \"institution\": null,\n  \"accountType\": \"OTHER\",\n  \"currency\": \"CAD\"\n}"
             },
             "description": {
-              "content": "Creates a `connected_account` owned by the caller's household.\n\n`sourceKind: MANUAL` is the credential-less case (gap P2-13): no\ncredential exchange, no `config_encrypted`, and it is the only kind of\naccount `POST /v1/transactions` will accept a hand-entered transaction\nonto. The other three kinds create the row that a later credential\nexchange or file upload attaches itself to; until a source is registered\nfor that kind, `POST /v1/accounts/{id}/sync` answers 409 `conflict`.\n\n`currency` defaults to the caller's own `users.currency` when omitted.\nThere is no server-side default currency literal anywhere — an account\nalways carries the one it was created with.\n\n409 `conflict` means an account of this `sourceKind` already occupies\nthis household's slot for the provider account being described: the\nunique key is `(household_id, source_kind, external_account_id)` with\nnulls compared equal, which is what lets a later re-exchange or repeat\nupload reuse the account instead of duplicating it and every transaction\non it.\n",
+              "content": "Creates a `connected_account` owned by the caller's household.\n\n`sourceKind: MANUAL` is the credential-less case (gap P2-13): no\ncredential exchange, no `config_encrypted`, and it is the only kind of\naccount `POST /v1/transactions` will accept a hand-entered transaction\nonto. The other three kinds create the row that a later credential\nexchange or file upload attaches itself to; until a source is registered\nfor that kind, `POST /v1/accounts/{id}/sync` answers 409 `conflict`.\n\n`currency` defaults to the caller's own `users.currency` when omitted.\nThere is no server-side default currency literal anywhere — an account\nalways carries the one it was created with.\n\n409 `conflict` is the server's generic answer when the database refuses\nthe write with an integrity or data error that request validation did\nnot catch; account creation has no expected conflict and it is not a\nduplicate-account signal.\n",
               "type": "text/plain"
             },
             "header": [
@@ -5357,7 +5446,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "The same body `POST /v1/imports` answered with, so a client that lost the\nfirst response — a reload, a second device — can pick the batch up again.\n\nFor a batch still in `PREVIEW` the file is re-read and re-classified\nagainst the ledger **as it is now**, so the counts are current rather than\nremembered: a row that another member has since entered by hand shows up\nas a duplicate here. For a batch that has been committed or undone the\nstored counts are returned, `rows` is empty and `warnings` says why —\nthe uploaded file is kept only while the batch can still be undone.\n\nResolved inside the caller's own household, so an id belonging to another\nhousehold is 404 and never 403.\n",
+              "content": "The same body `POST /v1/imports` answered with, so a client that lost the\nfirst response — a reload, a second device — can pick the batch up again.\n\nFor a batch still in `PREVIEW` the file is re-read and re-classified\nagainst the ledger **as it is now**, so the counts are current rather than\nremembered: a row that another member has since entered by hand shows up\nas a duplicate here. For a batch that has been committed or undone the\nstored counts are returned, `rows` is empty and `warnings` says why —\nthe uploaded file is kept only while the batch can still be undone.\n\n`409` when a `PREVIEW` batch no longer has its stored file, and `400` when\nthat file no longer parses, which is what the parser's reason says.\n\nResolved inside the caller's own household, so an id belonging to another\nhousehold is 404 and never 403.\n",
               "type": "text/plain"
             },
             "header": [
@@ -5687,7 +5776,7 @@
               "raw": "{\n  \"enabled\": true,\n  \"endpointUrl\": \"https://ai.example.test/v1\",\n  \"apiKey\": \"sk-example-not-a-real-key\",\n  \"model\": \"qwen2.5:14b\",\n  \"visionModel\": \"qwen2.5-vl:7b\",\n  \"allowPrivateEndpoint\": false,\n  \"privacyTier\": \"CLOUD_OK\",\n  \"connectTimeoutMs\": 5000,\n  \"readTimeoutMs\": 120000\n}"
             },
             "description": {
-              "content": "**A replace, not a patch.** Every field except `apiKey` takes its value\nfrom this body: an omitted nullable field is written as null, which is\nhow an endpoint, a chat model or a vision model is cleared. The three\nrequired fields (`enabled`, `allowPrivateEndpoint`, `privacyTier`) must\nbe sent every time.\n\n`apiKey` is the one exception, and it has to be: a write-only field\ncannot round-trip through a GET, so a client could not send it back even\nif it wanted to. Absent or null leaves the stored key alone; a non-blank\nvalue replaces it. Use `DELETE /v1/ai/settings/api-key` to remove one.\n\n**`endpointUrl` is checked by the egress policy on the way in and again\non every call.** `https` is required unless *both* the install-wide\n`TROVE_EGRESS_ALLOW_PRIVATE` and this user's own `allowPrivateEndpoint`\nare set, which is also the only way to reach a private, loopback or\nlink-local target — a LAN Ollama is the primary AI story, so a blanket\nblock would be wrong, and an instance-wide switch alone would be too\ncoarse for a per-user endpoint. A refusal is 400 `outbound-url-rejected`\nwith a sentence naming the rule (never the resolved address). Passing\nthis check at save time buys nothing on its own: the policy is\nre-evaluated, and the address re-pinned, on every outbound call.\n\nTurning `enabled` on requires `endpointUrl` and `model`; a body that\nenables the feature without them is 400 `validation-error`.\n\nA change to `endpointUrl`, `allowPrivateEndpoint` or `enabled` writes an\n`EGRESS_SETTING_CHANGE` security event, visible to the caller at\n`GET /v1/me/security-events`. The event records the endpoint's host, never\nits path, query or key.\n",
+              "content": "**A replace, not a patch.** Every field except `apiKey` takes its value\nfrom this body: an omitted nullable field is written as null, which is\nhow an endpoint, a chat model or a vision model is cleared. The three\nrequired fields (`enabled`, `allowPrivateEndpoint`, `privacyTier`) must\nbe sent every time.\n\n`apiKey` is the one exception, and it has to be: a write-only field\ncannot round-trip through a GET, so a client could not send it back even\nif it wanted to. Absent or null leaves the stored key alone; a non-blank\nvalue replaces it. Use `DELETE /v1/ai/settings/api-key` to remove one.\n\n**`endpointUrl` is checked by the egress policy on the way in and again\non every call.** `https` is required unless *both* the install-wide\n`TROVE_EGRESS_ALLOW_PRIVATE` and this user's own `allowPrivateEndpoint`\nare set, which is also the only way to reach a private (RFC 1918,\ncarrier-grade NAT, IPv6 unique-local, IPv6 site-local) or loopback\ntarget — a LAN Ollama is the primary AI story, so a blanket block would\nbe wrong, and an instance-wide switch alone would be too coarse for a\nper-user endpoint. Link-local, the cloud metadata addresses and the\nother always-refused ranges (unspecified, multicast, reserved, and the\nIANA special-purpose ranges that are not globally reachable) stay\nrefused whatever the keys say. A refusal is 400 `outbound-url-rejected`\nwith a sentence naming the rule for the URL's shape (scheme, credentials,\nport); every refusal by address, including a name that does not resolve,\nreads the same and never names the address or its range. Passing\nthis check at save time buys nothing on its own: the policy is\nre-evaluated, and the address re-pinned, on every outbound call.\n\nTurning `enabled` on requires `endpointUrl` and `model`; a body that\nenables the feature without them is 400 `validation-error`.\n\nA change to `endpointUrl`, `allowPrivateEndpoint` or `enabled` writes an\n`EGRESS_SETTING_CHANGE` security event, visible to the caller at\n`GET /v1/me/security-events`. The event records the endpoint's host, never\nits path, query or key.\n",
               "type": "text/plain"
             },
             "header": [
@@ -6314,7 +6403,7 @@
               "query": [
                 {
                   "description": {
-                    "content": "The window to report. `ALL` has no lower bound. Any other value is\n400 `validation-error`, which is why this is a real enum rather\nthan a free string.\n (This can only be one of 3M,6M,1Y,ALL)",
+                    "content": "The window to report. `3M`, `6M` and `1Y` reach back 90, 180 and\n365 days from the caller's own today; `ALL` reaches back to\n2000-01-01. Any other value is 400 `validation-error`, which is why this is a real enum rather\nthan a free string.\n (This can only be one of 3M,6M,1Y,ALL)",
                     "type": "text/plain"
                   },
                   "disabled": false,
@@ -6974,7 +7063,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "Every non-cancelled `detected_subscription` of the caller's household,\nordered by normalised merchant name. One shared ledger per household\n(owner decision), so a household mate sees exactly the same list;\n`createdBy` records the member the detection was attributed to and is\nfor audit only, never for scoping.\n\nRows here are written **only** by detection — the nightly\n`subscription-scan` job, `POST /v1/subscriptions/scan`, and the listener\nthat runs after an import or a sync writes transactions. There is no\ncreate or update route: a subscription is an observation about the\nledger, not something a member authors.\n\nCancelled rows are excluded. `DELETE /v1/subscriptions/{id}` is a soft\ndelete, so a cancelled subscription disappears from this list but is\nstill readable by id.\n",
+              "content": "Every non-cancelled `detected_subscription` of the caller's household\nwhose charges have not stopped (a next charge more than three whole\nbilling cycles overdue hides the row until charges resume), ordered by\nnormalised merchant name. One shared ledger per household\n(owner decision), so a household mate sees exactly the same list;\n`createdBy` records the member the detection was attributed to and is\nfor audit only, never for scoping.\n\nRows here are written **only** by detection — the nightly\n`subscription-scan` job, `POST /v1/subscriptions/scan`, and the listener\nthat runs after an import or a sync writes transactions. There is no\ncreate or update route: a subscription is an observation about the\nledger, not something a member authors.\n\nCancelled rows are excluded. `DELETE /v1/subscriptions/{id}` is a soft\ndelete, so a cancelled subscription disappears from this list but is\nstill readable by id.\n",
               "type": "text/plain"
             },
             "header": [
@@ -7184,7 +7273,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "Runs the same `SubscriptionDetectionService.detectForHousehold` the\nnightly `subscription-scan` job runs, synchronously, for the CALLER'S\nOWN household only — the household comes from the signed token and\nthere is no way to name another one.\n\n**This route exists because the pre-collapse feature could never detect\nits first subscription.** The old nightly job enumerated the users who\nalready had a row in `detected_subscription`, so on a fresh install the\ntable was empty, nobody was scanned, nothing was written, and the table\nwas still empty the next night. The job now enumerates households with\ntransactions, and this is the manual trigger that was missing entirely.\n\nDetection reads the household's DEBIT transactions of the last thirteen\nmonths (transfer legs excluded), groups them by normalised merchant,\nclassifies the cadence and upserts one row per merchant with\n`INSERT ... ON CONFLICT (household_id, merchant_name) DO UPDATE`. It is\ntherefore **idempotent**: running it twice over unchanged history leaves\nevery row's amount, cycle and next-charge date exactly as they were, and\nrunning it beside the nightly job cannot produce a duplicate row.\n\nTakes no request body. Answers with the household's active\nsubscriptions as they stand after the scan, which is the same body\n`GET /v1/subscriptions` would return.\n",
+              "content": "Runs the same `SubscriptionDetectionService.detectForHousehold` the\nnightly `subscription-scan` job runs, synchronously, for the CALLER'S\nOWN household only — the household comes from the signed token and\nthere is no way to name another one.\n\n**This route exists because the pre-collapse feature could never detect\nits first subscription.** The old nightly job enumerated the users who\nalready had a row in `detected_subscription`, so on a fresh install the\ntable was empty, nobody was scanned, nothing was written, and the table\nwas still empty the next night. The job now enumerates households with\ntransactions, and this is the manual trigger that was missing entirely.\n\nDetection reads the household's DEBIT transactions inside the detection\nwindow, set by `trove.subscriptions.detection-window` (transfer legs\nexcluded), groups them by normalised merchant, classifies the cadence and upserts one row per merchant with\n`INSERT ... ON CONFLICT (household_id, merchant_name) DO UPDATE`. It is\ntherefore **idempotent**: running it twice over unchanged history leaves\nevery row's amount, cycle and next-charge date exactly as they were, and\nrunning it beside the nightly job cannot produce a duplicate row.\n\nTakes no request body. Answers with the household's active\nsubscriptions as they stand after the scan, which is the same body\n`GET /v1/subscriptions` would return.\n",
               "type": "text/plain"
             },
             "header": [
@@ -8436,7 +8525,7 @@
       "name": "Budgets"
     },
     {
-      "description": "The tax-time export: a per-member CSV or PDF of a whole calendar year of\nthe household's ledger, categorised and labelled with the line each\ncategory belongs on in the member's own jurisdiction (CA or US).\n\n**Per member, not per household** — the one place on this API where a\nhousehold mate is refused. The rows come from the shared ledger; the run,\nthe file and the line overrides belong to one member, and another\nmember's run is 404.\n\n**No tax is computed anywhere.** There is no rate, no bracket, no GST or\nsales-tax split and no total owing in any schema here: line codes and\nlabels are strings a human reads off a form, and the only figures are the\nmember's own amounts, summed per line and per currency without conversion.\n",
+      "description": "The tax-time export: a per-member CSV or PDF of a whole calendar year of\nthe household's ledger, categorised and labelled with the line each\ncategory belongs on in the member's own jurisdiction (CA or US).\n\n**Per member, not per household** — one of the areas of this API (with\nnotifications, webhooks, AI settings and coach, and the full data export)\nwhere a household mate is refused rather than served. The rows come from the shared ledger; the run,\nthe file and the line overrides belong to one member, and another\nmember's run is 404.\n\n**No tax is computed anywhere.** There is no rate, no bracket, no GST or\nsales-tax split and no total owing in any schema here: line codes and\nlabels are strings a human reads off a form, and the only figures are the\nmember's own amounts, summed per line and per currency without conversion.\n",
       "item": [
         {
           "event": [],
@@ -8915,7 +9004,7 @@
       "name": "Tax export"
     },
     {
-      "description": "Each member's own notification inbox and the preferences that govern it.\n\n**Per member, not per household** — one of the three areas of this API\nwhere a household mate is refused rather than served. The ledger is\nshared; a notification is addressed to one person, so another member's\ninbox, preferences and webhooks are 404 by id, never 403.\n\n**There is no push channel and no device registration**, and that is a\ndecision rather than an omission (owner, 2026-09-03): no push until a\ndirect APNs/FCM path exists, and no Expo relay. Mobile polls\n`GET /v1/notifications/unread-count` and raises a client-local\nnotification from the result. Two channels exist server-side, `IN_APP`\nand `EMAIL`, and email is off on every install until SMTP is configured.\n",
+      "description": "Each member's own notification inbox and the preferences that govern it.\n\n**Per member, not per household** — one of the areas of this API where a\nhousehold mate is refused rather than served. The ledger is\nshared; a notification is addressed to one person, so another member's\ninbox, preferences and webhooks are 404 by id, never 403.\n\n**There is no push channel and no device registration**, and that is a\ndecision rather than an omission (owner, 2026-09-03): no push until a\ndirect APNs/FCM path exists, and no Expo relay. Mobile polls\n`GET /v1/notifications/unread-count` and raises a client-local\nnotification from the result. Two channels exist server-side, `IN_APP`\nand `EMAIL`, and email is off on every install until SMTP is configured.\n",
       "item": [
         {
           "event": [],
@@ -8927,7 +9016,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "One page of the caller's undismissed notifications, newest first.\n\n**Per member, not per household.** This is one of the three areas of\nthis API where a household mate is refused rather than served: the\nledger is shared, but a notification is addressed to one person and\nanother member's inbox is 404, never 403. The rows are written by\n`NotificationService` on the events the ledger raises — an envelope\ncrossing that member's own alert threshold, a detected price change, a\nfailed account sync — and by the Monday digest.\n\nDismissing a notification (`DELETE /v1/notifications/{id}`) removes it\nfrom this list permanently; the row itself is retained, so this is a\nhide rather than a delete.\n",
+              "content": "One page of the caller's undismissed notifications, newest first.\n\n**Per member, not per household.** This is one of the areas of this API\nwhere a household mate is refused rather than served: the\nledger is shared, but a notification is addressed to one person and\nanother member's inbox is 404, never 403. The rows are written by\n`NotificationService` on the events the ledger raises — an envelope\ncrossing that member's own alert threshold, a detected price change, a\nfailed account sync — and by the Monday digest.\n\nDismissing a notification (`DELETE /v1/notifications/{id}`) removes it\nfrom this list permanently; the row itself is retained, so this is a\nhide rather than a delete.\n",
               "type": "text/plain"
             },
             "header": [
@@ -10060,7 +10149,7 @@
               "raw": "{\n  \"targetUrl\": \"https://hooks.example.test/trove\",\n  \"secret\": \"a-long-enough-webhook-secret\",\n  \"eventTypes\": [\n    \"budget.threshold_crossed\"\n  ]\n}"
             },
             "description": {
-              "content": "Registers an HTTPS endpoint this server will POST to when one of the\ncaller's subscribed events happens.\n\n**`targetUrl` is checked by the shared egress policy, and it is checked\nagain on every delivery attempt.** A refusal here is 400\n`outbound-url-rejected` with a sentence naming the rule — the scheme,\nor the address range the host resolves to — but never the resolved\naddress itself, which would turn this route into an internal port\nscanner. Re-checking at delivery time is what closes the DNS-rebinding\nwindow: a name that answers a public address while you are saving it\nand a private one an hour later is refused at the second point, and the\nHTTP client connects to the address the policy approved rather than\nresolving the name a second time of its own accord.\n\n**`secret` is write-only.** It is encrypted at rest with the same\nAES-GCM field encryption the AI API key and the SimpleFIN access URL\nuse, it appears in no response schema, and it is never logged. Every\ndelivery carries `X-Trove-Signature: sha256=<hex>`, an HMAC-SHA256 over\nthe exact request bytes keyed with it, alongside `X-Trove-Event` (the\nevent type) and `X-Trove-Delivery` (the delivery id, stable across\nretries so a receiver can deduplicate).\n\nDeliveries are retried with exponential backoff — 2^n seconds, five\nattempts — and a subscription that never succeeds is left `EXHAUSTED`\nrather than retried for ever.\n\nA member may hold at most twenty subscriptions\n(`trove.notifications.max-webhooks-per-user`); the twenty-first is 409\n`conflict`. Every subscription is an outbound connection this server\nmakes on that member's behalf, so the number is capped rather than\nunbounded.\n",
+              "content": "Registers an HTTPS endpoint this server will POST to when one of the\ncaller's subscribed events happens.\n\n**`targetUrl` is checked by the shared egress policy, and it is checked\nagain on every delivery attempt.** A refusal here is 400\n`outbound-url-rejected`. A refusal for the URL's shape (the scheme,\ncredentials before the host) names that rule; every refusal by address,\nincluding a name that does not resolve, reads the same and names neither\nthe address nor its range, which would turn this route into an internal\nnetwork probe. Re-checking at delivery time is what closes the DNS-rebinding\nwindow: a name that answers a public address while you are saving it\nand a private one an hour later is refused at the second point, and the\nHTTP client connects to the address the policy approved rather than\nresolving the name a second time of its own accord.\n\n**`secret` is write-only.** It is encrypted at rest with the same\nAES-GCM field encryption the AI API key and the SimpleFIN access URL\nuse, it appears in no response schema, and it is never logged.\n\n**Every delivery is signed in the Standard Webhooks scheme**\n(https://www.standardwebhooks.com, symmetric `v1`). Headers:\n`webhook-id` (the delivery id, stable across retries so a receiver can\ndeduplicate), `webhook-timestamp` (Unix seconds of this attempt),\n`webhook-signature` (`v1,<base64>`, an HMAC-SHA256 keyed with the UTF-8\nbytes of `secret` over `<webhook-id>.<webhook-timestamp>.<raw body>`)\nand `X-Trove-Event` (the event type). A receiver recomputes the HMAC\nover the exact bytes it received, compares in constant time, and\nrefuses a `webhook-timestamp` more than five minutes from its own\nclock: that window is what makes a captured delivery useless for a\nreplay. Standard Webhooks libraries take a base64 `whsec_` secret by\ndefault; pass this secret's raw UTF-8 bytes instead. This replaced\n`X-Trove-Signature: sha256=<hex>` over the body alone, which signed\nneither the id nor a time.\n\nDeliveries are retried with exponential backoff — 2^n seconds, five\nattempts — and a subscription that never succeeds is left `EXHAUSTED`\nrather than retried for ever.\n\nA member may hold at most twenty subscriptions\n(`trove.notifications.max-webhooks-per-user`); the twenty-first is 409\n`conflict`. Every subscription is an outbound connection this server\nmakes on that member's behalf, so the number is capped rather than\nunbounded.\n",
               "type": "text/plain"
             },
             "header": [

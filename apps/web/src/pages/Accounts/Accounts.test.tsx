@@ -319,4 +319,19 @@ describe('Accounts', () => {
     expect(screen.queryByRole('button', { name: /sync us savings/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /sync everyday chequing/i })).toBeInTheDocument()
   })
+
+  it('says how fresh a bank connection is, with the exact time on hover (C-01r)', async () => {
+    authenticate()
+    renderWithProviders(<Accounts />)
+
+    const chequing = await screen.findByTestId('account-acct-1')
+    // Relative to the real clock ("Synced last month", "Synced 2 years ago"…);
+    // the wording itself is pinned in useUserFormat.test.ts and SyncFreshness.test.tsx.
+    const fresh = within(chequing).getByText(/^Synced \S/)
+    expect(fresh).toHaveAttribute('dateTime', '2026-09-03T11:00:00Z')
+    expect(fresh.getAttribute('title')).toMatch(/2026/)
+    // An account that is not a bank connection shows nothing new.
+    expect(screen.getByTestId('account-acct-manual').textContent).toContain('Never synced')
+    expect(screen.getByTestId('account-acct-manual').querySelector('time')).toBeNull()
+  })
 })

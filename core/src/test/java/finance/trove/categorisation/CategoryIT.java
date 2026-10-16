@@ -97,6 +97,26 @@ class CategoryIT extends AuthFlowSupport {
     }
 
     @Test
+    @DisplayName("A 100-character name fits the 60-character slug column, including its -2 suffix")
+    void longNamesGetASlugThatFitsTheColumn() {
+        Session member = inviteAndRegister(loginBootstrapAdmin(), "cat-long");
+        String name = "Long running household project ".repeat(4).substring(0, 100);
+
+        var first = postJson(appUrl("/v1/categories"),
+            Json.object("name", name), "Authorization", bearer(member));
+        var second = postJson(appUrl("/v1/categories"),
+            Json.object("name", name), "Authorization", bearer(member));
+
+        assertThat(first.statusCode()).isEqualTo(201);
+        assertThat(second.statusCode()).isEqualTo(201);
+        String firstSlug = Json.data(first.body()).path("slug").asString();
+        String secondSlug = Json.data(second.body()).path("slug").asString();
+        assertThat(firstSlug).hasSizeLessThanOrEqualTo(60).doesNotEndWith("-");
+        assertThat(secondSlug).hasSizeLessThanOrEqualTo(60).endsWith("-2");
+        assertThat(secondSlug).isNotEqualTo(firstSlug);
+    }
+
+    @Test
     @DisplayName("A system category cannot be renamed or deleted")
     void systemCategoryIsImmutable() {
         Session member = inviteAndRegister(loginBootstrapAdmin(), "cat-immutable");

@@ -1,7 +1,10 @@
 # ADR-0004: Envelope Budgeting with Read-Time Health Calculation
 
 **Date**: 2026-04-27  
-**Status**: accepted  
+**Status**: accepted (amended 2026-10-16, see note)
+
+> Update 2026-10-16: health (pace marker, remaining, over-pace) is still computed per read and never stored, via `EnvelopeHealthCalculator.calculate(Envelope, YearMonth, LocalDate)`. Spend is no longer summed on each read: `Envelope.spent` is persisted and recalculated by `EnvelopeSpendService` after ingest commits. The original text below is kept unchanged.  
+
 **Deciders**: Product and architecture team
 
 ## Context

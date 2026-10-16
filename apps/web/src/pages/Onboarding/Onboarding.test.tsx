@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { http } from 'msw'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from '@/test/test-utils'
-import { DEFAULT_ME, mswState } from '@/test/msw/handlers'
+import { server } from '@/test/mswServer'
+import { DEFAULT_ME, fail, mswState } from '@/test/msw/handlers'
 import { useAuthStore } from '@stores/authStore'
 import Onboarding from './index'
 
@@ -103,5 +105,67 @@ describe('Onboarding', () => {
     await user.click(await screen.findByRole('button', { name: /continue/i }))
     await screen.findByText(/Step 2 of 3/)
     expect(screen.getByTestId('onboarding-import-pending')).toBeInTheDocument()
+  })
+
+  /** F1-B3: there is no checklist on Today, so the last step must not promise one. */
+  it('does not promise a Today checklist that does not exist (F1-B3)', async () => {
+    authenticate()
+    const user = userEvent.setup()
+    renderWithProviders(<Onboarding />)
+    await user.click(await screen.findByRole('button', { name: /continue/i }))
+    await screen.findByText(/Step 2 of 3/)
+    await user.click(screen.getByRole('button', { name: /^continue$/i }))
+    await screen.findByText(/Step 3 of 3/)
+    expect(document.body.textContent).not.toMatch(/Today screen as a checklist/i)
+  })
+
+  /** F1-B6: a free-text zone let a typo reach the server and come back as a generic failure. */
+  it('offers the time zone as a list of real zones, defaulting to the browser zone (F1-B6)', async () => {
+    authenticate()
+    renderWithProviders(<Onboarding />)
+    const picker = await screen.findByRole('combobox', { name: /time zone/i })
+    expect(picker.tagName).toBe('SELECT')
+    expect(picker).toHaveValue(Intl.DateTimeFormat().resolvedOptions().timeZone)
+    expect(screen.getByRole('option', { name: 'America/Toronto' })).toBeInTheDocument()
+  })
+
+  it("puts the server's time-zone refusal on the picker, not a generic error (F1-B6)", async () => {
+    authenticate()
+    const message = "'Mars/Olympus' is not a recognised IANA time zone."
+    server.use(
+      http.put('*/v1/me/preferences', () =>
+        fail(400, 'validation-error', 'Validation failed', {
+          detail: message,
+          fieldErrors: [{ field: 'timezone', message }],
+        })
+      )
+    )
+    const user = userEvent.setup()
+    renderWithProviders(<Onboarding />)
+    const picker = await screen.findByRole('combobox', { name: /time zone/i })
+    await user.click(screen.getByRole('button', { name: /continue/i }))
+
+    await waitFor(() => expect(picker).toHaveAttribute('aria-invalid', 'true'))
+    expect(picker).toHaveAccessibleDescription(message)
+    expect(screen.queryByText(/check the server/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/Step 1 of 3/)).toBeInTheDocument()
+  })
+
+  it('reads a time-zone refusal that carries no fieldErrors entry as the picker error (F1-B6)', async () => {
+    authenticate()
+    const message = "'Mars/Olympus' is not a recognised IANA time zone."
+    server.use(
+      http.put('*/v1/me/preferences', () =>
+        fail(400, 'validation-error', 'Validation failed', { detail: message })
+      )
+    )
+    const user = userEvent.setup()
+    renderWithProviders(<Onboarding />)
+    const picker = await screen.findByRole('combobox', { name: /time zone/i })
+    await user.click(screen.getByRole('button', { name: /continue/i }))
+
+    await waitFor(() => expect(picker).toHaveAttribute('aria-invalid', 'true'))
+    expect(picker).toHaveAccessibleDescription(message)
+    expect(screen.queryByText(/check the server/i)).not.toBeInTheDocument()
   })
 })

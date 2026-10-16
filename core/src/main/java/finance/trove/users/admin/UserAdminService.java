@@ -10,7 +10,6 @@ import finance.trove.households.HouseholdRepository;
 import finance.trove.users.User;
 import finance.trove.users.UserRepository;
 import finance.trove.users.UserRole;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
@@ -30,7 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
  * both walked past {@code <= 1}, and both committed. The household is then left with no
  * administrator at all, and there is no way back in through the API: registration is closed,
  * opening it is an admin route, and so is minting an invite. An install in that state needs a
- * database edit or the console commands of {@code finance.trove.app.cli}.
+ * database edit; the console commands in {@code finance.trove.app.cli}
+ * ({@code reset-password}, {@code disable-totp}, {@code unlock}) cannot grant the ADMIN role.
  *
  * <p>The serialisation point is the <strong>household row</strong>, taken
  * {@code PESSIMISTIC_WRITE} before anything is counted. The tenancy root is the natural choice:
@@ -74,7 +74,8 @@ public class UserAdminService {
      * rather than comparing ids.
      *
      * <p>The member is deactivated, stamped and their sessions revoked; the row survives for the
-     * restore window ({@link #grace()}) and is then erased by {@code AccountPurgeJob}.
+     * restore window ({@link AccountDeletionProperties#grace()}) and is then erased by
+     * {@code AccountPurgeJob}.
      * {@code GET /v1/admin/users} already returns {@code active}, so a soft-deleted member is
      * visible to the administrator who has to decide whether to restore them.
      *
@@ -232,8 +233,62 @@ public class UserAdminService {
         LOG.info("A {} was restored in household {}", target.getRole(), householdId);
     }
 
-    /** How long a deleted member may still be restored — the property's value, for callers. */
-    public Duration grace() {
-        return properties.grace();
+    /**
+     * Makes a member an administrator, or a member again (journey bug F1-B2), or refuses.
+     *
+     * <p>Behind the same household lock as {@link #deleteMember}, because a demotion and a delete
+     * are both decisions about who administers the household, and the last-ADMIN guard reads a
+     * count either of them can change. Two administrators demoting each other at once serialise
+     * here: the second reads a count of one and is refused.
+     *
+     * <p><strong>A demotion revokes every session of the demoted member.</strong> The role rides in
+     * the access token, which lives for minutes after this commit; the filter chain checks the
+     * session on every request, so revoking it is what makes the demotion take effect now rather
+     * than at the token's expiry. A promotion revokes nothing: the new role reaches the member's
+     * token at their next refresh, which reads the row.
+     *
+     * <p>No new security-event type: one would need a migration widening V9's CHECK. The audit log
+     * records the request itself, the revocation writes {@code SESSION_REVOKE} with its reason, and
+     * this logs at INFO.
+     *
+     * @param householdId the acting admin's own household, from the signed token
+     * @param targetId the member whose role changes; may be the acting admin themselves
+     * @param role the role to give them
+     * @return the member after the write
+     * @throws ResourceNotFoundException 404 — another household's id, or an unknown one
+     * @throws ConflictException 409 — the household's last active ADMIN would be demoted, or the
+     *     member is inside the deletion grace
+     */
+    @Transactional
+    public User changeRole(UUID householdId, UUID targetId, UserRole role) {
+        households.findByIdForUpdate(householdId)
+            .orElseThrow(() -> ResourceNotFoundException.of("Household", householdId));
+        User target = users.findByIdAndHouseholdId(targetId, householdId)
+            .orElseThrow(() -> ResourceNotFoundException.of("User", targetId));
+
+        if (target.getDeletedAt() != null) {
+            throw new ConflictException("That member has been deleted and is inside the restore "
+                + "window. Restore them first if they should keep a role in this household.");
+        }
+        if (target.getRole() == role) {
+            return target;
+        }
+        if (role == UserRole.MEMBER && target.isActive()
+            && users.countByHouseholdIdAndRoleAndActiveTrue(householdId, UserRole.ADMIN) <= 1) {
+            throw new ConflictException(
+                "This is the household's last administrator. Make another member an "
+                    + "administrator first, or the household would be left with no way to invite "
+                    + "anyone or change its settings.");
+        }
+
+        UserRole previous = target.getRole();
+        target.setRole(role);
+        User saved = users.save(target);
+        int revoked = role == UserRole.MEMBER
+            ? sessions.revokeAllForUser(targetId, "role-changed", clock.now())
+            : 0;
+        LOG.info("A {} became a {} in household {} ({} sessions revoked)", previous, role,
+            householdId, revoked);
+        return saved;
     }
 }

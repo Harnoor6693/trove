@@ -14,8 +14,10 @@
 #   passes one argument and gets both.
 #
 # Exits 0 and prints "PASS" if the container reaches "healthy" before the
-# HEALTHCHECK's own start-period + retries*interval elapse; exits 1 and
-# prints "FAIL" (with the last few health-log entries) otherwise.
+# HEALTHCHECK's own start-period + retries*interval elapse AND nginx is not
+# running as root (the image is the unprivileged one, listening on 8080; see
+# docs/adr/0011-threat-model.md); exits 1 and prints "FAIL" (with the last few
+# health-log entries) otherwise.
 
 set -uo pipefail
 
@@ -30,7 +32,7 @@ echo "building ${tag} from apps/web/Dockerfile..."
 docker build -t "$tag" "${REPO_ROOT}/apps/web" || { echo "FAIL — image build failed"; exit 1; }
 
 cleanup
-docker run -d --name "$container" -p 0:80 "$tag" >/dev/null
+docker run -d --name "$container" -p 0:8080 "$tag" >/dev/null
 
 # HEALTHCHECK is --interval=30s --timeout=3s --start-period=5s --retries=3:
 # give it start-period + retries*interval + slack before giving up.
@@ -45,7 +47,12 @@ while [ "$SECONDS" -lt "$deadline" ]; do
 done
 
 if [ "$status" = "healthy" ]; then
-  echo "PASS — ${container} reported healthy"
+  uid=$(docker exec "$container" id -u 2>/dev/null || echo "?")
+  if [ "$uid" = "0" ] || [ "$uid" = "?" ]; then
+    echo "FAIL — ${container} is healthy but runs as uid ${uid}, not an unprivileged user"
+    exit 1
+  fi
+  echo "PASS — ${container} reported healthy, running as uid ${uid}"
   exit 0
 else
   echo "FAIL — ${container} reported '${status:-<timed out>}', not healthy"

@@ -13,9 +13,6 @@
   regexes = [
     '''^change-me-minimum-32-chars-in-production!!$''',
     '''^change-me-in-production$''',
-    '''^dev-ai-service-token$''',
-    '''^dev-internal-service-token$''',
-    '''^dev-litellm-key$''',
     '''^integration-test-secret-minimum-32-chars-long(!!)?$''',
     '''^build-time-placeholder-not-used-at-least-32chars!!$''',
     '''^release-build-placeholder-minimum-32-chars$''',

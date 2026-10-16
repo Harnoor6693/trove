@@ -1,7 +1,7 @@
 # ADR-0007: Authentik as External Identity Provider (SSO/OIDC)
 
 **Date**: 2026-04-27  
-Status: Superseded by ADR-0020 (monolith collapse, 2026-09-26 — Authentik was cut outright; local Argon2id password accounts are the default, with optional OIDC to any provider the operator chooses, see `finance.trove.auth.oidc`)  
+Status: Superseded by [ADR-0020](0020-monolith-collapse.md) (monolith collapse, 2026-09-26 — Authentik was cut outright; local Argon2id password accounts are the default, with optional OIDC to any provider the operator chooses, see `finance.trove.auth.oidc`)  
 **Deciders**: Security and product team
 
 ## Context

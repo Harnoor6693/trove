@@ -43,19 +43,17 @@ import org.springframework.web.client.RestClientResponseException;
  * <p><strong>There is no {@code webhookRestClientBuilder} bean</strong>, whatever §5 item 5 says:
  * the merged {@code HttpClientConfig} exposes {@code PinnedRestClientFactory.builderFor(target,
  * connect, read)} and that overload — with the 10 s / 10 s §2.8 names — is what this uses. The
- * correction is in this step's merge notes.
+ * plan's name for it ({@code webhookRestClientBuilder}) is a label, not a bean.
  *
- * <h2>deliver() is three transactions, and none of them spans the HTTP call</h2>
+ * <h2>deliverDue() uses two short transactions, and neither spans the HTTP call</h2>
  * {@link WebhookDeliveryStore#claimDue} takes rows and commits {@code IN_FLIGHT};
  * {@link #attempt} calls out with no transaction at all; {@link WebhookDeliveryStore#persistOutcome}
- * writes the result. The source wrapped all three in one, pinning a database connection for the
+ * writes the result. The source wrapped the whole pass in one, pinning a database connection for the
  * life of somebody else's slow endpoint.
  *
- * <h2>Nothing publishes into this queue yet</h2>
- * {@code WebhookEventListener} — the component that turns a domain event into
- * {@link #scheduleDelivery} calls — is collapse step 16's (§6 D3, §7 row 16). This class is the
- * seam it will call, and {@code WebhookDeliveryIT} exercises it directly rather than through a
- * listener that does not exist.
+ * <h2>Who publishes into the queue</h2>
+ * {@code WebhookEventListener} turns each domain event into {@link #scheduleDelivery} calls; this
+ * class is the seam it calls.
  */
 @Service
 public class WebhookDeliveryService {
@@ -103,9 +101,9 @@ public class WebhookDeliveryService {
     }
 
     /**
-     * Queues one event for one subscription — <strong>the seam collapse step 16 calls</strong>.
+     * Queues one event for one subscription — <strong>the seam {@code WebhookEventListener} calls</strong>.
      *
-     * <p>Signature, for step 16: {@code UUID scheduleDelivery(UUID subscriptionId, String
+     * <p>Signature: {@code Optional<UUID> scheduleDelivery(UUID subscriptionId, String
      * eventType, String payload)}, returning the delivery row's id, or empty when the subscription
      * does not exist, is disabled, or does not want this event type. It is safe to call from a
      * {@code @TransactionalEventListener(AFTER_COMMIT)}: the write is
@@ -133,8 +131,8 @@ public class WebhookDeliveryService {
      * One pass of the retry loop: claim, call, persist.
      *
      * <p>Interruption is checked between rows (§5 item 13, graceful shutdown): a deploy during a
-     * batch of slow receivers must be able to stop, and a row already claimed stays
-     * {@code IN_FLIGHT} rather than being retried by the instance that is coming up.
+     * batch of slow receivers must be able to stop. A row already claimed stays {@code IN_FLIGHT}
+     * until it is stale, and then a later pass claims it again (B3-01).
      *
      * @return how many deliveries this pass attempted
      */
@@ -144,7 +142,8 @@ public class WebhookDeliveryService {
         int attempted = 0;
         for (WebhookDeliveryLog row : claimed) {
             if (Thread.currentThread().isInterrupted()) {
-                LOG.info("webhook retry interrupted after {} deliveries; {} rows stay IN_FLIGHT",
+                LOG.info("webhook retry interrupted after {} deliveries; {} rows stay IN_FLIGHT "
+                    + "until a later pass reclaims them",
                     attempted, claimed.size() - attempted);
                 break;
             }
@@ -187,17 +186,20 @@ public class WebhookDeliveryService {
         }
 
         byte[] body = row.getPayload().getBytes(StandardCharsets.UTF_8);
+        String deliveryId = row.getId().toString();
+        long timestamp = clock.instant().getEpochSecond();
         String signature = WebhookSignature.sign(encryption.decrypt(subscription
-            .getSecretEncrypted()), body);
+            .getSecretEncrypted()), deliveryId, timestamp, body);
 
         try {
             RestClient client = clients.builderFor(target, CONNECT_TIMEOUT, READ_TIMEOUT).build();
             ResponseEntity<Void> response = client.post()
                 .uri(target.uri())
                 .contentType(MediaType.APPLICATION_JSON)
+                .header(WebhookSignature.ID_HEADER, deliveryId)
+                .header(WebhookSignature.TIMESTAMP_HEADER, Long.toString(timestamp))
                 .header(WebhookSignature.SIGNATURE_HEADER, signature)
                 .header(WebhookSignature.EVENT_HEADER, row.getEventType())
-                .header(WebhookSignature.DELIVERY_HEADER, row.getId().toString())
                 .body(body)
                 .retrieve()
                 .toBodilessEntity();

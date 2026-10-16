@@ -38,6 +38,7 @@ public class TestSimplefinBridge extends SimplefinBridgeClient {
     private volatile List<SimplefinAccount> accounts = List.of();
     private volatile LocalDate lastRequestedFrom;
     private volatile int fetchCount;
+    private volatile List<String> errors;
 
     public TestSimplefinBridge(OutboundUrlPolicy egress,
                                HttpClientConfig.PinnedRestClientFactory clients,
@@ -51,6 +52,12 @@ public class TestSimplefinBridge extends SimplefinBridgeClient {
         accounts = List.of();
         lastRequestedFrom = null;
         fetchCount = 0;
+        errors = null;
+    }
+
+    /** The soft errors the next fetches report alongside the accounts. */
+    public void reportingErrors(List<String> bridgeErrors) {
+        this.errors = List.copyOf(bridgeErrors);
     }
 
     /** What the next exchange returns, and which accounts the access URL then reaches. */
@@ -74,7 +81,7 @@ public class TestSimplefinBridge extends SimplefinBridgeClient {
         }
         fetchCount++;
         lastRequestedFrom = from;
-        return new SimplefinAccountSet(accounts, null);
+        return new SimplefinAccountSet(accounts, errors);
     }
 
     /** The window the exchange asked the bridge for. */

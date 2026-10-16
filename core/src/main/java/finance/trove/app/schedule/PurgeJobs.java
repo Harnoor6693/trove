@@ -161,7 +161,9 @@ public class PurgeJobs {
      * ({@code RateLimitRules}'s volatile list). A lock on it would mean that with two instances
      * only one ever reloaded and the other enforced stale rules for ever — the lock would cause
      * exactly the divergence it is normally there to prevent. Running it on every instance is
-     * correct and costs one eight-row read every five minutes.
+     * correct and costs one small read of the {@code rate_limit_config} table (nine seeded rows)
+     * every five
+     * minutes by default.
      */
     @Scheduled(fixedDelayString = "${trove.rate-limit.reload-interval:PT5M}")
     public void reloadRateLimits() {

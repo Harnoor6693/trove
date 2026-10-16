@@ -128,4 +128,25 @@ describe('Today — the per-currency dashboard (step 201)', () => {
     expect(await screen.findByText(/No activity yet/i)).toBeInTheDocument()
     expect(screen.queryByTestId('today-currency-CAD')).not.toBeInTheDocument()
   })
+
+  it('says how fresh each bank connection is, and lists nothing else (C-01r)', async () => {
+    authenticate()
+    renderWithProviders(<Today />)
+
+    const card = await screen.findByTestId('today-bank-sync')
+    expect(card.textContent).toContain('Everyday Chequing')
+    expect(card.querySelector('time')?.getAttribute('dateTime')).toBe('2026-09-03T11:00:00Z')
+    expect(card.querySelector('time')?.textContent).toMatch(/^Synced \S/)
+    expect(card.textContent).not.toContain('Cash wallet')
+    expect(card.textContent).not.toContain('US Savings')
+  })
+
+  it('shows no bank sync card to a household with no bank connection', async () => {
+    authenticate()
+    mswState.accounts = mswState.accounts.filter((a) => a.sourceKind !== 'SIMPLEFIN')
+    renderWithProviders(<Today />)
+
+    await screen.findByTestId('today-balance')
+    expect(screen.queryByTestId('today-bank-sync')).not.toBeInTheDocument()
+  })
 })

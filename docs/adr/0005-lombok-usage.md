@@ -1,7 +1,10 @@
 # ADR-0005: Lombok for Boilerplate Reduction in Entity Classes
 
 **Date**: 2026-04-27  
-**Status**: accepted  
+**Status**: deprecated, never adopted (see the 2026-10-16 note)
+
+> Update 2026-10-16: never adopted. Lombok is not used in `core` (no imports in `core/src`); entities are hand-written, and `ConnectedAccount.toString()` deliberately omits `configEncrypted`. The unused Lombok entries (managed version, optional dependency in `core/pom.xml`, compiler annotation-processor path) were removed from `pom.xml` and `core/pom.xml` on the same date, and from `NOTICE`. The text below is kept as the historical record.
+
 **Deciders**: Architecture team
 
 ## Context

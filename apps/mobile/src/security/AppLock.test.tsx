@@ -3,9 +3,16 @@ import { AppState, Text, type AppStateStatus } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { AppLock } from './AppLock';
+import { withLockSuppressed } from './lockSuppression';
 import { fetchMe } from '@api/me';
 import { fetchPreferences } from '@api/preferences';
-import { __resetClientForTests, refreshAccessToken, setSession } from '@api/client';
+import {
+  __resetClientForTests,
+  clearSession,
+  getRefreshToken,
+  refreshAccessToken,
+  setSession,
+} from '@api/client';
 import { __resetServerConnectionForTests, setServerConnection } from '@api/serverConfig';
 import { useAuthStore } from '@stores/authStore';
 import { useUiStore } from '@stores/uiStore';
@@ -145,8 +152,75 @@ describe('locked state', () => {
     expect(queryByTestId('protected-content')).toBeNull();
   });
 
-  it('reports an expired session when the server rejects the refresh', async () => {
-    mockRefresh.mockRejectedValue(new Error('refresh rejected'));
+  it('asks for the device passcode when no biometrics are enrolled (B5-04)', async () => {
+    (LocalAuthentication.isEnrolledAsync as jest.Mock).mockResolvedValue(false);
+    const { getByTestId } = await render(
+      <AppLock>
+        <Child />
+      </AppLock>
+    );
+    await fireEvent.press(getByTestId('app-lock-unlock-btn'));
+
+    await waitFor(() => expect(getByTestId('protected-content')).toBeTruthy());
+    expect(mockAuthenticate).toHaveBeenCalledWith(
+      expect.objectContaining({ disableDeviceFallback: false })
+    );
+  });
+
+  it('offers Sign out on the lock screen, which clears the session without unlocking', async () => {
+    const { getByTestId, queryByTestId } = await render(
+      <AppLock>
+        <Child />
+      </AppLock>
+    );
+    const signOut = getByTestId('app-lock-sign-out-btn');
+    expect(signOut.props.accessibilityRole).toBe('button');
+    await fireEvent.press(signOut);
+
+    await waitFor(() => expect(useAuthStore.getState().status).toBe('anonymous'));
+    expect(getRefreshToken()).toBeNull();
+    expect(mockAuthenticate).not.toHaveBeenCalled();
+    expect(queryByTestId('app-lock-screen')).toBeNull();
+  });
+
+  it('stays locked, and says why, when the device has no passcode at all (B5-04)', async () => {
+    (LocalAuthentication.isEnrolledAsync as jest.Mock).mockResolvedValue(false);
+    mockAuthenticate.mockResolvedValue({ success: false, error: 'not_enrolled' });
+    const { getByTestId, queryByTestId } = await render(
+      <AppLock>
+        <Child />
+      </AppLock>
+    );
+    await fireEvent.press(getByTestId('app-lock-unlock-btn'));
+
+    await waitFor(() => expect(getByTestId('app-lock-error')).toBeTruthy());
+    expect(getByTestId('app-lock-error').props.children).toMatch(/passcode/i);
+    expect(queryByTestId('protected-content')).toBeNull();
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  it('says Trove could not be reached, not that the session expired, on a network failure', async () => {
+    // A network error, timeout or 5xx keeps the session: the store stays
+    // `locked` and the member can retry.
+    mockRefresh.mockRejectedValue(new Error('Network request failed'));
+
+    const { getByTestId } = await render(
+      <AppLock>
+        <Child />
+      </AppLock>
+    );
+    await fireEvent.press(getByTestId('app-lock-unlock-btn'));
+
+    await waitFor(() =>
+      expect(getByTestId('app-lock-error').props.children).toMatch(/could not reach trove/i)
+    );
+    expect(getByTestId('app-lock-error').props.children).not.toMatch(/expired/i);
+    expect(useAuthStore.getState().status).toBe('locked');
+  });
+
+  it('reports an expired session when no refresh token is left to retry with', async () => {
+    mockRefresh.mockRejectedValue(new Error('No refresh token'));
+    await clearSession();
 
     const { getByTestId } = await render(
       <AppLock>
@@ -156,6 +230,26 @@ describe('locked state', () => {
     await fireEvent.press(getByTestId('app-lock-unlock-btn'));
 
     await waitFor(() => expect(getByTestId('app-lock-error').props.children).toMatch(/expired/i));
+  });
+
+  it('leaves the lock screen for sign-in when the server rejects the refresh (401)', async () => {
+    // A definitive 400/401/403 makes the client end the session, and the store
+    // follows it down to `anonymous` (see `onSessionEnded` in authStore).
+    mockRefresh.mockImplementation(() => {
+      useAuthStore.setState({ status: 'anonymous' });
+      return Promise.reject(new Error('refresh rejected'));
+    });
+
+    const { getByTestId, queryByTestId } = await render(
+      <AppLock>
+        <Child />
+      </AppLock>
+    );
+    await fireEvent.press(getByTestId('app-lock-unlock-btn'));
+
+    await waitFor(() => expect(queryByTestId('app-lock-screen')).toBeNull());
+    expect(queryByTestId('app-lock-error')).toBeNull();
+    expect(useAuthStore.getState().status).toBe('anonymous');
   });
 
   it('auto-unlocks without a prompt when the app lock is switched off', async () => {
@@ -230,6 +324,23 @@ describe('background timeout', () => {
     await emitAppState('active');
 
     await waitFor(() => expect(useAuthStore.getState().status).toBe('locked'));
+  });
+
+  it('does not lock when the system camera or picker sent the app away (B5-12)', async () => {
+    useUiStore.setState({ appLockTimeoutMinutes: 0 });
+    const { getByTestId } = await render(
+      <AppLock>
+        <Child />
+      </AppLock>
+    );
+
+    await withLockSuppressed(async () => {
+      await emitAppState('background');
+    });
+    await emitAppState('active');
+
+    expect(useAuthStore.getState().status).toBe('authenticated');
+    expect(getByTestId('protected-content')).toBeTruthy();
   });
 
   it('never locks when the app lock is off', async () => {

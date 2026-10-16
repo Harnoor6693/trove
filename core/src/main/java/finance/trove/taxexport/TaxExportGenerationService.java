@@ -33,8 +33,10 @@ import org.springframework.stereotype.Service;
  * uses the container's year (gap P2-15).
  *
  * <h2>The rows are the household's, the run is the member's</h2>
- * The ledger is shared (§1.5), so the file contains the whole household's transactions for the
- * window. The run, the file and the line overrides belong to one member. Both halves are stated in
+ * The ledger is shared (§1.5), so the file contains the whole household's posted, non-transfer
+ * transactions for the window (transfer legs and pending rows are excluded; income, fees and
+ * interest rows are listed too, with their type). The run, the file and the line overrides
+ * belong to one member. Both halves are stated in
  * the operation's description because "my tax export" containing a household mate's spending
  * surprises anybody who was not told.
  *
@@ -46,12 +48,21 @@ import org.springframework.stereotype.Service;
  * <h2>Failure is recorded, not swallowed</h2>
  * Every status write goes through {@link TaxExportStatusUpdater}, whose transitions are
  * {@code REQUIRES_NEW}, so a failure inside the generation still records {@code FAILED} instead of
- * being rolled back with the work that failed. The recorded reason is truncated and is never a
- * stack trace and never the endpoint of anything — this step opens no socket, so there is no
- * endpoint to leak, and keeping the rule explicit is what stops one appearing later.
+ * being rolled back with the work that failed. The recorded reason is a fixed sentence,
+ * {@link #FAILURE_REASON}: never the exception's own message, a stack trace, a file path or the
+ * name of anything on disk. The full cause is in the server log.
  */
 @Service
 public class TaxExportGenerationService {
+
+    /**
+     * What the member is told when generation fails. A fixed sentence on purpose: an exception
+     * message can carry a storage path or an SQL fragment, and this text is served to the member.
+     * The full cause is logged with its stack trace (CI-50).
+     */
+    static final String FAILURE_REASON =
+        "The export could not be generated. Try again; if it keeps failing, ask your "
+            + "administrator to check the server log.";
 
     private static final Logger LOG = LoggerFactory.getLogger(TaxExportGenerationService.class);
 
@@ -143,10 +154,7 @@ public class TaxExportGenerationService {
 
     private void recordFailure(UUID runId, UUID userId, RuntimeException cause) {
         try {
-            String reason = cause.getMessage() == null || cause.getMessage().isBlank()
-                ? cause.getClass().getSimpleName()
-                : cause.getMessage();
-            status.transition(runId, userId, TaxExportStatus.FAILED, reason);
+            status.transition(runId, userId, TaxExportStatus.FAILED, FAILURE_REASON);
         } catch (RuntimeException secondary) {
             // swallow-ok: the primary failure is already logged above with its stack trace, and
             // there is nothing further this thread can do. Rethrowing would only reach the
@@ -173,6 +181,11 @@ public class TaxExportGenerationService {
             windowStart(run.getTaxYear()), windowEnd(run.getTaxYear()));
         List<ExportRow> rows = new ArrayList<>(ledger.size());
         for (Transaction transaction : ledger) {
+            if (transaction.isPending()) {
+                // A pending charge can change amount or vanish when the posted row arrives, so
+                // it does not belong in a figure copied into a return (B2-14).
+                continue;
+            }
             TaxLine line = TaxLineMappingService.lineFor(resolved, transaction.getCategoryId());
             rows.add(new ExportRow(
                 transaction.getDate(),
@@ -187,9 +200,12 @@ public class TaxExportGenerationService {
                 // Collapse step 14 added transaction.receipt_id (V38), so the column §2.9 fixed
                 // is populated now. It is the receipt's ID and nothing else: no download URL, no
                 // key, and above all NO figure computed from the receipt — the receipt's own
-                // GST/PST/HST split stays on the receipt and is never exported (§2.9, open
-                // question 1), which TaxExportIT holds by grepping the generated files.
-                transaction.getReceiptId()));
+                // GST/PST/HST split stays on the receipt and is never part of the tax export
+                // (§2.9, open question 1), which TaxExportIT holds by grepping the generated
+                // files.
+                transaction.getReceiptId(),
+                transaction.getType(), transaction.getAccountId(),
+                transaction.getTransferGroupId(), transaction.isPending()));
         }
         return rows;
     }

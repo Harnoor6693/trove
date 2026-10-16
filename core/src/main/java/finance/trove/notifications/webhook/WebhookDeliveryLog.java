@@ -36,11 +36,12 @@ public class WebhookDeliveryLog {
         /**
          * Claimed by a retry pass whose outbound call has not returned.
          *
-         * <p>NEW in the collapse. It is what makes the three-transaction {@code deliver()} shape
+         * <p>NEW in the collapse. It is what makes the claim / call / persist {@code deliverDue()} shape
          * safe: the claim commits this status before the HTTP call starts, so a second pass — or a
          * second instance — cannot pick the same row up while its call is in flight. A row left
-         * here by a process that died is deliberately not retried: re-POSTing an event somebody's
-         * endpoint may already have acted on is worse than not retrying it.
+         * here by a process that died is claimed again once it has been IN_FLIGHT for more than
+         * ten minutes ({@code WebhookDeliveryStore.STALE_IN_FLIGHT}, B3-01); the receiver may then
+         * see the same delivery twice, and the stable webhook-id header lets it drop the duplicate.
          */
         IN_FLIGHT,
         /** The endpoint answered 2xx. */

@@ -4,11 +4,13 @@ name: CI
 # integration tests + checkstyle + JaCoCo in a single ./mvnw invocation. There is
 # no service topology left to build images for, docker-compose for, or run a
 # separate "integration"/"performance" job against (plan step 22; the old
-# services/* / tests/* / docker/docker-compose.integration.yml tree is deleted
+# services/* / tests/integration / docker/docker-compose.integration.yml tree is deleted
 # wholesale in step 24 — nothing in it is built, tested, imaged or scanned here
 # any more). apps/web and apps/mobile have their own path-filtered workflows
 # (web-ci.yml, mobile-ci.yml) — running the same npm suites again here would be
 # exactly the duplicated-minutes waste this rewrite exists to remove.
+# tests/performance keeps only the k6 script (trove-load.js), run manually with
+# scripts/load-stack.sh k6, not by this workflow.
 
 on:
   workflow_dispatch:
@@ -16,6 +18,7 @@ on:
     branches: [master, develop, canary]
     paths:
       - 'core/**'
+      - 'scripts/check-env-example.sh'
       - 'pom.xml'
       - '.mvn/**'
       - 'mvnw'
@@ -28,6 +31,7 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - 'core/**'
+      - 'scripts/check-env-example.sh'
       - 'pom.xml'
       - '.mvn/**'
       - 'mvnw'
@@ -56,6 +60,10 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: maven
+      # core/.env.example is loaded with `set -a; . ./.env; set +a` (CONTRIBUTING.md, local-development
+      # guide); this fails if a value stops surviving that, or a prod-only value would override dev.
+      - name: core/.env.example sources cleanly
+        run: scripts/check-env-example.sh
       # Testcontainers starts and owns its own Postgres for every IT (BaseIT) —
       # no service containers, no GATEWAY_/INGESTION_/CATEGORISATION_/MODEL_/
       # VALKEY_/AUTHENTIK_ env vars. checkstyle:check + the coverage profile's

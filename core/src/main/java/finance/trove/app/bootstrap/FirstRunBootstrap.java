@@ -3,7 +3,6 @@ package finance.trove.app.bootstrap;
 import finance.trove.auth.AuthProperties;
 import finance.trove.auth.local.LocalAccountService;
 import finance.trove.auth.local.PasswordPolicyException;
-import finance.trove.common.domain.CurrencyCode;
 import finance.trove.common.domain.Jurisdiction;
 import finance.trove.common.time.Instants;
 import finance.trove.common.time.TimeProperties;
@@ -21,7 +20,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Creates the install's household and its first ADMIN, once, on a boot where {@code users} is
@@ -61,16 +61,19 @@ public class FirstRunBootstrap implements ApplicationRunner {
     private final HouseholdRepository households;
     private final UserRepository users;
     private final LocalAccountService accounts;
+    private final TransactionTemplate transaction;
 
     public FirstRunBootstrap(BootstrapProperties bootstrap, AuthProperties auth,
                              TimeProperties time, HouseholdRepository households,
-                             UserRepository users, LocalAccountService accounts) {
+                             UserRepository users, LocalAccountService accounts,
+                             PlatformTransactionManager transactionManager) {
         this.bootstrap = bootstrap;
         this.auth = auth;
         this.time = time;
         this.households = households;
         this.users = users;
         this.accounts = accounts;
+        this.transaction = new TransactionTemplate(transactionManager);
     }
 
     @Override
@@ -80,16 +83,24 @@ public class FirstRunBootstrap implements ApplicationRunner {
         } catch (PasswordPolicyException e) {
             // swallow-ok: the operator's chosen admin password is too weak. Refusing to start
             // would make an un-onboarded install unreachable, including the status endpoint they
-            // would use to find out why. The install boots with no users, every login fails
-            // safely, and the next restart with a better password succeeds.
+            // would use to find out why. bootstrapIfEmpty runs in one transaction, so the refusal
+            // rolls the household and the ADMIN row back: the users table is still empty and the
+            // next boot retries with whatever the operator has fixed in the environment.
             LOG.error("TROVE_ADMIN_PASSWORD was refused by the password policy: {}. {}",
                 e.getMessage(), REMEDY);
         }
     }
 
-    /** Package-private so the test can drive it without an application context. */
-    @Transactional
+    /**
+     * Package-private so the test can drive it without an application context. All writes happen
+     * in one transaction, opened here with a {@link TransactionTemplate} because {@code run}
+     * calls this method on {@code this}, which no {@code @Transactional} proxy would intercept.
+     */
     void bootstrapIfEmpty(Instant now) {
+        transaction.executeWithoutResult(status -> bootstrapInTransaction(now));
+    }
+
+    private void bootstrapInTransaction(Instant now) {
         if (users.countAllUsers() > 0) {
             LOG.debug("Install already has users; first-run bootstrap is a no-op");
             return;
@@ -100,15 +111,25 @@ public class FirstRunBootstrap implements ApplicationRunner {
             return;
         }
 
+        Jurisdiction country = countryOf(bootstrap.country());
+        if (country == null) {
+            LOG.error("TROVE_ADMIN_COUNTRY must be CA or US, so no first administrator was "
+                + "created. Fix it in the environment and restart; it is read only while the users "
+                + "table is empty.");
+            return;
+        }
+
         String email = bootstrap.email().strip().toLowerCase(Locale.ROOT);
         Household household = households.save(
             new Household(bootstrap.householdName(), auth.registrationOpen()));
 
-        // ADMIN, and the country/currency defaults of §4.1. The owner changes them from Settings;
-        // guessing from a container's locale would be worse than a stated default, because it
-        // would differ between the machine that built the image and the one that runs it.
+        // ADMIN, in the operator's TROVE_ADMIN_COUNTRY (default CA), with that country's currency.
+        // NOTHING CHANGES EITHER AFTERWARDS: Settings shows them read-only, because every stored
+        // amount is denominated in them. That is why this is an environment variable read before
+        // the first boot, and why it is not guessed from the container's locale, which differs
+        // between the machine that built the image and the one that runs it.
         User admin = new User(household.getId(), UserRole.ADMIN, email,
-            displayNameFor(email), Jurisdiction.CA, CurrencyCode.CAD, defaultZone());
+            displayNameFor(email), country, country.defaultCurrency(), defaultZone());
         users.save(admin);
         accounts.createCredential(admin.getId(), bootstrap.password(), email, now);
 
@@ -133,6 +154,16 @@ public class FirstRunBootstrap implements ApplicationRunner {
         }
         String truncated = cleaned.length() > 100 ? cleaned.substring(0, 100) : cleaned;
         return Character.toUpperCase(truncated.charAt(0)) + truncated.substring(1);
+    }
+
+    /** {@code CA} or {@code US}, or null for anything else (owner decision: those two only). */
+    private static Jurisdiction countryOf(String code) {
+        for (Jurisdiction jurisdiction : Jurisdiction.values()) {
+            if (jurisdiction.name().equals(code)) {
+                return jurisdiction;
+            }
+        }
+        return null;
     }
 
     private ZoneId defaultZone() {

@@ -4,6 +4,8 @@ import finance.trove.notifications.NotificationChannel;
 import finance.trove.notifications.NotificationProperties;
 import finance.trove.notifications.NotificationType;
 import finance.trove.notifications.preference.NotificationPreference;
+import finance.trove.users.User;
+import finance.trove.users.UserRepository;
 import jakarta.mail.internet.MimeMessage;
 import java.util.Locale;
 import java.util.Set;
@@ -25,13 +27,11 @@ import org.thymeleaf.context.Context;
  * <strong>There is no owner decision cutting email.</strong> Decision 8 of 2026-09-03 cuts PUSH and
  * nothing else; §2.8 and §6 D3 both keep EMAIL, §9 risk 13's test is an SMTP stub, and
  * {@code core/pom.xml} already carries {@code spring-boot-starter-mail} and
- * {@code spring-boot-starter-thymeleaf} for exactly this class. What email needs in order to run
- * is {@code spring.mail.*} in {@code application.yml} and SMTP variables in
- * {@code core/.env.example}, and collapse step 11 may edit neither of those files: three steps of
- * this wave run in parallel worktrees and no step of it owns them. The exact diff is in this
- * step's {@code sharedFilesTouched}, and until it is applied this bean does not exist:
- * {@code @ConditionalOnProperty} with {@code matchIfMissing = false} is the inline-default shape
- * {@code PurgeJobs.reloadRateLimits} uses for {@code trove.rate-limit.reload-interval}.
+ * {@code spring-boot-starter-thymeleaf} for exactly this class. The configuration is in place:
+ * {@code spring.mail.*} in {@code application.yml} (from SMTP_HOST, SMTP_PORT, SMTP_USER,
+ * SMTP_PASSWORD) and the SMTP block in {@code core/.env.example}. This bean exists only when
+ * {@code trove.notifications.smtp-enabled} is true (SMTP_ENABLED=true, default false), which is
+ * {@code @ConditionalOnProperty} with {@code matchIfMissing = false}.
  *
  * <p>A bean that is absent is better than a bean that silently drops everything. The source's
  * channel logged "SMTP not configured, skipping" and returned normally, and the dispatcher then
@@ -66,12 +66,14 @@ public class EmailChannel implements DeliveryChannel {
     private final JavaMailSender mailSender;
     private final TemplateEngine templates;
     private final NotificationProperties properties;
+    private final UserRepository users;
 
     public EmailChannel(JavaMailSender mailSender, TemplateEngine templates,
-                        NotificationProperties properties) {
+                        NotificationProperties properties, UserRepository users) {
         this.mailSender = mailSender;
         this.templates = templates;
         this.properties = properties;
+        this.users = users;
     }
 
     @Override
@@ -85,11 +87,21 @@ public class EmailChannel implements DeliveryChannel {
      * <p>Both halves matter: a member may enable the channel in a settings form before typing an
      * address, and refusing that write would make the two fields order-dependent. The channel
      * simply does not run until there is somewhere to send to.
+     *
+     * <p>B3-07: and only to the member's own sign-in address. Nothing proves a member owns any
+     * other address (there is no verification link, because email is off by default), so mailing
+     * whatever was typed into preferences would let a member point alerts and digests at a third
+     * party. Any other address is kept and skipped until a verification flow exists.
      */
     @Override
     public boolean enabledFor(NotificationPreference preference) {
-        return preference.isEmailEnabled() && preference.getEmailAddress() != null
-            && !preference.getEmailAddress().isBlank();
+        String address = preference.getEmailAddress();
+        return preference.isEmailEnabled() && address != null && !address.isBlank()
+            && users.findAccount(preference.getUserId())
+                .filter(User::isActive)
+                .map(User::getEmail)
+                .filter(address.trim()::equalsIgnoreCase)
+                .isPresent();
     }
 
     @Override
@@ -111,7 +123,9 @@ public class EmailChannel implements DeliveryChannel {
             // SMTP refusal is an ordinary outcome rather than a programming error, and the caller
             // writes it into notification_log.error_message. Rethrowing would abort the whole
             // notification and lose the inbox row that is meant to survive a channel failure.
-            LOG.warn("email delivery to user {} failed for {}: {}", userId, type, e.toString());
+            // The exception's type only: a mail exception's message can carry the recipient.
+            LOG.warn("email delivery to user {} failed for {}: {}", userId, type,
+                e.getClass().getSimpleName());
             return DeliveryResult.failed(e);
         }
     }

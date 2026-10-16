@@ -33,13 +33,13 @@ import org.springframework.transaction.annotation.Transactional;
  *       notification has already happened and the method returns having done nothing else. The
  *       claim comes FIRST so that two producers racing on the same key cannot both write an inbox
  *       row — the decision is made by V32's partial unique index, not by a read.</li>
- *   <li><strong>Record.</strong> The {@code in_app_notification} row, always. This is finding D3's
- *       second half fixed: the inbox is the durable record of what this server told a member, and
- *       it survives every channel failing.</li>
  *   <li><strong>Preferences.</strong> Loaded, creating the shipped defaults if the member has
  *       none.</li>
  *   <li><strong>Channels.</strong> Each enabled channel is called and the REAL
  *       {@link DeliveryResult} is written — {@code SENT}, or {@code FAILED} with the reason. The
+ *       {@code IN_APP} channel is always enabled and writes the {@code in_app_notification} row
+ *       (finding D3's second half fixed): the inbox is the durable record of what this server told
+ *       a member, so the row exists whatever the other channels do. The
  *       claim row carries the {@code IN_APP} outcome; any other channel gets its own row with a
  *       null dedup key, because the claim has already been taken and V32's index admits exactly
  *       one row per key.</li>
@@ -50,7 +50,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <h2>Transactions</h2>
  * {@link #notify} is {@code REQUIRED}: it joins the caller's transaction where there is one. Its
- * callers are the three event listeners, which are {@code AFTER_COMMIT} and
+ * callers are the four {@code AFTER_COMMIT} handlers in {@code NotificationEventListener}, which are
  * {@code REQUIRES_NEW} — so by the time they call, the ledger change they describe is committed
  * and this work is in a transaction of its own. The digest calls it per recipient outside any
  * transaction of its own, so each recipient gets one.

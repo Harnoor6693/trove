@@ -14,7 +14,8 @@ import java.util.UUID;
 
 /**
  * The tax-form line one category belongs on, in one jurisdiction
- * ({@code docs/recovery/06-COLLAPSE-PLAN.md} §2.9, §3 V42-row, §6).
+ * ({@code docs/recovery/06-COLLAPSE-PLAN.md} §2.9, §3 V42-row (plan numbering; shipped as
+ * V36__tax_line_mapping.sql), §6).
  *
  * <p><strong>Two tiers in one table.</strong> {@link #getUserId()} {@code == null} is the
  * install-wide SEED row that V36 writes for all 51 system categories in both jurisdictions; a

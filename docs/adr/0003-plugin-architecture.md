@@ -1,7 +1,7 @@
 # ADR-0003: Plugin Architecture for Bank Data Sources
 
 **Date**: 2026-04-27  
-Status: Superseded by ADR-0020 (monolith collapse, 2026-09-26 — `BankSourcePlugin`/`PluginRegistry` were deleted outright; bank sources are now packages under `core/src/main/java/finance/trove/ingestion/`, compiled in like any other code)  
+Status: Superseded by [ADR-0020](0020-monolith-collapse.md) (monolith collapse, 2026-09-26 — `BankSourcePlugin`/`PluginRegistry` were deleted outright; bank sources are now packages under `core/src/main/java/finance/trove/ingestion/`, compiled in like any other code)  
 **Deciders**: Architecture team
 
 ## Context

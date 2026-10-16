@@ -1,13 +1,16 @@
 package finance.trove.transactions;
 
+import finance.trove.common.events.TransactionCategorisedEvent;
 import finance.trove.common.plugin.TransactionType;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,9 +44,14 @@ import org.springframework.transaction.annotation.Transactional;
  *       the next fortnight's transactions.</li>
  *   <li><strong>Never across households.</strong> Every query is household-scoped, so this is
  *       true by construction rather than by a check that could be forgotten.</li>
+ *   <li><strong>Looks like a transfer.</strong> Both legs must say so in their description or
+ *       merchant: TRANSFER, XFER, PAYMENT, PAIEMENT or VIREMENT.</li>
  *   <li><strong>One group per leg.</strong> A leg that has been paired is not a candidate for
- *       another pair, so a household that made three identical transfers in a week gets three
- *       groups of two, not one group of six.</li>
+ *       another pair, so a group is always exactly two legs.</li>
+ *   <li><strong>Unambiguous.</strong> A leg is paired only when it has exactly one closest
+ *       candidate and that candidate's closest match is the same leg. Ties are left unpaired for
+ *       a member to link by hand, so a household that made several identical transfers on the
+ *       same day sees them left unpaired because the match is ambiguous.</li>
  * </ul>
  *
  * <p>Because only unpaired legs are ever loaded, running the job twice pairs nothing new: the
@@ -66,9 +74,12 @@ public class TransferPairingService {
     public static final int LOOKBACK_DAYS = 30;
 
     private final TransactionRepository transactions;
+    private final ApplicationEventPublisher events;
 
-    public TransferPairingService(TransactionRepository transactions) {
+    public TransferPairingService(TransactionRepository transactions,
+                                  ApplicationEventPublisher events) {
         this.transactions = transactions;
+        this.events = events;
     }
 
     /** Households with at least one unpaired leg in the window — the job's work list. */
@@ -88,6 +99,14 @@ public class TransferPairingService {
         List<Transaction> changed = pair(legs);
         if (!changed.isEmpty()) {
             transactions.saveAll(changed);
+            // A paired leg leaves every spend aggregate; tell the envelopes (B2-04).
+            for (Transaction leg : changed) {
+                if (leg.getCategoryId() != null) {
+                    events.publishEvent(new TransactionCategorisedEvent(householdId,
+                        leg.getUserId(), leg.getId(), leg.getCategoryId(), leg.getCategoryId(),
+                        YearMonth.from(leg.getDate()), leg.getCurrency()));
+                }
+            }
         }
         return changed.size() / 2;
     }
@@ -96,10 +115,9 @@ public class TransferPairingService {
      * The rule itself, over a list of unpaired legs — no database, no Spring, so the window, the
      * currency rule, the sign rule and the one-group-per-leg rule are each testable on their own.
      *
-     * <p>The input is expected in the order the repository returns it (date, then insertion), so
-     * the earliest possible partner is chosen first; that makes the result deterministic for a
-     * household that made several identical transfers in one window rather than dependent on
-     * which row the planner happened to return first.
+     * <p>A leg is paired only when it has exactly one closest candidate and that candidate's
+     * closest match is the same leg; identical same-day legs are left unpaired because the match
+     * is ambiguous (B1-09).
      *
      * @param legs unpaired transactions of ONE household
      * @return the legs this call modified, both members of every new pair, in pairing order
@@ -108,32 +126,73 @@ public class TransferPairingService {
         List<Transaction> changed = new ArrayList<>();
         Set<UUID> consumed = new HashSet<>();
 
-        for (int i = 0; i < legs.size(); i++) {
-            Transaction left = legs.get(i);
+        for (Transaction left : legs) {
             if (consumed.contains(left.getId()) || !isDirectional(left)) {
                 continue;
             }
-            for (int j = i + 1; j < legs.size(); j++) {
-                Transaction right = legs.get(j);
-                if (consumed.contains(right.getId()) || !pairs(left, right)) {
-                    continue;
-                }
-                UUID group = UUID.randomUUID();
-                left.setTransferGroupId(group);
-                right.setTransferGroupId(group);
-                consumed.add(left.getId());
-                consumed.add(right.getId());
-                changed.add(left);
-                changed.add(right);
-                break;
+            List<Transaction> forward = closestMatches(left, legs, consumed);
+            if (forward.size() != 1) {
+                continue;
             }
+            Transaction right = forward.get(0);
+            List<Transaction> back = closestMatches(right, legs, consumed);
+            if (back.size() != 1 || back.get(0) != left) {
+                // Ambiguous: another leg is just as plausible a partner. Pairing would hide one
+                // real transaction from every total, so it is left for a member (B1-09).
+                continue;
+            }
+            UUID group = UUID.randomUUID();
+            left.setTransferGroupId(group);
+            right.setTransferGroupId(group);
+            consumed.add(left.getId());
+            consumed.add(right.getId());
+            changed.add(left);
+            changed.add(right);
         }
         return changed;
     }
 
-    /** Whether two legs describe one movement. Every clause is one of the rules above. */
+    /** The legs that pair with {@code leg} and are the nearest in date; more than one is a tie. */
+    private static List<Transaction> closestMatches(Transaction leg, List<Transaction> legs,
+                                                    Set<UUID> consumed) {
+        List<Transaction> best = new ArrayList<>();
+        long bestDistance = Long.MAX_VALUE;
+        for (Transaction other : legs) {
+            if (other == leg || consumed.contains(other.getId()) || !pairs(leg, other)) {
+                continue;
+            }
+            long distance = Math.abs(ChronoUnit.DAYS.between(leg.getDate(), other.getDate()));
+            if (distance < bestDistance) {
+                best.clear();
+                bestDistance = distance;
+            }
+            if (distance == bestDistance) {
+                best.add(other);
+            }
+        }
+        return best;
+    }
+
+    /**
+     * ponytail: a plain-text heuristic. Both legs must say they are a transfer or a payment; its
+     * ceiling is an institution that words one side differently (that pair is left for a member)
+     * or a payee whose name contains one of these words.
+     */
+    private static boolean looksLikeTransfer(Transaction transaction) {
+        String text = ((transaction.getDescription() == null ? "" : transaction.getDescription())
+            + " " + (transaction.getMerchantName() == null ? "" : transaction.getMerchantName()))
+            .toUpperCase(java.util.Locale.ROOT);
+        return text.contains("TRANSFER") || text.contains("XFER") || text.contains("PAYMENT")
+            || text.contains("PAIEMENT") || text.contains("VIREMENT");
+    }
+
+    /**
+     * Whether two legs describe one movement. Every clause is one of the rules above, including
+     * the transfer-text test.
+     */
     private static boolean pairs(Transaction left, Transaction right) {
         return isDirectional(right)
+            && looksLikeTransfer(left) && looksLikeTransfer(right)
             && left.getType() != right.getType()
             && !left.getAccountId().equals(right.getAccountId())
             && left.getHouseholdId().equals(right.getHouseholdId())

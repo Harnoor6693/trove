@@ -2,19 +2,17 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: 'Trove',
-  description: 'Self-hostable personal finance platform — AGPL-3.0',
+  description: 'Self-hostable personal finance platform — AGPL-3.0-or-later',
   lang: 'en-US',
   base: '/trove/',
   cleanUrls: true,
   ignoreDeadLinks: 'localhostLinks',
 
   head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
     ['meta', { name: 'theme-color', content: '#4a6b4f' }]
   ],
 
   themeConfig: {
-    logo: '/logo.svg',
     siteTitle: 'Trove',
 
     nav: [
@@ -37,6 +35,7 @@ export default defineConfig({
           text: 'Getting Started',
           items: [
             { text: 'Quick Start', link: '/guide/getting-started' },
+            { text: 'Using Trove', link: '/guide/using-trove' },
             { text: 'Local Development', link: '/guide/local-development' },
             { text: 'Architecture', link: '/guide/architecture' },
             { text: 'Environment Variables', link: '/guide/environment-variables' },
@@ -93,7 +92,7 @@ export default defineConfig({
     },
 
     footer: {
-      message: 'Released under the AGPL-3.0 License.',
+      message: 'Released under the AGPL-3.0-or-later License.',
       copyright: 'Copyright © 2026 Trove Contributors'
     },
 

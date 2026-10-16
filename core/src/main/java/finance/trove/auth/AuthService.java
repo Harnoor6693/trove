@@ -117,6 +117,7 @@ public class AuthService {
     @Transactional
     public LoginOutcome.Session register(RegisterRequest request, String ip, String userAgent,
                                          Instant now) {
+        lockout.assertAddressNotThrottled(ip, now);
         String email = normalise(request.email());
         boolean invited = request.inviteToken() != null && !request.inviteToken().isBlank();
 
@@ -138,6 +139,12 @@ public class AuthService {
         // Checked before the password is hashed: argon2id at 64 MiB is the expensive half of this
         // request, and there is no reason to spend it on a registration that cannot succeed.
         if (users.existsByEmailIgnoreCase(email)) {
+            // The answer discloses that the address has an account, and has to: a new address is
+            // signed straight in (EmailAlreadyRegisteredException's javadoc has the trade). What
+            // is bounded is how often it can be asked: recorded as a failed sign-in from this
+            // address, so the gate above refuses a prober exactly when it refuses a guesser
+            // (B3-09). Committed on its own, like every failure LockoutService records.
+            lockout.recordFailure(email, ip, null, now);
             throw new EmailAlreadyRegisteredException();
         }
 
@@ -203,7 +210,7 @@ public class AuthService {
         // precisely when somebody is guessing at it — so without this the second factor was the
         // one door a locked account could still walk through. Refused with the same exception the
         // password path throws, so the body is identical and the lock stays invisible.
-        if (accounts.isLockedAt(user.getId(), now)) {
+        if (lockout.isLockedForSecondFactor(user.getEmail(), ip, now)) {
             throw new InvalidCredentialsException();
         }
 
@@ -262,11 +269,13 @@ public class AuthService {
      * <p>The caller's own family is spared, named by the {@code fid} claim on the token that
      * authorised this request. An earlier version revoked every family and handed the caller a
      * replacement session in the response body, which is defensible on the server and wrong
-     * against the clients that exist: the mobile client types this call {@code Promise<void>}
-     * ({@code apps/mobile/src/api/auth.ts:76}) and treats a rejected refresh as terminal
-     * ({@code apps/mobile/src/api/client.ts:255}), so the user was signed out within fifteen
-     * minutes of changing their password — while its own UI told them "other devices have been
-     * signed out" ({@code apps/mobile/app/(tabs)/settings.tsx:182}).
+     * against the clients that exist: the mobile client then typed this call
+     * {@code Promise<void>} ({@code changePassword} in {@code apps/mobile/src/api/auth.ts} now
+     * returns the {@code {user}}) and treats a rejected refresh with 400, 401 or 403 as terminal
+     * (the {@code endSession(REFRESH_REJECTED)} branch in {@code apps/mobile/src/api/client.ts}),
+     * so the user was signed out within fifteen minutes of changing their password — while its
+     * own UI told them "Password changed. Other devices have been signed out."
+     * ({@code apps/mobile/app/(tabs)/settings.tsx:196}).
      *
      * <p>The security intent survives, and "immediately" is now literal: anybody who had the old
      * password and a live session on another device loses it at their very next request, because

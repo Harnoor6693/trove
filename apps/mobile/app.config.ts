@@ -1,9 +1,58 @@
 import { ExpoConfig, ConfigContext } from 'expo/config';
-import { ConfigPlugin, withDangerousMod, withAppBuildGradle, withGradleProperties, withProjectBuildGradle } from 'expo/config-plugins';
+import { AndroidConfig, ConfigPlugin, withAndroidManifest, withDangerousMod, withAppBuildGradle, withGradleProperties, withProjectBuildGradle } from 'expo/config-plugins';
 import fs from 'fs/promises';
 import path from 'path';
 import pkg from './package.json';
 import detoxPkg from 'detox/package.json';
+
+/**
+ * Hosts the Android build may reach over plain http, and only when the user
+ * has opted in on the connect screen. Android's network security config
+ * matches names, not CIDR ranges, so a LAN IP address cannot be listed: those
+ * need https. Keep this list in step with `platformAllowsCleartext` in
+ * `src/api/serverUrl.ts`.
+ *
+ *  - `localhost`, `127.0.0.1`: the device itself
+ *  - `10.0.2.2`: the emulator's alias for the host machine (dev and Detox)
+ *  - `local`: mDNS names, `nas.local`, matched with subdomains
+ */
+export const ANDROID_CLEARTEXT_HOSTS = ['localhost', '127.0.0.1', '10.0.2.2', 'local'] as const;
+
+export function networkSecurityConfigXml(): string {
+  const domains = ANDROID_CLEARTEXT_HOSTS.map(
+    (host) => `    <domain includeSubdomains="${host === 'local'}">${host}</domain>`
+  ).join('\n');
+  return `<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+  <base-config cleartextTrafficPermitted="false" />
+  <domain-config cleartextTrafficPermitted="true">
+${domains}
+  </domain-config>
+</network-security-config>
+`;
+}
+
+/** Writes `res/xml/network_security_config.xml` and points the manifest at it. */
+export const withAndroidNetworkSecurityConfig: ConfigPlugin = (config) =>
+  withAndroidManifest(
+    withDangerousMod(config, [
+      'android',
+      async (config) => {
+        const dir = path.join(config.modRequest.platformProjectRoot, 'app/src/main/res/xml');
+        await fs.mkdir(dir, { recursive: true });
+        await fs.writeFile(
+          path.join(dir, 'network_security_config.xml'),
+          networkSecurityConfigXml()
+        );
+        return config;
+      },
+    ]),
+    (config) => {
+      const app = AndroidConfig.Manifest.getMainApplicationOrThrow(config.modResults);
+      app.$['android:networkSecurityConfig'] = '@xml/network_security_config';
+      return config;
+    }
+  );
 
 // expo-build-properties' `ios.deploymentTarget` only rewrites the app's own
 // `platform :ios` line; some third-party pods vendor a resource-bundle
@@ -210,8 +259,9 @@ const withAndroidGradleHeapFix: ConfigPlugin = (config) =>
   });
 
 /**
- * Expo config for a **sideload-only** v1.0 (owner decision): a signed APK per
- * release plus TestFlight/AltStore, no Play or App Store submission.
+ * Expo config for a **sideload-only** v1.0 (owner decision): a signed Android
+ * APK per release, no Play or App Store submission. No iOS binary is published;
+ * anyone who wants one builds it with EAS on their own Apple account.
  *
  * Notable choices, each tied back to a recovery-doc item:
  *
@@ -226,18 +276,21 @@ const withAndroidGradleHeapFix: ConfigPlugin = (config) =>
  *    and adds `NSAllowsLocalNetworking: true` — Apple's sanctioned exception
  *    for `.local`/RFC1918 hosts, which is exactly what the connect screen's
  *    "allow http on my network" opt-in permits and nothing more. Android sets
- *    `usesCleartextTraffic: false`.
+ *    `usesCleartextTraffic: false` and ships a network security config
+ *    (`withAndroidNetworkSecurityConfig` above) that re-allows http for
+ *    `localhost`, the emulator alias and `.local` names only (B5-03).
  *  - **No notification config.** The `expo-notifications` plugin, the
  *    `RECEIVE_BOOT_COMPLETED`/`VIBRATE` permissions and the
  *    `application-groups` entitlement all existed only for the cut native
  *    bank-notification listener and Expo push (owner decision: no push).
  *  - `ios.privacyManifests` declares `PrivacyInfo.xcprivacy` through the
  *    config plugin, which Expo generates at prebuild (gap J9 / P4-22).
- *  - `usesNonExemptEncryption: false` — without it every TestFlight build
- *    stalls on "Missing Compliance" (gap P4-21).
+ *  - `usesNonExemptEncryption: false` — without it every iOS build
+ *    uploaded to App Store Connect or TestFlight stalls on "Missing
+ *    Compliance" (gap P4-21).
  */
 export default ({ config }: ConfigContext): ExpoConfig =>
-  withAndroidDetoxTestClass(withAndroidGradleHeapFix(withAndroidDetoxLocalMavenRepo(withAndroidDetoxGradleFix(withIosPodDeploymentTargetFix({
+  withAndroidNetworkSecurityConfig(withAndroidDetoxTestClass(withAndroidGradleHeapFix(withAndroidDetoxLocalMavenRepo(withAndroidDetoxGradleFix(withIosPodDeploymentTargetFix({
   ...config,
   name: 'Trove',
   slug: 'trove',
@@ -296,7 +349,7 @@ export default ({ config }: ConfigContext): ExpoConfig =>
     },
     package: 'com.trove.app',
     permissions: ['CAMERA', 'READ_MEDIA_IMAGES'],
-    // Not in Expo 57's `ExpoConfig['android']` type yet, but read by prebuild
+    // Not in Expo 58's `ExpoConfig['android']` type yet, but read by prebuild
     // and written into AndroidManifest.xml.
     ...({ usesCleartextTraffic: false } as Record<string, unknown>),
   },
@@ -330,9 +383,6 @@ export default ({ config }: ConfigContext): ExpoConfig =>
         microphonePermission: false,
       },
     ],
-    // The iOS 27 SDK requires the UIScene life cycle. Opt-in on SDK 57; it is the
-    // default from SDK 58, where this entry only warns: remove it then.
-    ['expo-build-properties', { ios: { enableSceneSupport: true } }],
   ],
   scheme: 'trove',
   extra: {
@@ -343,4 +393,4 @@ export default ({ config }: ConfigContext): ExpoConfig =>
       projectId: process.env.EAS_PROJECT_ID ?? '',
     },
   },
-})))));
+}))))));

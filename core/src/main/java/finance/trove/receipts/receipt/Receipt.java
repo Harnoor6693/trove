@@ -50,10 +50,11 @@ import org.hibernate.type.SqlTypes;
  * failure the design is shaped to prevent.
  *
  * <p><strong>The tax split stays here.</strong> {@code gstAmount}, {@code pstAmount} and
- * {@code hstAmount} are reverse-calculated for Canadian members only and are never exported: the
- * tax-time export carries the member's own amounts and labels, with no rate and no computed figure
- * of any kind (§2.9, §4.12, and step 15's {@code TaxExportIT} greps the generated files for
- * exactly this).
+ * {@code hstAmount} are reverse-calculated for Canadian members only and are never part of the tax
+ * export (the tax-time export carries the member's own amounts and labels, with no rate and no
+ * computed figure of any kind; §2.9, §4.12, and step 15's {@code TaxExportIT} greps the generated
+ * files for exactly this). The full data export's {@code receipts.json} does carry them, as stored
+ * metadata, in a {@code taxSplit} object.
  */
 @Entity
 @Table(name = "receipt")

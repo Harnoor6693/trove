@@ -49,8 +49,9 @@ import org.springframework.stereotype.Component;
  * forgets. Deleting a {@code tax_export_run} or a {@code data_export_run} row removes nothing from
  * the exports area: it leaves a complete copy of the departed member's financial life on the
  * volume with no row pointing at it, which no sweep can then find because every sweep works from
- * rows. So this job reads each run's {@code file_key} and deletes the file BEFORE the row goes,
- * ignoring one that is already missing. Receipt images are deliberately NOT deleted: the receipts
+ * rows. So this job reads each run's {@code file_key} BEFORE the row goes, and deletes the
+ * file only AFTER the erase has gone through, ignoring one that is already missing. Receipt images
+ * are deliberately NOT deleted: the receipts
  * stay with the household (V43, owner decision 17), so their images have to stay too.
  *
  * <h2>Its own component, its own lock</h2>

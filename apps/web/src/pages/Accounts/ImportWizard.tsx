@@ -4,8 +4,9 @@
  *
  * **Why a modal and not a route.** Importing is an action on ONE account, not a
  * destination: it starts from an account row, it writes to that account, and it
- * is over in three steps. The nav already carries ten entries and an eleventh
- * would push a real destination behind "More" on a phone. A wizard behind a URL
+ * is over in three steps. The nav already carries eleven entries, seven of them
+ * behind "More" on a phone, and a twelfth would push a real destination further
+ * from reach. A wizard behind a URL
  * the member can reload mid-flow is also a worse experience than one they
  * cannot — a reloaded upload step has lost the file, and a reloaded preview
  * step would have to re-fetch a batch the member has no way to name. So the
@@ -449,7 +450,7 @@ export function ImportWizard({ account, onClose, onCommitted }: ImportWizardProp
               </p>
             )}
             <p className={styles.hint}>
-              You can undo this import from the account below for as long as the file is kept.
+              You can undo this import below, until you leave this page.
             </p>
             <div className={styles.dialogActions}>
               <QlButton variant="primary" onClick={onClose}>

@@ -336,6 +336,26 @@ class EnvelopeSpendServiceTest {
     }
 
     @Test
+    @DisplayName("B2-07: the threshold is a share of allocated plus rollover, not of allocated")
+    void thresholdCountsTheRollover() {
+        Envelope rolled = envelope(GROCERIES, "100.00", CurrencyCode.CAD);
+        rolled.setRolloverAmount(new BigDecimal("100.00"));
+        envelopeIs(rolled);
+        ledgerReturns(row("85.00", CurrencyCode.CAD, TransactionType.DEBIT, GROCERIES, 2));
+
+        service().recalculate(HOUSEHOLD, MEMBER, GROCERIES, SEPTEMBER);
+        verify(events, never()).publishEvent(any(Object.class));
+
+        Envelope carriedOnly = envelope(GROCERIES, "0.00", CurrencyCode.CAD);
+        carriedOnly.setRolloverAmount(new BigDecimal("50.00"));
+        envelopeIs(carriedOnly);
+        ledgerReturns(row("45.00", CurrencyCode.CAD, TransactionType.DEBIT, GROCERIES, 2));
+
+        service().recalculate(HOUSEHOLD, MEMBER, GROCERIES, SEPTEMBER);
+        verify(events, times(1)).publishEvent(any(Object.class));
+    }
+
+    @Test
     @DisplayName("an envelope with nothing allocated never crosses a threshold")
     void nothingAllocatedNeverAlerts() {
         Envelope groceries = envelope(GROCERIES, "0.00", CurrencyCode.CAD);

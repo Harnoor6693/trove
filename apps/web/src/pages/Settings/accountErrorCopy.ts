@@ -83,7 +83,7 @@ export function deleteAccountErrorCopy(error: ApiError): string {
       // did nothing wrong and there is a clear way forward.
       return (
         error.detail ??
-        'You are the only administrator of this household, so your account cannot be deleted yet. Give another member the administrator role first, then try again.'
+        'You are the only administrator of this household, so your account cannot be deleted yet. Make another member an administrator first, in Settings → Administration, then try again.'
       )
     default:
       return shared(error) ?? 'That did not go through.'

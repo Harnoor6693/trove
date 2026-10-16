@@ -65,15 +65,15 @@ class TaxExportIT extends LedgerSupport {
         String american = createAccount(member, MANUAL, "Export USD " + UUID.randomUUID(),
             "OTHER", "USD");
 
-        record(canadian, "125.5000", TAX_YEAR + "-01-01", "Office Depot",
+        record(canadian, "125.50", TAX_YEAR + "-01-01", "Office Depot",
             systemCategoryId(member, "business.office"), "Paper for the home office");
-        record(canadian, "31.2500", TAX_YEAR + "-12-31", HOSTILE_MERCHANT,
+        record(canadian, "31.25", TAX_YEAR + "-12-31", HOSTILE_MERCHANT,
             systemCategoryId(member, "food.grocery"), null);
-        record(american, "42.0000", TAX_YEAR + "-06-15", "Some Software Co",
+        record(american, "42.00", TAX_YEAR + "-06-15", "Some Software Co",
             systemCategoryId(member, "business.software"), null);
         // Outside the window on both sides: the export must not carry either of these.
-        record(canadian, "999.0000", (TAX_YEAR - 1) + "-12-31", "Too Early", null, null);
-        record(canadian, "888.0000", (TAX_YEAR + 1) + "-01-01", "Too Late", null, null);
+        record(canadian, "999.00", (TAX_YEAR - 1) + "-12-31", "Too Early", null, null);
+        record(canadian, "888.00", (TAX_YEAR + 1) + "-01-01", "Too Late", null, null);
     }
 
     private void record(String accountId, String amount, String date, String merchant,
@@ -164,10 +164,10 @@ class TaxExportIT extends LedgerSupport {
         assertThat(download.headers().firstValue("x-content-type-options").orElse(""))
             .isEqualTo("nosniff");
 
-        String csv = download.body();
+        String csv = download.body().replaceFirst("^\uFEFF", "");
         assertThat(csv.lines().findFirst().orElse(""))
             .isEqualTo("date,merchant,description,notes,amount,currency,category,taxLineCode,"
-                + "taxLineLabel,receiptId");
+                + "taxLineLabel,receiptId,type");
         assertThat(csv).contains("Office Depot", "Paper for the home office", "8810");
         assertThat(csv)
             .as("1 January and 31 December of the target year are both inside the window")
@@ -187,7 +187,7 @@ class TaxExportIT extends LedgerSupport {
         String runId = startRun("CSV").path("id").asString();
         awaitCompletion(runId);
 
-        String csv = new String(storedBytes(runId), StandardCharsets.UTF_8);
+        String csv = new String(storedBytes(runId), StandardCharsets.UTF_8).replaceFirst("^\uFEFF", "");
 
         // Parsed rather than searched as text: the merchant contains quotes and commas, so
         // commons-csv legitimately wraps the cell and doubles the inner quotes. Comparing raw
@@ -220,7 +220,7 @@ class TaxExportIT extends LedgerSupport {
 
         String runId = startRun("CSV").path("id").asString();
         awaitCompletion(runId);
-        String csv = new String(storedBytes(runId), StandardCharsets.UTF_8);
+        String csv = new String(storedBytes(runId), StandardCharsets.UTF_8).replaceFirst("^\uFEFF", "");
 
         assertThat(csv)
             .as("the receiptId column is populated for a transaction that has one")
@@ -266,7 +266,7 @@ class TaxExportIT extends LedgerSupport {
     void neitherFormatLeaksAComputedNumber() {
         String csvRun = startRun("CSV").path("id").asString();
         awaitCompletion(csvRun);
-        String csv = new String(storedBytes(csvRun), StandardCharsets.UTF_8)
+        String csv = new String(storedBytes(csvRun), StandardCharsets.UTF_8).replaceFirst("^\uFEFF", "")
             .toLowerCase(Locale.ROOT);
 
         String pdfRun = startRun("PDF").path("id").asString();

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -215,6 +216,7 @@ class NotificationEventListenerTest {
         // a price that changes a second time produces a different one and is a second alert. A
         // timer could not tell those two apart.
         UUID owner = member("America/Toronto", null, true);
+        householdHas(owner);
         ArgumentCaptor<NotificationContent> content =
             ArgumentCaptor.forClass(NotificationContent.class);
 
@@ -233,6 +235,7 @@ class NotificationEventListenerTest {
     @DisplayName("a price that fell is described as falling")
     void aPriceDropReadsAsADrop() {
         UUID owner = member("America/Toronto", null, true);
+        householdHas(owner);
         ArgumentCaptor<NotificationContent> content =
             ArgumentCaptor.forClass(NotificationContent.class);
 
@@ -249,6 +252,7 @@ class NotificationEventListenerTest {
     @DisplayName("a member who turned subscription alerts off is not told")
     void subscriptionAlertsRespectThePreference() {
         UUID owner = member("America/Toronto", null, true);
+        householdHas(owner);
         rows.get(owner).setSubscriptionAlertEnabled(false);
 
         listener.onSubscriptionPriceChanged(new SubscriptionPriceChangedEvent(HOUSEHOLD, owner,
@@ -256,6 +260,28 @@ class NotificationEventListenerTest {
             Money.of("22.99", CurrencyCode.CAD)));
 
         verify(notifications, never()).notify(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("every active member with the toggle on gets the price-change alert, once (CI-46)")
+    void aPriceChangeFansOutToEveryActiveMemberWithTheToggleOn() {
+        UUID admin = member("America/Toronto", null, true);
+        UUID partner = member("America/Vancouver", null, true);
+        UUID optedOut = member("America/Toronto", null, true);
+        UUID dormant = member("America/Toronto", null, false);
+        rows.get(optedOut).setSubscriptionAlertEnabled(false);
+        householdHas(admin, partner, optedOut, dormant);
+
+        listener.onSubscriptionPriceChanged(new SubscriptionPriceChangedEvent(HOUSEHOLD, admin,
+            SUBSCRIPTION, "NETFLIX", Money.of("18.99", CurrencyCode.CAD),
+            Money.of("22.99", CurrencyCode.CAD)));
+
+        verify(notifications, times(1)).notify(eq(admin),
+            eq(NotificationType.SUBSCRIPTION_PRICE_CHANGE), any());
+        verify(notifications, times(1)).notify(eq(partner),
+            eq(NotificationType.SUBSCRIPTION_PRICE_CHANGE), any());
+        verify(notifications, never()).notify(eq(optedOut), any(), any());
+        verify(notifications, never()).notify(eq(dormant), any(), any());
     }
 
     // ------------------------------------------------------------------ sync
@@ -340,6 +366,61 @@ class NotificationEventListenerTest {
             UUID.randomUUID(), SyncCompletedEvent.Outcome.FAILURE, 0, 0, "expired"));
 
         verify(notifications, never()).notify(any(), any(), any());
+    }
+
+    // ------------------------------------------------- C-01r: scheduled sync, no nagging
+
+    @Test
+    @DisplayName("C-01r: a scheduled failure on a healthy account is keyed by the run, not the day")
+    void aScheduledFailureOnAHealthyAccountIsKeyedByTheRun() {
+        UUID owner = member("America/Toronto", null, true);
+        UUID run = UUID.randomUUID();
+        ArgumentCaptor<NotificationContent> content =
+            ArgumentCaptor.forClass(NotificationContent.class);
+
+        listener.onSyncCompleted(new SyncCompletedEvent(HOUSEHOLD, owner, ACCOUNT, run,
+            SyncCompletedEvent.Outcome.FAILURE, 0, 0, "expired",
+            SyncCompletedEvent.FailureAlert.ONCE));
+
+        verify(notifications).notify(eq(owner), eq(NotificationType.SYNC_FAILED),
+            content.capture());
+        assertThat(content.getValue().dedupKey())
+            .as("the day key would swallow the alert for an account that recovers and fails "
+                + "again on the same day")
+            .isEqualTo(ACCOUNT + ":" + run);
+    }
+
+    @Test
+    @DisplayName("C-01r: a scheduled failure on an account already failing tells nobody again")
+    void aScheduledFailureOnAFailingAccountIsSilent() {
+        UUID owner = member("America/Toronto", null, true);
+
+        listener.onSyncCompleted(new SyncCompletedEvent(HOUSEHOLD, owner, ACCOUNT,
+            UUID.randomUUID(), SyncCompletedEvent.Outcome.FAILURE, 0, 0, "expired",
+            SyncCompletedEvent.FailureAlert.NONE));
+
+        verify(notifications, never()).notify(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("C-01r: a scheduled run still honours the member's sync-alert preference")
+    void aScheduledFailureHonoursThePreference() {
+        UUID owner = member("America/Toronto", null, true);
+        rows.get(owner).setSyncFailureAlertEnabled(false);
+
+        listener.onSyncCompleted(new SyncCompletedEvent(HOUSEHOLD, owner, ACCOUNT,
+            UUID.randomUUID(), SyncCompletedEvent.Outcome.FAILURE, 0, 0, "expired",
+            SyncCompletedEvent.FailureAlert.ONCE));
+
+        verify(notifications, never()).notify(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("C-01r: the old eight-argument event is a manual run, alerted daily as before")
+    void theEightArgumentEventIsManual() {
+        assertThat(new SyncCompletedEvent(HOUSEHOLD, UUID.randomUUID(), ACCOUNT,
+            UUID.randomUUID(), SyncCompletedEvent.Outcome.FAILURE, 0, 0, "expired")
+            .failureAlert()).isEqualTo(SyncCompletedEvent.FailureAlert.DAILY);
     }
 
     // ------------------------------------------------- collapse step 18: receipt.processed

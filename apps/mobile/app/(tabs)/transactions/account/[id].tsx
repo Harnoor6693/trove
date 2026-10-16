@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MnBtn } from '@components/ui/MnBtn/MnBtn';
@@ -7,6 +7,7 @@ import { MnCard } from '@components/ui/MnCard/MnCard';
 import { MnEyebrow } from '@components/primitives/MnEyebrow/MnEyebrow';
 import { MnPill } from '@components/primitives/MnPill/MnPill';
 import { SyncLogRow } from '@components/mobile/SyncLogRow/SyncLogRow';
+import { syncFreshness } from '@components/mobile/AccountCard/AccountCard';
 import { ScreenState, failureMessage } from '@components/ui/ScreenState/ScreenState';
 import { FontFamily, FontSize, Radius, Space } from '@design/tokens';
 import { useTheme } from '@design/useTheme';
@@ -29,6 +30,7 @@ import {
   useUpdateAccount,
 } from '@hooks/useAccounts';
 import type { AccountType } from '@api/types';
+import { FormScroll } from '@components/ui/FormScroll/FormScroll';
 
 /**
  * One account — rename, sync, sync history, disconnect, and the way in to an
@@ -89,7 +91,7 @@ export default function AccountDetailScreen() {
       style={[styles.safe, { backgroundColor: theme.paper }]}
       testID="account-detail-screen"
     >
-      <ScrollView contentContainerStyle={styles.content}>
+      <FormScroll contentContainerStyle={styles.content}>
         <MnBtn
           label="Back"
           variant="ghost"
@@ -127,10 +129,12 @@ export default function AccountDetailScreen() {
                   variant={ACCOUNT_SYNC_STATUS_VARIANT[account.data.syncStatus]}
                   testID="account-detail-status"
                 />
-                <Text style={[styles.meta, { color: theme.ink3 }]} testID="account-detail-synced">
-                  {account.data.lastSyncedAt === null
-                    ? 'Never synced'
-                    : `Last synced ${format.date(account.data.lastSyncedAt, 'dateTime')}`}
+                <Text
+                  style={[styles.meta, { color: theme.ink3 }]}
+                  accessibilityLabel={syncFreshness(account.data, format).label}
+                  testID="account-detail-synced"
+                >
+                  {syncFreshness(account.data, format).text}
                 </Text>
                 {account.data.errorMessage === null || account.data.errorMessage === '' ? null : (
                   <Text
@@ -339,7 +343,7 @@ export default function AccountDetailScreen() {
             </View>
           )}
         </ScreenState>
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }

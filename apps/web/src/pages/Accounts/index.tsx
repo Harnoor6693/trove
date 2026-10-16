@@ -21,6 +21,7 @@ import { QlInput } from '@components/ui/QlInput/QlInput'
 import { QlModal } from '@components/ui/QlModal/QlModal'
 import { QlSkeleton } from '@components/ui/QlSkeleton/QlSkeleton'
 import { EmptyState } from '@components/EmptyState/EmptyState'
+import { SyncFreshness } from '@components/SyncFreshness/SyncFreshness'
 import { useUserFormat } from '@hooks/useUserFormat'
 import { useDialogFocus } from '@hooks/useDialogFocus'
 import {
@@ -448,9 +449,7 @@ function SyncHistoryDialog({
     >
       <p className={styles.accountMeta} data-testid="sync-history-status">
         <QlBadge variant={SYNC_TONE[current.syncStatus]}>{SYNC_LABEL[current.syncStatus]}</QlBadge>{' '}
-        {current.lastSyncedAt
-          ? `Last synced ${format.formatDateTime(current.lastSyncedAt)}`
-          : 'Never synced'}
+        <SyncFreshness account={current} />
       </p>
       {current.errorMessage && (
         <p className={styles.error} role="alert">
@@ -615,7 +614,6 @@ export default function Accounts() {
   const accounts = useAccounts()
   const sync = useSyncAccountMutation()
   const undo = useUndoImportMutation()
-  const format = useUserFormat()
   const [dialog, setDialog] = useState<Dialog | null>(null)
   const [syncingId, setSyncingId] = useState<string | null>(null)
   /**
@@ -737,9 +735,7 @@ export default function Accounts() {
                         <QlBadge variant={SYNC_TONE[account.syncStatus]}>
                           {SYNC_LABEL[account.syncStatus]}
                         </QlBadge>{' '}
-                        {account.lastSyncedAt
-                          ? `Last synced ${format.formatDateTime(account.lastSyncedAt)}`
-                          : 'Never synced'}
+                        <SyncFreshness account={account} />
                       </p>
                       {account.errorMessage && (
                         <p className={styles.error} role="alert">
@@ -834,7 +830,8 @@ export default function Accounts() {
             </ul>
             <p className={styles.hint}>
               Undo removes the rows this import added and that nobody has edited since. A row you
-              have already changed stays where it is.
+              have already changed stays where it is. This list, and undo with it, lasts only
+              until you leave this page.
             </p>
           </div>
         </QlCard>

@@ -4,6 +4,12 @@ module.exports = {
     args: { $0: 'jest', config: 'e2e/jest.config.js' },
     jest: { setupTimeout: 120000 },
   },
+  // Mobile CI uploads `artifacts/` after every Detox run; without these the
+  // folder stays empty and a device-side failure leaves no logcat or screen.
+  artifacts: {
+    rootDir: 'artifacts',
+    plugins: { log: 'failing', screenshot: 'failing' },
+  },
   apps: {
     'ios.debug': {
       type: 'ios.app',
@@ -35,8 +41,8 @@ module.exports = {
     },
     'android.emu': {
       type: 'android.emulator',
-      // No AVD existed on this Mac at all (step 27). Expo SDK 57 requires
-      // a compile/target SDK of 36 (react-native 0.86.3 gradle/libs.versions.toml),
+      // No AVD existed on this Mac at all (step 27). Expo SDK 58 targets
+      // target SDK 36, compile SDK 37 (react-native 0.88 gradle/libs.versions.toml),
       // not the API 34 this name used to encode, so the AVD is created fresh
       // at API 36 and named to match rather than reusing the stale '_34' name.
       device: { avdName: 'Pixel_5_API_36' },

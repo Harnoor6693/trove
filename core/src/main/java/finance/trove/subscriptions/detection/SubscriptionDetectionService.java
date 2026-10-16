@@ -35,7 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>The pre-collapse application class carried an unusually accurate description of this, and it
  * is kept here because it is still true of the parts that did not change:
  * <ol>
- *   <li>read the household's DEBIT transactions of the last thirteen months;</li>
+ *   <li>read the household's DEBIT transactions of the last 25 months;</li>
  *   <li>group them by normalised merchant name, skipping merchants with too few charges;</li>
  *   <li>sort by date and compute the gaps between consecutive charges;</li>
  *   <li>classify the gaps into a {@link BillingCycle} — at least 70% must fall inside one
@@ -44,8 +44,9 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>score the candidate and discard it below the confidence threshold;</li>
  *   <li>upsert the row with the current price, the cadence, the last-seen date and the projected
  *       next charge;</li>
- *   <li>when the price changed, raise a {@code PRICE_INCREASE} alert and publish
- *       {@link SubscriptionPriceChangedEvent}.</li>
+ *   <li>when the price changed, publish
+ *       {@link SubscriptionPriceChangedEvent}, and for an increase also raise a
+ *       {@code PRICE_INCREASE} alert.</li>
  * </ol>
  *
  * <h2>What changed, and why each change was necessary</h2>
@@ -61,8 +62,8 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li><strong>Scoped by household.</strong> Every query and every row is
  *       {@code household_id} (§1.5). The source scoped by {@code user_id}, which on a two-member
  *       install hid each member's subscriptions from the other while they paid the same bills.</li>
- *   <li><strong>Thirteen months, not ninety days</strong> (§6 D2) — long enough to see an ANNUAL
- *       subscription twice, which is the minimum for a yearly charge to be a pattern.</li>
+ *   <li><strong>25 months, not ninety days</strong> (§6 D2, CI-45) — long enough to hold the
+ *       three charges the classifier needs from an ANNUAL subscription.</li>
  *   <li><strong>One normaliser.</strong> Grouping uses
  *       {@link MerchantNormaliser#normalise(String)}, the categorisation package's, not this
  *       module's own {@code MerchantNameNormalizer}. Two normalisers in one JVM means the same
@@ -163,8 +164,8 @@ public class SubscriptionDetectionService {
         Money now = new Money(candidate.amount(), candidate.currency());
 
         // Published on the CHANGE, not on every scan: `price_changed` is sticky, so a later scan
-        // that sees the same price finds nothing to compare and publishes nothing. Nothing
-        // consumes this yet — notifications are step 11, webhooks step 16.
+        // that sees the same price finds nothing to compare and publishes nothing. Consumed
+        // by NotificationEventListener (inbox) and WebhookEventListener (webhooks).
         events.publishEvent(new SubscriptionPriceChangedEvent(householdId, attributedTo,
             outcome.subscriptionId(), candidate.merchantName(), before, now));
 

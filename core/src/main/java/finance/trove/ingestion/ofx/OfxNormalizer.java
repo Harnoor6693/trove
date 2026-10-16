@@ -2,6 +2,7 @@ package finance.trove.ingestion.ofx;
 
 import finance.trove.common.plugin.RawTransaction;
 import finance.trove.common.plugin.TransactionType;
+import finance.trove.ingestion.Amounts;
 import finance.trove.ingestion.ofx.dto.OfxAccount;
 import finance.trove.ingestion.ofx.dto.OfxTransaction;
 import java.math.BigDecimal;
@@ -32,10 +33,11 @@ import org.springframework.stereotype.Component;
  * </ul>
  *
  * <h2>Direction</h2>
- * The sign of {@code TRNAMT} decides, as before, and {@code TRNTYPE} refines it where OFX is
- * unambiguous: a bank fee is a {@code FEE} and not merely a debit, interest is {@code INTEREST},
- * and a transfer is a {@code TRANSFER} so that the pairing job of gap P2-14 can find both legs and
- * neither is counted as spending. The raw {@code TRNTYPE} and {@code CHECKNUM} are kept in the
+ * The sign of {@code TRNAMT} decides, as before, and {@code TRNTYPE} refines it where it agrees
+ * with the sign: a bank fee is a {@code FEE} and not merely a debit, and interest earned is
+ * {@code INTEREST}. A transfer stays a {@code DEBIT} or a {@code CREDIT}, which is what the pairing
+ * job of gap P2-14 pairs into a transfer; typing it {@code TRANSFER} here hid it from that job and
+ * threw its direction away (B1-11). The raw {@code TRNTYPE} and {@code CHECKNUM} are kept in the
  * metadata map, as they were.
  */
 @Component
@@ -53,12 +55,13 @@ public class OfxNormalizer {
         metadata.put("checkNum", transaction.checkNum() != null ? transaction.checkNum() : "");
 
         String description = transaction.memo() != null ? transaction.memo() : transaction.name();
-        return new RawTransaction(transaction.fitId(), account.accountId(), amount.abs(),
+        return new RawTransaction(transaction.fitId(), account.accountId(),
+            amount == null ? null : amount.abs(),
             currencyOf(account, transaction), description, transaction.name(), date,
             transaction.datePosted() == null
                 ? null
                 : transaction.datePosted().atStartOfDay(ZoneOffset.UTC).toInstant(),
-            type(transaction.type(), amount), false, metadata);
+            amount == null ? null : type(transaction, amount), false, metadata);
     }
 
     /**
@@ -75,13 +78,23 @@ public class OfxNormalizer {
         return null;
     }
 
-    private static TransactionType type(String trnType, BigDecimal amount) {
-        String kind = trnType == null ? "" : trnType.trim().toUpperCase(Locale.ROOT);
-        return switch (kind) {
-            case "FEE", "SRVCHG" -> TransactionType.FEE;
-            case "INT" -> TransactionType.INTEREST;
-            case "XFER" -> TransactionType.TRANSFER;
-            default -> amount.signum() >= 0 ? TransactionType.CREDIT : TransactionType.DEBIT;
-        };
+    /**
+     * B1-11: {@code TRNTYPE} only refines a direction the sign agrees with. A fee reversal
+     * ({@code FEE}, positive) is money coming back and interest charged ({@code INT}, negative) is
+     * money going out. {@code XFER} keeps the sign's direction, because the pairing job pairs a
+     * DEBIT with a CREDIT and never a TRANSFER, and a TRANSFER says nothing about which way the
+     * money went.
+     */
+    private static TransactionType type(OfxTransaction transaction, BigDecimal amount) {
+        String kind = transaction.type() == null
+            ? ""
+            : transaction.type().trim().toUpperCase(Locale.ROOT);
+        if (("FEE".equals(kind) || "SRVCHG".equals(kind)) && amount.signum() < 0) {
+            return TransactionType.FEE;
+        }
+        if ("INT".equals(kind) && amount.signum() >= 0) {
+            return TransactionType.INTEREST;
+        }
+        return Amounts.direction(amount, transaction.name(), transaction.memo());
     }
 }

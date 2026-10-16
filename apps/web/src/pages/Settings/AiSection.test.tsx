@@ -258,3 +258,20 @@ describe('AI settings — the failures the operations declare', () => {
     )
   })
 })
+
+describe('AI settings — numeric fields (B4-05)', () => {
+  it('refuses non-numeric timeouts with a field error and sends nothing', async () => {
+    resetMswState({ aiSettings: makeConfiguredAiSettings({ hasApiKey: true }) })
+    const user = userEvent.setup()
+    renderWithProviders(<AiSection />)
+
+    const field = await screen.findByLabelText('Connect timeout (milliseconds)')
+    await user.clear(field)
+    await user.type(field, 'abc')
+    await user.click(screen.getByRole('button', { name: 'Save AI settings' }))
+
+    expect(await screen.findByText('Enter a whole number.')).toBeInTheDocument()
+    expect(mswState.lastAiSettingsBody).toBeNull()
+    expect(screen.queryByTestId('ai-saved')).not.toBeInTheDocument()
+  })
+})

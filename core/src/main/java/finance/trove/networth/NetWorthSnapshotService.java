@@ -69,8 +69,9 @@ public class NetWorthSnapshotService {
      * @param triggeredByUserId the calling member, or {@code null} when the daily job is the
      *                          caller (no member to attribute the write to — the household's own
      *                          administrator is recorded instead)
-     * @return one snapshot per currency this household holds at least one asset or liability in;
-     *         empty if the household has neither
+     * @return one snapshot per currency the household holds an asset or liability in, plus any
+     *         currency already snapshotted today (rewritten as zero if its positions were
+     *         removed); empty only if there is neither
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public List<NetWorthSnapshot> takeSnapshot(UUID householdId, UUID triggeredByUserId) {
@@ -86,6 +87,10 @@ public class NetWorthSnapshotService {
         EnumSet<CurrencyCode> currencies = EnumSet.noneOf(CurrencyCode.class);
         currencies.addAll(assetTotals.keySet());
         currencies.addAll(liabilityTotals.keySet());
+        // A currency whose positions were all removed after today's earlier snapshot must be
+        // rewritten as zero, not left showing a figure that no longer exists.
+        snapshots.findAllByHouseholdIdAndSnapshotDate(householdId, today)
+            .forEach(row -> currencies.add(row.getCurrency()));
 
         List<NetWorthSnapshot> result = new ArrayList<>();
         for (CurrencyCode currency : currencies) {

@@ -115,6 +115,35 @@ describe('editing a category', () => {
   });
 });
 
+describe('the parent picker when editing', () => {
+  it('offers neither the category itself nor any of its descendants', async () => {
+    const GRANDCHILD = category({ id: 'g1', name: 'Espresso', parentId: 'c1' });
+    const OTHER = category({ id: 'o1', name: 'Travel' });
+    mockList.mockResolvedValue([PARENT, CHILD, GRANDCHILD, OTHER]);
+    await renderScreen();
+    await waitFor(() => expect(screen.getByTestId('category-edit-p1')).toBeTruthy());
+
+    await fireEvent.press(screen.getByTestId('category-edit-p1'));
+
+    expect(screen.queryByTestId('category-edit-form-parent-p1')).toBeNull();
+    expect(screen.queryByTestId('category-edit-form-parent-c1')).toBeNull();
+    expect(screen.queryByTestId('category-edit-form-parent-g1')).toBeNull();
+    expect(screen.getByTestId('category-edit-form-parent-o1')).toBeTruthy();
+    expect(screen.getByTestId('category-edit-form-parent-none')).toBeTruthy();
+  });
+
+  it('still offers a sibling and the ancestors of a child', async () => {
+    mockList.mockResolvedValue([PARENT, CHILD]);
+    await renderScreen();
+    await waitFor(() => expect(screen.getByTestId('category-edit-c1')).toBeTruthy());
+
+    await fireEvent.press(screen.getByTestId('category-edit-c1'));
+
+    expect(screen.getByTestId('category-edit-form-parent-p1')).toBeTruthy();
+    expect(screen.queryByTestId('category-edit-form-parent-c1')).toBeNull();
+  });
+});
+
 describe('deleting a category still in use', () => {
   it('reads the 409 in the member’s own words', async () => {
     mockList.mockResolvedValue([PARENT]);

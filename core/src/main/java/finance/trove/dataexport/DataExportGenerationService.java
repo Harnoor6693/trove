@@ -24,6 +24,9 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.stereotype.Service;
 
 /**
@@ -37,19 +40,20 @@ import org.springframework.stereotype.Service;
  *
  * <h2>The window is the member's whole ledger history</h2>
  * A full data export is not a tax year, so there is nothing to choose and nothing to stamp. The
- * read goes through {@link TransactionQueryService#findSpendableInRange}, which already excludes
- * transfer legs (gap row 14) — writing the query here would be the third place in the tree that
- * has to remember the exclusion, and a credit-card payment counted as both spending and income is
- * invisible until somebody reconciles a statement by hand. The bounds are fixed dates well
- * outside any real ledger, because "everything" has no clock question in it; the one place this
- * step does ask a clock is the one-per-day cap, which {@link DataExportService} computes over the
- * member's OWN local day (gap row 15).
+ * read goes through {@link TransactionQueryService#findAllInRange}, the whole ledger with
+ * transfer legs and pending rows included: a user leaving with their data needs every row, not the
+ * spending view (B2-03). The tax export, unlike this one, reads through
+ * {@code findSpendableInRange}. The bounds are fixed dates well outside any real ledger, because
+ * "everything" has no clock question in it; the one place this step does ask a clock is the
+ * per-day cap ({@code trove.data-export.runs-per-day}), which {@link DataExportRunStarter}
+ * computes (under the household-row lock) over the member's OWN local day (gap row 15).
  *
  * <h2>Failure is recorded, not swallowed</h2>
  * Every status write goes through {@link DataExportStatusUpdater}, whose transitions are
  * {@code REQUIRES_NEW}, so a failure inside the generation still records {@code FAILED} instead of
- * being rolled back with the work that failed. The recorded reason is truncated and is never a
- * stack trace, never a file path and never the name of anything on disk.
+ * being rolled back with the work that failed. The recorded reason is a fixed sentence: never the
+ * exception's own message, a stack trace, a file path or the name of anything on disk. The full
+ * cause is in the server log.
  */
 @Service
 public class DataExportGenerationService {
@@ -76,7 +80,20 @@ public class DataExportGenerationService {
      */
     static final LocalDate LEDGER_HORIZON = LocalDate.of(2999, 12, 31);
 
+    /**
+     * What the member is told when generation fails. A fixed sentence on purpose: an exception
+     * message can carry a storage path, an SQL fragment or a class name, and this text is served
+     * to the member. The full cause is logged with its stack trace (CI-50).
+     */
+    static final String FAILURE_REASON =
+        "The export could not be generated. Try again; if it keeps failing, ask your "
+            + "administrator to check the server log.";
+
     private static final Logger LOG = LoggerFactory.getLogger(DataExportGenerationService.class);
+
+    /** Both reads of one archive, taken in one transaction. */
+    private record Snapshot(List<ExportRow> rows, Map<String, Object> datasets) {
+    }
 
     private final DataExportRunRepository runs;
     private final DataExportCollector collector;
@@ -89,6 +106,7 @@ public class DataExportGenerationService {
     private final DataExportStatusUpdater status;
     private final DataExportProperties properties;
     private final UserClock clock;
+    private final TransactionTemplate snapshotRead;
 
     @SuppressWarnings("checkstyle:ParameterNumber")
     public DataExportGenerationService(DataExportRunRepository runs,
@@ -98,7 +116,8 @@ public class DataExportGenerationService {
                                        CategoryRepository categories, TaxLineMappingService lines,
                                        UserRepository users, LocalDiskStorage storage,
                                        DataExportStatusUpdater status,
-                                       DataExportProperties properties, UserClock clock) {
+                                       DataExportProperties properties, UserClock clock,
+                                       PlatformTransactionManager transactionManager) {
         this.runs = runs;
         this.collector = collector;
         this.archives = archives;
@@ -110,6 +129,9 @@ public class DataExportGenerationService {
         this.status = status;
         this.properties = properties;
         this.clock = clock;
+        this.snapshotRead = new TransactionTemplate(transactionManager);
+        this.snapshotRead.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+        this.snapshotRead.setReadOnly(true);
     }
 
     /**
@@ -138,10 +160,14 @@ public class DataExportGenerationService {
             }
 
             Instant generatedAt = clock.now();
+            // One REPEATABLE_READ read-only transaction for BOTH reads, so transactions.csv and
+            // the JSON datasets are the same snapshot of the ledger rather than two reads a sync
+            // could land between. The collector's own read-only transaction joins this one.
+            Snapshot snapshot = snapshotRead.execute(status -> new Snapshot(
+                collectTransactions(userId, householdId), collector.collect(userId, householdId)));
             byte[] content = archives.build(new DataExportArchiveBuilder.ArchiveRequest(
                 runId, userId, householdId, generatedAt,
-                collectTransactions(userId, householdId),
-                collector.collect(userId, householdId)));
+                snapshot.rows(), snapshot.datasets()));
 
             // Never java.nio directly: LocalDiskStorage generates the key, refuses to address
             // anything outside its three areas, and that refusal IS the traversal guard. The
@@ -163,10 +189,7 @@ public class DataExportGenerationService {
 
     private void recordFailure(UUID runId, UUID userId, RuntimeException cause) {
         try {
-            String reason = cause.getMessage() == null || cause.getMessage().isBlank()
-                ? cause.getClass().getSimpleName()
-                : cause.getMessage();
-            status.transition(runId, userId, DataExportStatus.FAILED, reason);
+            status.transition(runId, userId, DataExportStatus.FAILED, FAILURE_REASON);
         } catch (RuntimeException secondary) {
             // swallow-ok: the primary failure is already logged above with its stack trace, and
             // there is nothing further this thread can do. Rethrowing would only reach the
@@ -195,7 +218,7 @@ public class DataExportGenerationService {
             categoryNames.put(category.getId(), category.getName());
         }
 
-        List<Transaction> ledger = transactions.findSpendableInRange(householdId, LEDGER_EPOCH,
+        List<Transaction> ledger = transactions.findAllInRange(householdId, LEDGER_EPOCH,
             LEDGER_HORIZON);
         List<ExportRow> rows = new ArrayList<>(ledger.size());
         for (Transaction transaction : ledger) {
@@ -210,7 +233,9 @@ public class DataExportGenerationService {
                 categoryNames.getOrDefault(transaction.getCategoryId(), ""),
                 line.code(),
                 line.label(),
-                transaction.getReceiptId()));
+                transaction.getReceiptId(),
+                transaction.getType(), transaction.getAccountId(),
+                transaction.getTransferGroupId(), transaction.isPending()));
         }
         return rows;
     }

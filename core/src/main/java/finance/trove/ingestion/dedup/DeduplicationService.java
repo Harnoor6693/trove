@@ -2,9 +2,11 @@ package finance.trove.ingestion.dedup;
 
 import finance.trove.accounts.ConnectedAccount;
 import finance.trove.common.domain.CurrencyCode;
+import finance.trove.common.domain.Money;
 import finance.trove.common.plugin.RawTransaction;
 import finance.trove.common.plugin.TransactionType;
 import finance.trove.common.time.Instants;
+import finance.trove.ingestion.ParsedRow;
 import finance.trove.ingestion.RawTransactionRejectedException;
 import finance.trove.transactions.Transaction;
 import finance.trove.transactions.TransactionRepository;
@@ -144,7 +146,7 @@ public class DeduplicationService {
             batch.markMatched(matched.getId());
             if (promotesToPosted(matched, incoming)) {
                 matched.markPosted(incoming.postedAt() != null ? incoming.postedAt()
-                    : Instants.now());
+                    : Instants.now(), incoming.amount());
                 return new Outcome(DeduplicationResult.UPDATED, matched);
             }
             return new Outcome(DeduplicationResult.SKIPPED, matched);
@@ -260,9 +262,10 @@ public class DeduplicationService {
     /**
      * Whether the one in-place change ingestion ever makes applies: a pending row that has posted.
      *
-     * <p>Nothing else is overwritten. A member may have corrected the merchant, added notes or
-     * pinned a category since the row was first seen, and a re-sync that reasserted the source's
-     * view of those fields would quietly undo their work on every run.
+     * <p>The posted amount replaces the pending one (B1-07): a pre-authorisation is not what the
+     * bank charged. Nothing else is overwritten. A member may have corrected the merchant, added
+     * notes or pinned a category since the row was first seen, and a re-sync that reasserted the
+     * source's view of those fields would quietly undo their work on every run.
      */
     private static boolean promotesToPosted(Transaction existing, RawTransaction incoming) {
         return existing.isPending() && !incoming.pending();
@@ -332,11 +335,22 @@ public class DeduplicationService {
 
     /** Everything a row must have before it is worth looking for a match for it. */
     private static void validate(RawTransaction incoming) {
+        String parseError = incoming.metadata().get(ParsedRow.PARSE_ERROR);
+        if (parseError != null) {
+            throw new RawTransactionRejectedException(parseError);
+        }
         if (incoming.date() == null) {
             throw new RawTransactionRejectedException("the source reported no date");
         }
         if (incoming.amount() == null) {
             throw new RawTransactionRejectedException("the source reported no amount");
+        }
+        if (!Money.fitsColumn(incoming.amount())) {
+            // B1-04: before anything rounds it. CurrencyCode.normalise on 1E9999999 is seconds
+            // of CPU, and the column could not hold the result anyway.
+            throw new RawTransactionRejectedException("the amount is too large, or has more than "
+                + Money.MAX_FRACTION_DIGITS + " decimal places; this server stores at most "
+                + Money.MAX_INTEGER_DIGITS + " digits before the decimal point");
         }
         if (incoming.type() == null) {
             throw new RawTransactionRejectedException("the source reported no transaction type; "

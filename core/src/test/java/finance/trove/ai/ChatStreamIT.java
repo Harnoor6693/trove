@@ -234,7 +234,7 @@ class ChatStreamIT extends AuthFlowSupport {
         assertThat(body)
             .as("no stack trace, no prompt and no endpoint host reaches the member")
             .doesNotContain("java.")
-            .doesNotContain("203.0.113.10")
+            .doesNotContain("2d00::1")
             .doesNotContain("Where did my money go?");
 
         String sessionId = response.headers().firstValue("X-Session-Id").orElseThrow();
@@ -264,7 +264,8 @@ class ChatStreamIT extends AuthFlowSupport {
     }
 
     /**
-     * Enables AI for {@code member} against a TEST-NET-3 address, written straight to the table.
+     * Enables AI for {@code member} against {@code 2d00::1}, written straight to the table: an
+     * address the policy accepts and nobody routes, since IANA has not delegated {@code 2d00::/8}.
      *
      * <p>{@code PUT /v1/ai/settings} would accept this URL — {@code AiPolicyIT} proves a public
      * https endpoint is accepted — but going through the route would also mean the settings screen
@@ -276,7 +277,7 @@ class ChatStreamIT extends AuthFlowSupport {
         jdbcTemplate.update("""
             INSERT INTO ai_settings (user_id, enabled, endpoint_url, model, privacy_tier,
                                      connect_timeout_ms, read_timeout_ms)
-            VALUES (?, true, 'https://203.0.113.10/v1', 'probe-model', 'LOCAL_ONLY', 1000, 2000)
+            VALUES (?, true, 'https://[2d00::1]/v1', 'probe-model', 'LOCAL_ONLY', 1000, 2000)
             """, member.userId());
     }
 

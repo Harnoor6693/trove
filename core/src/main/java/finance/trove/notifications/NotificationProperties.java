@@ -6,23 +6,19 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * Everything the notification area can be tuned by ({@code docs/recovery/06-COLLAPSE-PLAN.md}
  * §2.8, §1.6).
  *
- * <p><strong>Every value carries its own default here and nothing is added to
- * {@code application.yml}.</strong> Collapse steps 11, 15 and 17 run in parallel worktrees and no
- * step of this wave owns that file, so a property added to it is a merge conflict at best and a
- * silently lost edit at worst. A record bound by {@code @ConfigurationPropertiesScan} with
- * defaults in its canonical constructor needs no yml entry to work and picks one up the moment an
- * operator adds it — the shape {@code PurgeJobs.reloadRateLimits} uses for
- * {@code trove.rate-limit.reload-interval}. The keys are named in this step's merge notes so that
- * they can be promoted into the shipped configuration with the SMTP settings.
+ * <p><strong>Every value carries its own default here.</strong> {@code application.yml} restates
+ * only {@code smtp-enabled} (SMTP_ENABLED) and {@code from-address} (NOTIFICATION_FROM_ADDRESS);
+ * the other keys need no yml entry and pick one up the moment an operator adds it.
  *
  * <p>A record rather than a class because {@code ArchitectureTest} requires it: the canonical
  * constructor is where a bad value fails the context refresh instead of surfacing at 08:00 on a
  * Monday nobody is watching.
  *
- * @param smtpEnabled       whether the {@code EMAIL} channel bean exists at all. False on every
- *                          shipped configuration: without {@code spring.mail.host} there is no
- *                          {@code JavaMailSender} to inject, and a channel that silently drops
- *                          everything is exactly the defect D3 is about
+ * @param smtpEnabled       whether the {@code EMAIL} channel bean exists at all. False unless
+ *                          {@code SMTP_ENABLED=true}: {@code application.yml} always sets
+ *                          {@code spring.mail.host} (blank by default), so an idle
+ *                          {@code JavaMailSender} exists either way, and a channel that silently
+ *                          drops everything is exactly the defect D3 is about
  * @param fromAddress       the envelope sender for notification email
  * @param fromName          the display name shown beside it
  * @param digestPageSize    how many digest recipients are read per page. The job holds a page in

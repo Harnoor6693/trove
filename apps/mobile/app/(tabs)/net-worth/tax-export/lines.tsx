@@ -13,6 +13,7 @@ import { useTheme } from '@design/useTheme';
 import { toApiFailure, type ApiFailure } from '@api/errors';
 import { useSetTaxLine, useTaxLines } from '@hooks/useTaxExport';
 import type { TaxLineMappingResponse } from '@api/types';
+import { keyboardScrollProps } from '@components/ui/FormScroll/FormScroll';
 
 /**
  * `/v1/tax-export/lines*` — the caller's own effective category-to-tax-line
@@ -47,6 +48,7 @@ export default function TaxLinesScreen() {
         testID="tax-lines"
       >
         <FlatList
+          {...keyboardScrollProps}
           data={lines.data ?? []}
           keyExtractor={(line) => line.categoryId}
           contentContainerStyle={styles.list}

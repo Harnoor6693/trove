@@ -32,8 +32,9 @@ import org.springframework.stereotype.Component;
  * step is specified never to make (§2.4 — this step opens no socket at all).
  *
  * <p><strong>No computed figure.</strong> Same rule as the CSV: line codes and labels are strings
- * a human reads off a form, the amounts are the member's own, and the totals are plain sums per
- * {@code (line, currency)} with no conversion (§9 risk 15).
+ * a human reads off a form, the amounts are the member's own, and the totals are the net spending
+ * per {@code (line, currency)}, DEBIT rows added and REFUND rows subtracted, with no conversion
+ * (§9 risk 15).
  *
  * <p>No formula escaping here, deliberately: a PDF has no formula evaluator, and an apostrophe in
  * front of a printed merchant name would be a defect rather than a defence.
@@ -45,8 +46,8 @@ public class PdfExportBuilder {
     private static final float SUBTITLE_SIZE = 10f;
     private static final float TABLE_SIZE = 7f;
 
-    /** Relative widths for the ten columns; the wide text columns get the space. */
-    private static final float[] COLUMN_WIDTHS = {8, 14, 16, 14, 8, 5, 11, 8, 12, 4};
+    /** Relative widths for the eleven columns; the wide text columns get the space. */
+    private static final float[] COLUMN_WIDTHS = {8, 13, 15, 13, 8, 5, 10, 7, 11, 4, 6};
 
     /** The scale every ledger amount is stored and summed at, from {@code NUMERIC(19,4)}. */
     private static final int LEDGER_SCALE = 4;
@@ -60,7 +61,7 @@ public class PdfExportBuilder {
      */
     public byte[] build(List<ExportRow> rows, int taxYear, Jurisdiction jurisdiction) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        // Landscape: ten columns do not fit portrait at a readable size, and a PDF a member
+        // Landscape: eleven columns do not fit portrait at a readable size, and a PDF a member
         // cannot read is not evidence of anything.
         // The writer is not itself a resource here: PdfDocument.close() closes it, and
         // PdfWriter.close() declares IOException while PdfDocument's and Document's do not.
@@ -105,6 +106,7 @@ public class PdfExportBuilder {
             table.addCell(text(row.taxLineCode()));
             table.addCell(text(row.taxLineLabel()));
             table.addCell(text(row.receiptId()));
+            table.addCell(text(row.type()));
         }
         return table;
     }

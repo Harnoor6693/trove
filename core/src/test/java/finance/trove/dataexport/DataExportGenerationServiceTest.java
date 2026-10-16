@@ -30,6 +30,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 
 /**
  * The generation's failure paths — the ones a member only ever sees when something has gone wrong,
@@ -50,6 +52,8 @@ class DataExportGenerationServiceTest {
     private final UserRepository users = mock(UserRepository.class);
     private final LocalDiskStorage storage = mock(LocalDiskStorage.class);
     private final DataExportStatusUpdater status = mock(DataExportStatusUpdater.class);
+    private final PlatformTransactionManager transactionManager =
+        mock(PlatformTransactionManager.class);
 
     private final UUID runId = UUID.randomUUID();
     private final UUID userId = UUID.randomUUID();
@@ -59,7 +63,8 @@ class DataExportGenerationServiceTest {
         collector, archives, transactions, categories, lines, users, storage, status,
         new DataExportProperties(null, null, null),
         new UserClock((UserTimeZoneProvider) id -> ZoneId.of("America/Toronto"),
-            Clock.fixed(NOW, ZoneOffset.UTC)));
+            Clock.fixed(NOW, ZoneOffset.UTC)),
+        transactionManager);
 
     private DataExportRun existingRun() {
         DataExportRun run = new DataExportRun(userId, householdId, NOW);
@@ -72,10 +77,31 @@ class DataExportGenerationServiceTest {
         when(status.transition(runId, userId, DataExportStatus.GENERATING, null)).thenReturn(true);
         when(users.findByIdAndHouseholdId(userId, householdId)).thenReturn(Optional.empty());
         when(categories.findAllVisible(householdId)).thenReturn(List.of());
-        when(transactions.findSpendableInRange(eq(householdId), any(), any()))
+        when(transactions.findAllInRange(eq(householdId), any(), any()))
             .thenReturn(List.of());
         when(collector.collect(userId, householdId)).thenReturn(Map.of());
         when(archives.build(any())).thenReturn(new byte[] {1, 2, 3});
+    }
+
+    @Test
+    @DisplayName("The CSV rows and the JSON datasets are read in one REPEATABLE_READ read-only "
+        + "transaction (CI-51)")
+    void bothReadsShareOneSnapshotTransaction() {
+        when(runs.findByIdAndUserId(runId, userId)).thenReturn(Optional.of(existingRun()));
+        when(status.transition(runId, userId, DataExportStatus.GENERATING, null))
+            .thenReturn(true);
+
+        generation.generateAsync(runId, userId, householdId);
+
+        ArgumentCaptor<TransactionDefinition> definition =
+            ArgumentCaptor.forClass(TransactionDefinition.class);
+        verify(transactionManager).getTransaction(definition.capture());
+        assertThat(definition.getValue().getIsolationLevel())
+            .isEqualTo(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+        assertThat(definition.getValue().isReadOnly()).isTrue();
+        verify(transactions).findAllInRange(eq(householdId), any(), any());
+        verify(collector).collect(userId, householdId);
+        verify(transactionManager).commit(any());
     }
 
     @Test
@@ -153,7 +179,12 @@ class DataExportGenerationServiceTest {
             .as("a run that sits at GENERATING for ever with nothing to explain it is the one "
                 + "state a member cannot act on")
             .isNotBlank()
-            .doesNotContain("\\n");
+            .doesNotContain("\\n")
+            .as("the raw exception message names storage areas and paths; the cause is in the "
+                + "server log, and the member only needs to know to try again (CI-50)")
+            .doesNotContain("/")
+            .doesNotContain("exports")
+            .doesNotContain("StorageException");
     }
 
     @Test

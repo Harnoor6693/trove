@@ -1,5 +1,6 @@
 package finance.trove.ai.chat;
 
+import finance.trove.ai.PromptData;
 import finance.trove.app.AsyncConfig;
 import finance.trove.budgets.envelope.EnvelopeService;
 import finance.trove.budgets.envelope.dto.EnvelopeResponse;
@@ -48,7 +49,7 @@ import org.springframework.stereotype.Component;
  * unconditionally). The coach's "personalised context" was therefore empty for every user on every
  * install, from the day it was written, and its own test never asserted an outbound header name so
  * nothing caught it. Collapsing the services into one JVM deletes the whole class of bug: these
- * are four method calls on four merged services, scoped by the caller's own household and user id.
+ * are four section reads across five merged services, scoped by the caller's own household and user id.
  *
  * <h2>Bounded pool, one deadline</h2>
  * The fan-out runs on {@link AsyncConfig#COACH_EXECUTOR}, not on {@code ForkJoinPool.commonPool()}
@@ -147,7 +148,7 @@ public class CoachContextBuilder {
         awaitAll(monthSummary, budgetSummary, subscriptionSummary, netWorthSummary);
 
         Map<String, String> values = Map.of(
-            "display_name", audience.salutation(),
+            "display_name", PromptData.name(audience.salutation()),
             "date", today.toString(),
             "timezone", audience.zone().getId(),
             "jurisdiction", audience.country().name(),
@@ -156,7 +157,7 @@ public class CoachContextBuilder {
             "budget_summary", resolved(budgetSummary),
             "subscription_summary", resolved(subscriptionSummary),
             "net_worth_summary", resolved(netWorthSummary));
-        return fill(prompts.contextTemplate(), values);
+        return PromptData.fence(fill(prompts.contextTemplate(), values));
     }
 
     /**
@@ -286,7 +287,7 @@ public class CoachContextBuilder {
             return text.toString();
         }
         for (EnvelopeResponse line : lines) {
-            text.append(INDENT).append(INDENT).append(line.categoryName())
+            text.append(INDENT).append(INDENT).append(PromptData.name(line.categoryName()))
                 .append(": allocated ").append(amount(line.allocated()))
                 .append(", spent ").append(amount(line.spent()))
                 .append(", rollover ").append(amount(line.rolloverAmount()))

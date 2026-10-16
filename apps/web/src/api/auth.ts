@@ -57,7 +57,7 @@ export async function loginTotp(req: TotpLoginRequest): Promise<LoginResponse> {
  * `POST /v1/auth/register` — needs `inviteToken` unless `registrationOpen`.
  * 201 with the same body shape as a login (a session, or a TOTP challenge when
  * the account already has a second factor) — NOT `{user}` alone, which is what
- * this client assumed before the spec existed. See '## Code corrections'.
+ * this client assumed before the spec existed.
  */
 export async function register(req: RegisterRequest): Promise<LoginResponse> {
   const res = await api.post<ApiResponse<LoginResponse>>('/v1/auth/register', req, {

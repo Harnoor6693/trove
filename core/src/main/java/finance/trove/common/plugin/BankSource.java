@@ -23,9 +23,9 @@ import java.util.Map;
  *       for the egress policy to be forgotten.</li>
  * </ul>
  *
- * <p><strong>Nothing on the main classpath implements this in collapse step 6.</strong> The
- * SimpleFIN, OFX and CSV sources are step 7's; a test-only in-memory source under
- * {@code core/src/test} is what exercises {@code SyncOrchestrator} until then. A
+ * <p>{@code SimplefinSource} implements this for SIMPLEFIN; {@code OfxSource} and
+ * {@code CsvSource} implement it through {@code FileImportSource}, which extends it. A test-only
+ * {@code TestBankSource} also exercises {@code SyncOrchestrator}. A
  * {@code POST /v1/accounts/{id}/sync} for a kind with no registered source is 409
  * {@code conflict}, not a 500.
  *
@@ -33,6 +33,13 @@ import java.util.Map;
  * {@code List<BankSource>} and indexes them by {@link #sourceKind()}.
  */
 public interface BankSource {
+
+    /**
+     * The {@code config} key {@code SyncOrchestrator} puts the syncing member's time zone under,
+     * as a {@link java.time.ZoneId} id. A source that reports instants dates its rows in it, so a
+     * purchase at 20:00 in Toronto on the 31st stays on the 31st (B1-22).
+     */
+    String MEMBER_ZONE = "trove.memberZone";
 
     /** Which kind of account this source serves. One implementation per kind. */
     SourceKind sourceKind();

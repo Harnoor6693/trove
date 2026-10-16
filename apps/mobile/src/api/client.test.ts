@@ -171,6 +171,30 @@ describe('request interceptor', () => {
   });
 });
 
+describe('transfer timeout (B5-05)', () => {
+  const timeoutOf = () => seen[seen.length - 1].timeout;
+
+  it('keeps 15 seconds for ordinary JSON calls', async () => {
+    await client.api.get('/v1/auth/me');
+    expect(timeoutOf()).toBe(15_000);
+  });
+
+  it('allows a multipart upload at least a minute', async () => {
+    await client.api.post('/v1/receipts/upload', new FormData());
+    expect(timeoutOf()).toBeGreaterThanOrEqual(60_000);
+  });
+
+  it.each(['arraybuffer', 'text'] as const)('allows a %s download at least a minute', async (t) => {
+    await client.api.get('/v1/me/export/1/download', { responseType: t });
+    expect(timeoutOf()).toBeGreaterThanOrEqual(60_000);
+  });
+
+  it('lets a caller choose its own timeout', async () => {
+    await client.api.post('/v1/imports', new FormData(), { timeout: 5_000 });
+    expect(timeoutOf()).toBe(5_000);
+  });
+});
+
 describe('refresh on 401', () => {
   beforeEach(async () => {
     await client.setSession(
@@ -313,6 +337,27 @@ describe('reuse detection', () => {
     expect(client.getAccessToken()).toBeNull();
     expect(client.getRefreshToken()).toBeNull();
     expect(await client.hydrateSession()).toBeNull();
+  });
+
+  it('keeps the session when the refresh fails on a network error (B5-01)', async () => {
+    handler = (config) => {
+      throw new AxiosError('Network Error', AxiosError.ERR_NETWORK, config);
+    };
+    const ended: string[] = [];
+    client.onSessionEnded((reason) => ended.push(reason));
+    await expect(client.refreshAccessToken()).rejects.toBeDefined();
+    expect(ended).toEqual([]);
+    expect(client.getRefreshToken()).toBe('stale-token');
+    expect(await client.hydrateSession()).not.toBeNull();
+  });
+
+  it('keeps the session when the refresh endpoint answers 503 (B5-01)', async () => {
+    handler = () => ({ status: 503 });
+    const ended: string[] = [];
+    client.onSessionEnded((reason) => ended.push(reason));
+    await expect(client.refreshAccessToken()).rejects.toBeDefined();
+    expect(ended).toEqual([]);
+    expect(client.getRefreshToken()).toBe('stale-token');
   });
 
   it('does not retry the original request after a rejected refresh', async () => {

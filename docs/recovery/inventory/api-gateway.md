@@ -1,5 +1,7 @@
 # Inventory — services/api-gateway
 
+> **Historical record, 2026-09-03.** Inventory of the pre-rebuild code, since removed; kept for the rebuild trail. Current state: `docs-site/guide/architecture.md`.
+
 All paths repo-relative. Line numbers verified against source on 2026-09-03. Prior
 verified findings referenced as B1-B9, D7, D9, G4/G5/G7/G8/G9 come from
 `docs/recovery/01-FINDINGS.md` (section O supersedes earlier sections); each is

@@ -11,11 +11,11 @@
  *
  * <h2>The algorithm</h2>
  * <ol>
- *   <li>Read the household's DEBIT transactions of the last thirteen months through
+ *   <li>Read the household's DEBIT transactions of the last 25 months through
  *       {@code TransactionQueryService.debitsSince}, which already excludes transfer legs (gap
- *       P2-14). The window is thirteen months, not the source's ninety days, so that an ANNUAL
- *       cadence can be seen at all — ninety days cannot contain two annual charges, and the
- *       source could therefore never detect one.</li>
+ *       P2-14). The window is 25 months, not the source's ninety days, so that an ANNUAL
+ *       cadence can be seen at all: three charges are needed, and for an annual one they span
+ *       two years. The source could therefore never detect one.</li>
  *   <li>Group by {@code finance.trove.categorisation.MerchantNormaliser}-normalised merchant
  *       name. That is the categorisation package's normaliser, deliberately, and NOT the source's
  *       own {@code MerchantNameNormalizer}: two normalisers in one JVM means the same merchant

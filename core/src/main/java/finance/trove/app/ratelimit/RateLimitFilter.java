@@ -1,5 +1,6 @@
 package finance.trove.app.ratelimit;
 
+import finance.trove.app.SecurityConfig;
 import finance.trove.auth.jwt.TroveUserDetails;
 import finance.trove.common.exception.SecurityErrorWriter;
 import finance.trove.common.net.ClientIpResolver;
@@ -13,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -105,8 +107,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
                     "The server could not check its request limits. Try again shortly.");
                 return;
             }
-            // swallow-ok: rethrown as a 5xx for the sign-in surface just above; here the request
-            // proceeds on purpose. A limiter fault must not lock a household out of its own
+            // swallow-ok: for the sign-in surface the branch above already answered 503
+            // service-unavailable; here the request proceeds on purpose. A limiter fault must not
+            // lock a household out of its own
             // ledger, and no credential is guessable behind these routes.
             LOG.error("The rate limiter could not decide about {} {} — allowing, because this is "
                     + "not the sign-in surface", request.getMethod(),
@@ -143,8 +146,17 @@ public class RateLimitFilter extends OncePerRequestFilter {
      * <p>The user id rather than the address for an authenticated caller, so that a household
      * behind one NAT does not share a ceiling, and so that a signed-in abuser cannot escape their
      * own bucket by changing address.
+     *
+     * <p><strong>Except on the anonymous sign-in routes</strong> ({@link SecurityConfig#PUBLIC_POST}),
+     * which are metered by address whoever is signed in (B3-06). Keyed on the token, a throwaway
+     * account's session bought a bucket of its own on the brute-force surface, apart from the one
+     * its address had already spent.
      */
     private static String identityOf(HttpServletRequest request) {
+        if (HttpMethod.POST.matches(request.getMethod())
+            && SecurityConfig.PUBLIC_POST.contains(withoutContextPath(request))) {
+            return ClientIpResolver.resolve(request);
+        }
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null
             && authentication.getPrincipal() instanceof TroveUserDetails principal) {

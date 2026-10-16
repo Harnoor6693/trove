@@ -97,8 +97,8 @@ public class InAppNotificationService {
     }
 
     /**
-     * Writes one inbox row. Called by {@code NotificationService} on every notification, before
-     * any channel is attempted and whatever the preferences say — the row is the record, and the
+     * Writes one inbox row. Called by {@code InAppChannel}, which {@code NotificationService} runs
+     * for every notification whatever the preferences say — the row is the record, and the
      * absence of one is the defect this whole area was rebuilt to fix.
      *
      * @param announce whether the row should reach the unread badge. False for a member who has

@@ -13,6 +13,8 @@ import { fieldError, toApiFailure, type ApiFailure } from '@api/errors';
 import { useAssets, useCreateAsset, useDeleteAsset, useUpdateAsset } from '@hooks/useNetWorth';
 import { useUserFormat } from '@lib/useUserFormat';
 import { CURRENCY_CODES, type AssetResponse, type CurrencyCode, type AssetType } from '@api/types';
+import { normaliseAmountInput } from '@lib/amountInput';
+import { keyboardScrollProps } from '@components/ui/FormScroll/FormScroll';
 
 const ASSET_TYPES: AssetType[] = ['CASH', 'INVESTMENT', 'REAL_ESTATE', 'VEHICLE', 'OTHER'];
 
@@ -63,6 +65,7 @@ export default function AssetsScreen() {
         testID="assets"
       >
         <FlatList
+          {...keyboardScrollProps}
           data={assets.data ?? []}
           keyExtractor={(asset) => asset.id}
           contentContainerStyle={styles.list}
@@ -181,7 +184,7 @@ function AssetForm({
         {
           name: name.trim(),
           assetType,
-          value: value.trim(),
+          value: normaliseAmountInput(value),
           currency: currency ?? undefined,
         },
         { onSuccess: onDone }
@@ -191,7 +194,12 @@ function AssetForm({
       // `accountId` forward so an edit that isn't touching the link doesn't
       // silently unlink a connected account.
       update.mutate(
-        { name: name.trim(), assetType, value: value.trim(), accountId: asset?.accountId ?? null },
+        {
+          name: name.trim(),
+          assetType,
+          value: normaliseAmountInput(value),
+          accountId: asset?.accountId ?? null,
+        },
         { onSuccess: onDone }
       );
     }

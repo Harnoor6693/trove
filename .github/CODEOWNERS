@@ -5,7 +5,8 @@
 # apps/web, apps/mobile, docs-site, deploy. Scoped to the ai/ abstraction itself AND
 # the domain packages that actually call it and decide sensitivity / build prompts --
 # `grep -rl '^import finance\.trove\.ai\.' core/src/main/java` outside ai/ turns up
-# exactly these two packages (receipts vision pipeline, categorisation tiers).
+# three packages (receipts, categorisation, and dataexport, which only reads coach
+# history and calls no model).
 core/src/main/java/finance/trove/ai/                    @Harnoor6693
 core/src/main/java/finance/trove/receipts/pipeline/     @Harnoor6693
 core/src/main/java/finance/trove/receipts/upload/       @Harnoor6693

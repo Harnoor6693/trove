@@ -24,7 +24,8 @@ import { useUserFormat } from '@lib/useUserFormat';
  * page was shown a truncated list it was never told about. It is an infinite
  * query now, driven by `onEndReached` and bounded by `meta.total`.
  *
- * The capture modal inherits the **one** `QueryClient` from `app/_layout.tsx`.
+ * The capture modal uses the **one** `QueryClient` defined in
+ * `src/api/queryClient.ts` and provided by `app/_layout.tsx`.
  * The second, module-scope client that used to wrap it is the defect the
  * mobile inventory records (§4) and must not come back.
  */
@@ -126,7 +127,7 @@ export default function ReceiptsScreen() {
               <Text style={[styles.footer, { color: theme.ink3 }]} testID="receipts-loading-more">
                 Loading more…
               </Text>
-            ) : null
+            ) : undefined
           }
         />
       </ScreenState>

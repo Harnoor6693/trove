@@ -117,7 +117,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   useAuthStore.setState({ me: ME });
   mockMembers.mockResolvedValue([SELF, OTHER]);
-  mockSettings.mockResolvedValue({ registrationOpen: false });
+  mockSettings.mockResolvedValue({ registrationOpen: false, scheduledSyncEnabled: false });
 });
 
 afterEach(() => {
@@ -277,7 +277,7 @@ describe('the password reset link', () => {
 
 describe('household settings and navigation', () => {
   it('writes the registration flag', async () => {
-    mockSaveSettings.mockResolvedValue({ registrationOpen: true });
+    mockSaveSettings.mockResolvedValue({ registrationOpen: true, scheduledSyncEnabled: false });
     await renderScreen();
     await waitFor(() => expect(screen.getByTestId('admin-registration-toggle')).toBeTruthy());
     // `MnToggle` is a `<Switch>` inside the labelled row; pressing the row does
@@ -285,6 +285,19 @@ describe('household settings and navigation', () => {
     await fireEvent(screen.getByLabelText('Anyone may sign up'), 'valueChange', true);
     await waitFor(() =>
       expect(mockSaveSettings.mock.calls[0][0]).toEqual({ registrationOpen: true })
+    );
+  });
+
+  it('turns the scheduled bank sync on, and says plainly what that does (C-01r)', async () => {
+    mockSaveSettings.mockResolvedValue({ registrationOpen: false, scheduledSyncEnabled: true });
+    await renderScreen();
+    await waitFor(() => expect(screen.getByTestId('admin-scheduled-sync-toggle')).toBeTruthy());
+    expect(screen.getByText(/SimpleFIN.*once a day.*only once/)).toBeTruthy();
+
+    await fireEvent(screen.getByLabelText('Sync connected banks every day'), 'valueChange', true);
+
+    await waitFor(() =>
+      expect(mockSaveSettings.mock.calls[0][0]).toEqual({ scheduledSyncEnabled: true })
     );
   });
 

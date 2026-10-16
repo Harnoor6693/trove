@@ -160,16 +160,136 @@ describe('Admin console', () => {
     expect(document.body.innerHTML).not.toContain('good-reset-token')
   })
 
-  it('writes the registration flag through PUT /v1/admin/settings', async () => {
+  it('writes the registration flag through PUT /v1/admin/settings, after a confirm', async () => {
     const user = userEvent.setup()
     renderWithProviders(<AdminSection />)
 
     const toggle = await screen.findByRole('checkbox', { name: /anyone may sign up/i })
     expect(toggle).not.toBeChecked()
+    expect(screen.queryByTestId('registration-open-notice')).not.toBeInTheDocument()
     await user.click(toggle)
+
+    const confirm = await screen.findByRole('dialog', { name: /open registration/i })
+    await user.click(within(confirm).getByRole('button', { name: /^open registration$/i }))
 
     await waitFor(() => expect(mswState.lastAdminSettingsBody).toEqual({ registrationOpen: true }))
     await waitFor(() => expect(toggle).toBeChecked())
+    expect(screen.getByTestId('registration-open-notice')).toHaveTextContent(
+      /registration is open/i
+    )
+  })
+
+  it('says that strangers join the one household and see its whole ledger (F1-B4)', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<AdminSection />)
+
+    expect(await screen.findByTestId('registration-note')).toHaveTextContent(
+      /joins? this household.*whole shared ledger/i
+    )
+    const toggle = await screen.findByRole('checkbox', { name: /anyone may sign up/i })
+    await user.click(toggle)
+
+    // An in-page confirm, focused, that states the consequence before anything is written.
+    const confirm = await screen.findByRole('dialog', { name: /open registration/i })
+    expect(confirm).toHaveTextContent(/anyone who can reach this server/i)
+    expect(confirm).toHaveTextContent(/whole shared ledger/i)
+    await waitFor(() => expect(confirm.contains(document.activeElement)).toBe(true))
+    expect(mswState.lastAdminSettingsBody).toBeNull()
+    expect(toggle).not.toBeChecked()
+
+    await user.click(within(confirm).getByRole('button', { name: /keep it closed/i }))
+    expect(screen.queryByRole('dialog', { name: /open registration/i })).not.toBeInTheDocument()
+    expect(mswState.lastAdminSettingsBody).toBeNull()
+    expect(toggle).not.toBeChecked()
+  })
+
+  it('shows that registration is open while it is, and closes it without a confirm', async () => {
+    resetMswState({
+      me: { ...DEFAULT_ME, role: 'ADMIN' },
+      adminSettings: { registrationOpen: true, scheduledSyncEnabled: false },
+    })
+    const user = userEvent.setup()
+    renderWithProviders(<AdminSection />)
+
+    const notice = await screen.findByTestId('registration-open-notice')
+    expect(notice).toHaveTextContent(/registration is open/i)
+    const toggle = screen.getByRole('checkbox', { name: /anyone may sign up/i })
+    await user.click(toggle)
+
+    await waitFor(() => expect(mswState.lastAdminSettingsBody).toEqual({ registrationOpen: false }))
+    expect(screen.queryByRole('dialog', { name: /open registration/i })).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.queryByTestId('registration-open-notice')).not.toBeInTheDocument()
+    )
+  })
+
+  it('makes a member an administrator through PUT /v1/admin/users/{id}/role (F1-B2)', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<AdminSection />)
+
+    const table = await screen.findByTestId('members-table')
+    const memberRow = within(table).getAllByRole('row')[2]
+    await user.click(within(memberRow).getByRole('button', { name: /make administrator/i }))
+    const dialog = await screen.findByTestId('member-action-dialog')
+    expect(dialog).toHaveTextContent(/invite and remove members/i)
+    await user.click(within(dialog).getByRole('button', { name: /make administrator/i }))
+
+    await waitFor(() => expect(mswState.lastMemberRoleBody).toEqual({ role: 'ADMIN' }))
+    await waitFor(() =>
+      expect(
+        within(within(screen.getByTestId('members-table')).getAllByRole('row')[2]).getByRole(
+          'button',
+          { name: /remove administrator role/i }
+        )
+      ).toBeInTheDocument()
+    )
+  })
+
+  it('does not offer a role change on the admin’s own row (F1-B2)', async () => {
+    renderWithProviders(<AdminSection />)
+
+    const table = await screen.findByTestId('members-table')
+    const ownRow = within(table).getAllByRole('row')[1]
+    expect(within(ownRow).queryByRole('button', { name: /administrator/i })).not.toBeInTheDocument()
+  })
+
+  it('renders the last-admin 409 on a demotion as an explanation (F1-B2)', async () => {
+    resetMswState({ me: { ...DEFAULT_ME, role: 'ADMIN' }, lastAdminConflict: true })
+    mswState.members = mswState.members.map((m) =>
+      m.id === 'member-2' ? { ...m, role: 'ADMIN' } : m
+    )
+    const user = userEvent.setup()
+    renderWithProviders(<AdminSection />)
+
+    const table = await screen.findByTestId('members-table')
+    const otherAdmin = within(table).getAllByRole('row')[2]
+    await user.click(within(otherAdmin).getByRole('button', { name: /remove administrator role/i }))
+    const dialog = await screen.findByTestId('member-action-dialog')
+    expect(dialog).toHaveTextContent(/signs them out/i)
+    await user.click(within(dialog).getByRole('button', { name: /remove administrator role/i }))
+
+    const message = await screen.findByTestId('member-action-error')
+    expect(message).toHaveAttribute('role', 'status')
+    expect(message).toHaveTextContent(/without an administrator/i)
+  })
+
+  it('turns the scheduled bank sync on through PUT /v1/admin/settings, off by default', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<AdminSection />)
+
+    const toggle = await screen.findByRole('checkbox', { name: /sync connected banks every day/i })
+    expect(toggle).not.toBeChecked()
+    expect(screen.getByTestId('scheduled-sync-note')).toHaveTextContent(
+      /SimpleFIN.*once a day.*only once/i
+    )
+
+    await user.click(toggle)
+
+    await waitFor(() =>
+      expect(mswState.lastAdminSettingsBody).toEqual({ scheduledSyncEnabled: true })
+    )
+    await waitFor(() => expect(toggle).toBeChecked())
+    expect(mswState.adminSettings.registrationOpen).toBe(false)
   })
 
   it('pages the audit log and renders a row’s metadata as text, never as markup', async () => {

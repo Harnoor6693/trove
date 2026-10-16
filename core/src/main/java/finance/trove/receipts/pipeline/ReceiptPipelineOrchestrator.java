@@ -70,8 +70,8 @@ import org.springframework.stereotype.Service;
  * same rule {@link AiGateway#forUser} follows for the vision call inside the extraction stage.
  *
  * <p>The terminal event is published through {@link ReceiptEventPublisher} after the final write.
- * This step writes no listener for it (§6 D3): the notification and webhook consumers belong to
- * collapse steps 11 and 16.
+ * {@code NotificationEventListener} (inbox) and {@code WebhookEventListener} (webhook delivery)
+ * consume it.
  */
 @Service
 public class ReceiptPipelineOrchestrator {
@@ -241,13 +241,6 @@ public class ReceiptPipelineOrchestrator {
     }
 
     /**
-     * The uploader's own country, region and currency.
-     *
-     * <p>An uploader whose account was deleted between the upload and the run yields a context
-     * with none of the three, which every stage that needs one declines on rather than guessing —
-     * the alternative would be a receipt parsed in some other member's date format.
-     */
-    /**
      * The uploader's country, region and currency, or a neutral context.
      *
      * <p>{@code uploaderId} is null for a receipt whose uploader has left the household: V43 makes
@@ -256,6 +249,11 @@ public class ReceiptPipelineOrchestrator {
      * a real state the orphan sweep re-runs into, so it degrades to exactly the context an unknown
      * uploader already produced — the stages read the three fields and each already handles them
      * being absent — rather than throwing a 500 out of a scheduled job.
+     *
+     * <p>An uploader whose account is inside the deletion grace still resolves and gives their
+     * normal context. If the purge lands between reading the receipt and the lookup, the lookup
+     * finds nobody, so the context carries no country, region or currency, which every stage that
+     * needs one declines on rather than guessing.
      */
     private ReceiptProcessingContext contextFor(UUID uploaderId) {
         if (uploaderId == null) {

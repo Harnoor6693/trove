@@ -15,6 +15,7 @@ import { isUuid } from '@api/paths';
 import { useAccount } from '@hooks/useAccounts';
 import { useTransactions } from '@hooks/useTransactions';
 import type { TransactionQuery, TransactionType } from '@api/types';
+import { keyboardScrollProps } from '@components/ui/FormScroll/FormScroll';
 
 /**
  * The household ledger — `GET /v1/transactions`, paged.
@@ -159,6 +160,7 @@ export default function TransactionsScreen() {
         testID="transactions"
       >
         <FlatList
+          {...keyboardScrollProps}
           data={rows}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
@@ -184,7 +186,7 @@ export default function TransactionsScreen() {
               >
                 Loading more…
               </Text>
-            ) : null
+            ) : undefined
           }
           testID="transactions-list"
         />

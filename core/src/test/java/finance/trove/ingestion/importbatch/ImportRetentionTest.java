@@ -71,12 +71,12 @@ class ImportRetentionTest {
         when(batches.findHouseholdIdsWithPreviewsBefore(cutoff)).thenReturn(List.of(HOUSEHOLD));
         when(batches.findAllByHouseholdIdAndStatusAndCreatedAtBefore(HOUSEHOLD,
             ImportBatchStatus.PREVIEW, cutoff)).thenReturn(List.of(abandoned));
-        when(batches.deleteByIdAndHouseholdId(any(), eq(HOUSEHOLD))).thenReturn(1L);
+        when(batches.deletePreview(any(), eq(HOUSEHOLD))).thenReturn(1);
 
         assertThat(service.purgeAbandonedPreviews(cutoff)).isEqualTo(1);
 
         verify(storage).delete("uploads/h/abandoned.csv");
-        verify(batches).deleteByIdAndHouseholdId(abandoned.getId(), HOUSEHOLD);
+        verify(batches).deletePreview(abandoned.getId(), HOUSEHOLD);
     }
 
     @Test
@@ -95,6 +95,21 @@ class ImportRetentionTest {
     }
 
     @Test
+    @DisplayName("B1-16: a preview committed after the sweep read it keeps its row and its file")
+    void aBatchCommittedMidSweepIsKept() {
+        Instant cutoff = Instant.parse("2026-09-05T00:00:00Z");
+        ImportBatch committing = batch("uploads/h/committing.csv");
+        when(batches.findHouseholdIdsWithPreviewsBefore(cutoff)).thenReturn(List.of(HOUSEHOLD));
+        when(batches.findAllByHouseholdIdAndStatusAndCreatedAtBefore(HOUSEHOLD,
+            ImportBatchStatus.PREVIEW, cutoff)).thenReturn(List.of(committing));
+        when(batches.deletePreview(any(), eq(HOUSEHOLD))).thenReturn(0);
+
+        assertThat(service.purgeAbandonedPreviews(cutoff)).isZero();
+
+        verify(storage, never()).delete(any());
+    }
+
+    @Test
     @DisplayName("a batch whose mapping lost its storage key still has its row removed")
     void aBatchWithNoStoredFileIsStillRemoved() {
         Instant cutoff = Instant.parse("2026-09-05T00:00:00Z");
@@ -103,7 +118,7 @@ class ImportRetentionTest {
         when(batches.findHouseholdIdsWithPreviewsBefore(cutoff)).thenReturn(List.of(HOUSEHOLD));
         when(batches.findAllByHouseholdIdAndStatusAndCreatedAtBefore(HOUSEHOLD,
             ImportBatchStatus.PREVIEW, cutoff)).thenReturn(List.of(keyless));
-        when(batches.deleteByIdAndHouseholdId(any(), eq(HOUSEHOLD))).thenReturn(1L);
+        when(batches.deletePreview(any(), eq(HOUSEHOLD))).thenReturn(1);
 
         assertThat(service.purgeAbandonedPreviews(cutoff)).isEqualTo(1);
 

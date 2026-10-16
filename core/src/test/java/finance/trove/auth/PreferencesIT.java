@@ -120,13 +120,18 @@ class PreferencesIT extends AuthFlowSupport {
     }
 
     @Test
-    @DisplayName("An unrecognised timezone is a 400 on an explicit settings change")
+    @DisplayName("An unrecognised timezone is a 400 that names the timezone field")
     void timezoneIsValidated() {
         Session member = inviteAndRegister(loginBootstrapAdmin(), "prefs-zone");
 
-        assertThat(putJson(appUrl("/v1/me/preferences"),
-            Json.object("timezone", "Mars/Olympus_Mons"),
-            "Authorization", bearer(member)).statusCode()).isEqualTo(400);
+        HttpResponse<String> response = putJson(appUrl("/v1/me/preferences"),
+            Json.object("timezone", "Mars/Olympus_Mons"), "Authorization", bearer(member));
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(Json.parse(response.body()).path("error").path("fieldErrors").path(0)
+            .path("field").asString())
+            .as("onboarding puts the refusal on the time-zone picker, not in a banner (F1-B6)")
+            .isEqualTo("timezone");
     }
 
     @Test

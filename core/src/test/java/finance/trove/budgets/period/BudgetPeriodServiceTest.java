@@ -201,7 +201,7 @@ class BudgetPeriodServiceTest {
             when(periods.findByIdAndHouseholdId(PERIOD, HOUSEHOLD))
                 .thenReturn(Optional.of(zeroBased));
             when(envelopes.existsByPeriodId(PERIOD)).thenReturn(true);
-            when(envelopes.sumAllocatedByPeriodId(PERIOD)).thenReturn(new BigDecimal("5000.0000"));
+            when(envelopes.sumAllocatedByPeriodId(PERIOD, zeroBased.getCurrency())).thenReturn(new BigDecimal("5000.0000"));
 
             assertThatThrownBy(() -> service().update(HOUSEHOLD, PERIOD,
                 new BudgetPeriodUpdateRequest(new BigDecimal("6000.00"),

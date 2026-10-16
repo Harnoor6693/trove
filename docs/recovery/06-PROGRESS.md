@@ -1,5 +1,7 @@
 # Trove Rebuild — Progress Log
 
+> **Historical record, 2026-09-03 to 2026-09-28.** Progress log of the rebuild; the rebuild is finished. The phase checklist below was not kept in step with the commit log: rows marked ☐ (including "Single Flyway history; old services deleted" and P2 to P6) were completed under the numbered steps in the commit log. The original text follows. Current state: `docs-site/guide/architecture.md`.
+
 **This is the progress log.** Read this file, then
 `docs/recovery/06-COLLAPSE-PLAN.md` for the current phase's detail. Every phase ends in a pushed
 commit; the SHA is recorded here. Do not redo a task marked ✅.
@@ -102,7 +104,7 @@ Machine: Apple M4, 10 cores, 16 GB, ~115 GB free. Rules: **one Maven build at a 
 | Step 205 — Web E (client sub-wave 20b, family E): the auth completion (OIDC start, TOTP challenge, change password, admin-minted reset links redeemed at a NEW public `/reset-password/:token`), member data export (step-up, poll, authenticated download via family D's binary helper), self-deletion, and the admin console (members, invites, registration settings, audit log); 28 operations consumed; `types.ts` derived from `schema.d.ts`; contract untouched | ✅ `dca90ff9` + `2ddd6b55` on `step/205`, merged `6cb44de0` (⚙ 29: `rebuild` had moved only by docs) — pushed 2026-09-19 04:22 | implementer gate 42 files / 354 tests; 9/9 confirmed findings fixed (1 blocker, 5 major) — the blocker was reset-password credentials reaching the query cache (`useCredentialMutation` now sets `gcTime: 0`); independent final from a fresh `npm ci`: lint 0 (0 warnings), `check:generated` clean, 42 files / 354 tests (base 36 / 320), 88.23 % stmts, `build` + CSP exit 0, weakened-test grep clean, contract audit clean; nothing outside `apps/web/`, `package.json`/lock/`schema.d.ts` byte-identical; Opus, across three windows (18:25 Sep 18 → 04:22 Sep 19) with two usage pauses |
 | Step 19 — `deploy/` (compose, Traefik, `trove` CLI, operator docs) | ✅ `7dce9bb` | compose config exit 0 / fails-fast on missing secrets; 3 TLS modes render; CLI 11 verbs; `apps/web/nginx.conf` left for step 20 |
 | Move domains per plan (parallel-safe steps) | ☐ | — |
-| Single Flyway history; old services deleted | ☐ | — |
+| Single Flyway history; old services deleted | ☐ (done under the numbered steps in the commit log) | — |
 
 ### P0.5 — CI green on PR #247
 | Task | Status | Evidence |
@@ -116,19 +118,19 @@ Machine: Apple M4, 10 cores, 16 GB, ~115 GB free. Rules: **one Maven build at a 
 | Step 21a — mobile foundation: one API layer (bearer mode, single-flight refresh, typed ApiFailure with slugs + fieldErrors), connect/login/TOTP/enrol/register screens, AppLock, Settings on real endpoints, receipts connected, six data tabs "not connected yet", push/Tax/generator/second axios layer deleted, sideload-only eas.json; mobile CI: generate step removed, format+lint cover `app/`, tsc step added | ✅ `f0eccf3` + CI fix `517e7e1` | npm ci consistent, lint 0, prettier clean, tsc 0, jest 34 suites / 342 tests, coverage 87.18/89.76/85.88/87.99, eas-config 9/9, audit gate pass; jest exits in 0.6 s (React Query mutations gcTime leak fixed) |
 
 ### P2 — Wire the features (M0, D1–D4, net worth, tax export, CSV/OFX, SimpleFIN optional, local accounts)
-☐ not started
+☐ not started (done under the numbered steps in the commit log)
 
 ### P3 — Web (live pages only, onboarding redesign, logout, AuthGuard, 404, dark mode, e2e)
-☐ not started
+☐ not started (done under the numbered steps in the commit log)
 
 ### P4 — Mobile (auth, API paths, screens on real data, jest green, prebuild + local builds)
-☐ not started
+☐ not started (done under the numbered steps in the commit log)
 
 ### P5 — Deploy & harden (compose + Traefik TLS, generated secrets, CSRF/rate limits, backup/restore, README, CI gates)
-☐ not started
+☐ not started (done under the numbered steps in the commit log)
 
 ### P6 — Verify (real-stack E2E in CI, adversarial review, security review)
-☐ not started
+☐ not started (done under the numbered steps in the commit log)
 
 ---
 
