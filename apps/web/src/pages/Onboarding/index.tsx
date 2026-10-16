@@ -18,7 +18,7 @@
  *    number the user invents about themselves, and §5's trust rule forbids it).
  *  - The footer carries "Restart setup" and "Sign out" on every step.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { QlButton } from '@components/ui/QlButton/QlButton'
 import { QlInput } from '@components/ui/QlInput/QlInput'
@@ -28,6 +28,7 @@ import { useUpdatePreferencesMutation } from '@hooks/useUpdatePreferencesMutatio
 import { exchangeErrorCopy, useExchangeSetupTokenMutation } from '@hooks/useExchangeSetupTokenMutation'
 import { useLogout } from '@hooks/useLogout'
 import { useAuthStore } from '@stores/authStore'
+import { toApiError } from '@api/client'
 import { countryProfile, type LocaleCode } from '@api/types'
 import styles from './Onboarding.module.css'
 
@@ -41,15 +42,41 @@ function browserTimezone(): string {
   }
 }
 
+/**
+ * Every IANA zone this browser knows, or an empty list where it cannot say
+ * (`Intl.supportedValuesOf` is missing before Safari 15.4); the step then falls
+ * back to typing the zone. The browser's own zone and `UTC` are always offered,
+ * because some engines leave them out of the list (F1-B6).
+ */
+function supportedTimezones(): string[] {
+  try {
+    return typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : []
+  } catch {
+    return []
+  }
+}
+
+const SUPPORTED_TIMEZONES = supportedTimezones()
+
+const TIMEZONE_HINT =
+  'Used for every “today” and “this month” boundary. Defaulted from your browser.'
+
+function timezoneOptions(selected: string): string[] {
+  return [...new Set([...SUPPORTED_TIMEZONES, selected, 'UTC'])].sort()
+}
+
 /* ---------------------------------------------------------------- step 1 */
 
 interface StepOneProps {
   onComplete: (values: { timezone: string; locale: LocaleCode }) => Promise<void>
   saving: boolean
   error: string | null
+  /** The server's refusal of the chosen zone, shown on the picker itself. */
+  timezoneError: string | null
 }
 
-function StepOne({ onComplete, saving, error }: StepOneProps) {
+function StepOne({ onComplete, saving, error, timezoneError }: StepOneProps) {
+  const zoneId = useId()
   const user = useAuthStore((s) => s.user)
   const prefs = usePreferences()
   const [timezone, setTimezone] = useState(prefs.data?.timezone ?? browserTimezone())
@@ -79,13 +106,46 @@ function StepOne({ onComplete, saving, error }: StepOneProps) {
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-        <QlInput
-          label="Time zone"
-          name="timezone"
-          value={timezone}
-          onChange={(e) => setTimezone(e.target.value)}
-          hint="Used for every “today” and “this month” boundary. Defaulted from your browser."
-        />
+        {SUPPORTED_TIMEZONES.length > 0 ? (
+          <div className={styles.zoneField}>
+            <label htmlFor={zoneId} className={styles.fieldLabel}>
+              Time zone
+            </label>
+            <select
+              id={zoneId}
+              name="timezone"
+              className={`${styles.select} ${timezoneError ? styles.selectInvalid : ''}`}
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+              aria-invalid={Boolean(timezoneError)}
+              aria-describedby={timezoneError ? `${zoneId}-error` : `${zoneId}-hint`}
+            >
+              {timezoneOptions(timezone).map((zone) => (
+                <option key={zone} value={zone}>
+                  {zone}
+                </option>
+              ))}
+            </select>
+            {timezoneError ? (
+              <span id={`${zoneId}-error`} className={styles.errorHint} role="alert">
+                {timezoneError}
+              </span>
+            ) : (
+              <span id={`${zoneId}-hint`} className={styles.fieldHint}>
+                {TIMEZONE_HINT}
+              </span>
+            )}
+          </div>
+        ) : (
+          <QlInput
+            label="Time zone"
+            name="timezone"
+            value={timezone}
+            onChange={(e) => setTimezone(e.target.value)}
+            error={timezoneError ?? undefined}
+            hint={TIMEZONE_HINT}
+          />
+        )}
 
         <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
           <legend style={{ fontSize: 'var(--font-sm)', fontWeight: 500, color: 'var(--ink-2)' }}>
@@ -281,10 +341,12 @@ export default function Onboarding() {
   const logout = useLogout()
   const [step, setStep] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [timezoneError, setTimezoneError] = useState<string | null>(null)
   const update = useUpdatePreferencesMutation()
 
   async function completeStepOne(values: { timezone: string; locale: LocaleCode }) {
     setError(null)
+    setTimezoneError(null)
     try {
       // The whole point of the redesign: onboardingCompleted goes true here, at
       // the end of step 1, not at the end of the flow.
@@ -294,8 +356,15 @@ export default function Onboarding() {
         onboardingCompleted: true,
       })
       setStep(1)
-    } catch {
-      setError('Could not save your settings. Check the server and try again.')
+    } catch (e) {
+      const err = toApiError(e)
+      // A refused zone belongs on the picker (F1-B6). A server that names no field
+      // still means the zone: the locale comes from two fixed radios.
+      const zoneRefusal =
+        err.fieldError('timezone') ??
+        (err.code === 'validation-error' && err.fieldErrors.length === 0 ? err.detail : null)
+      if (zoneRefusal) setTimezoneError(zoneRefusal)
+      else setError('Could not save your settings. Check the server and try again.')
     }
   }
 
@@ -315,7 +384,12 @@ export default function Onboarding() {
 
       <div className={styles.content}>
         {step === 0 && (
-          <StepOne onComplete={completeStepOne} saving={update.isPending} error={error} />
+          <StepOne
+            onComplete={completeStepOne}
+            saving={update.isPending}
+            error={error}
+            timezoneError={timezoneError}
+          />
         )}
         {step === 1 && <StepTwo onNext={() => setStep(2)} />}
         {step === 2 && <StepThree onFinish={() => navigate('/', { replace: true })} />}
