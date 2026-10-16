@@ -8,6 +8,7 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.stream.Stream;
@@ -163,6 +164,13 @@ class OutboundUrlPolicyTest {
             "2001:db8::200:5efe:a00:1,              private",
             "2002:7f00:1::1,                        loopback",
             "2001:0:4136:e378:8000:63bf:f5ff:fffe,  private",
+            // An ISATAP identifier does not hide the range or the other format around it
+            "fe80::5efe:808:808,                    link-local",
+            "fe80::200:5efe:808:808,                link-local",
+            "ff02::5efe:808:808,                    multicast",
+            "2002:a9fe:a9fe::5efe:808:808,          instance-metadata",
+            "2001:0:4136:e378:0:5efe:5601:5601,     instance-metadata",
+            "2002:a00:1::5efe:808:808,              private",
         })
         @DisplayName("every range gap P2-10 and §9 risk 9 name is blocked, with a reason")
         void everyBlockedRangeIsRefused(String address, String expectedReason)
@@ -199,12 +207,15 @@ class OutboundUrlPolicyTest {
             "93.184.216.34", "8.8.8.8", "1.1.1.1", "172.32.0.1", "100.63.255.255",
             "100.128.0.1", "192.0.1.1", "198.20.0.1", "2606:2800:220:1:248:1893:25c8:1946",
             "2001:4860:4860::8888", "64:ff9b::808:808", "2002:808:808::1",
-            "::ffff:0:808:808", "2001:4860::5efe:808:808",
+            "::ffff:0:808:808", "2001:4860::5efe:808:808", "2001:db8::5efe:808:808",
         })
         @DisplayName("a genuinely public address on either family is allowed")
         void publicAddressesAreAllowed(String address) throws UnknownHostException {
             assertThat(OutboundUrlPolicy.blockReason(InetAddress.getByName(address))).isNull();
             assertThat(policy(false, address).check("https://good.example/x").host())
+                .isEqualTo("good.example");
+            assertThat(policy(true, address).check("http://good.example/x", true).host())
+                .as("the opt-in only widens; it never narrows a public address")
                 .isEqualTo("good.example");
         }
 
@@ -335,6 +346,17 @@ class OutboundUrlPolicyTest {
             "240.0.0.1,         reserved",
             "255.255.255.255,   reserved",
             "::ffff:0.0.0.0,    unspecified",
+            // Native IPv6 ranges are judged before any IPv4 an address carries, and every
+            // format an address matches is judged: an ISATAP identifier hides neither
+            "fe80::5efe:808:808,                link-local",
+            "fe80::5efe:808:808%1,              link-local",
+            "fe80::200:5efe:808:808,            link-local",
+            "fe80::5efe:a9fe:a9fe,              link-local",
+            "ff02::5efe:808:808,                multicast",
+            "2002:a9fe:a9fe::5efe:808:808,      instance-metadata",
+            "2001:0:4136:e378:0:5efe:5601:5601, instance-metadata",
+            "64:ff9b:1:a00:0:5efe:808:808,      local-use NAT64",
+            "64:ff9b:1::5efe:808:808,           local-use NAT64",
         })
         @DisplayName("the opt-in widens to LAN and loopback, never to link-local, metadata, "
             + "unspecified, multicast or reserved ranges")
@@ -348,12 +370,34 @@ class OutboundUrlPolicyTest {
                     + "read this host's cloud credentials")
                 .isInstanceOf(OutboundUrlPolicyException.class)
                 .hasMessageContaining("ollama.lan");
+            assertThatThrownBy(() -> policy(false, address).check("https://evil.example/x"))
+                .as("always refused means refused under the default policy too")
+                .isInstanceOf(OutboundUrlPolicyException.class)
+                .hasMessageContaining("evil.example");
+        }
+
+        @Test
+        @DisplayName("a zone-scoped literal, [fe80::5efe:808:808%lo0], is still link-local")
+        void aScopedLinkLocalIsatapLiteralIsRefusedWithBothKeys() throws UnknownHostException {
+            // The interface name is resolved by the OS, so the stub stands in with a numeric
+            // zone: the policy judges the bytes, and the zone does not change them.
+            Inet6Address scoped = Inet6Address.getByAddress(null,
+                InetAddress.getByName("fe80::5efe:808:808").getAddress(), 1);
+            List<String> asked = new ArrayList<>();
+            OutboundUrlPolicy policy = new OutboundUrlPolicy(new EgressProperties(true), host -> {
+                asked.add(host);
+                return new InetAddress[] {scoped};
+            });
+
+            assertThatThrownBy(() -> policy.check("http://[fe80::5efe:808:808%lo0]:11434/v1", true))
+                .isInstanceOf(OutboundUrlPolicyException.class);
+            assertThat(asked).containsExactly("fe80::5efe:808:808%lo0");
         }
 
         @ParameterizedTest(name = "{0} is a private target the opt-in does lift")
         @ValueSource(strings = {"10.1.2.3", "192.168.1.50", "127.0.0.1", "::1", "100.64.0.1",
             "100.100.100.199", "fd12:3456::1", "fd00:ec2::253",
-            "::ffff:0:a00:1", "2001:db8::5efe:c0a8:101"})
+            "::ffff:0:a00:1", "2001:db8::5efe:c0a8:101", "2002:a00:1::5efe:808:808"})
         @DisplayName("RFC 1918, loopback, CGNAT and ULA stay reachable with both keys")
         void theOptInStillLiftsPrivateRanges(String address) {
             assertThat(policy(true, address).check("http://ollama.lan:11434/v1", true).port())
