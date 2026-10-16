@@ -10,7 +10,7 @@ an oversight; see the README's "What is not here".
 `.github/workflows/release.yml` runs on a `v*.*.*` tag push:
 
 1. Runs the same backend gate as ci.yml (`./mvnw --batch-mode -pl core -am clean verify checkstyle:check -Pintegration,coverage`).
-2. Builds and pushes a multi-arch (linux/amd64 + linux/arm64) `core` image to `ghcr.io/<lower-case owner>/trove-core`, tagged both `<tag>` and `latest`.
+2. Builds and pushes a multi-arch (linux/amd64 + linux/arm64) `core` image to `ghcr.io/<lower-case owner>/trove-core`, tagged `<tag>`, plus `latest` when the tag is a stable release (a pre-release tag containing `-`, for example v1.0.0-rc1, does not move `latest`).
 3. Builds a signed Android APK via `eas build --profile production --platform android`
    (`apps/mobile/eas.json`'s `production` profile is `distribution: "internal"`,
    `buildType: "apk"` — never an AAB, never submitted to Play).
