@@ -4,6 +4,7 @@ import finance.trove.ai.AiException;
 import finance.trove.ai.AiGateway;
 import finance.trove.ai.AiHandle;
 import finance.trove.ai.AiSensitivity;
+import finance.trove.ai.PromptData;
 import finance.trove.ai.dto.AiCompletion;
 import finance.trove.ai.dto.AiMessage;
 import finance.trove.common.exception.ResourceNotFoundException;
@@ -206,12 +207,16 @@ public class DefaultAiCategorisationTier implements AiCategorisationTier {
             .append("Answer \"").append(CategorisationService.UNCATEGORISED_SLUG)
             .append("\" if none of them fits.\n")
             .append("Categories (slug = name):\n");
+        StringBuilder list = new StringBuilder(candidates.size() * 40);
         for (Category candidate : candidates) {
-            system.append(candidate.getSlug()).append(" = ").append(candidate.getName())
-                .append('\n');
+            list.append(candidate.getSlug()).append(" = ")
+                .append(PromptData.name(candidate.getName())).append('\n');
         }
+        // B3-08: category names and the merchant are household data, fenced so that a name
+        // cannot pose as an instruction.
+        system.append(PromptData.fence(list.toString().stripTrailing()));
         return List.of(AiMessage.system(system.toString()),
-            AiMessage.user("Merchant: " + normalisedMerchant));
+            AiMessage.user(PromptData.fence("Merchant: " + PromptData.name(normalisedMerchant))));
     }
 
     /**
