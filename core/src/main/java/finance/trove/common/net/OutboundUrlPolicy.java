@@ -43,10 +43,10 @@ import org.springframework.stereotype.Component;
  *       install-wide {@code TROVE_EGRESS_ALLOW_PRIVATE} and the caller's own opt-in, because a
  *       LAN Ollama is the primary AI story (so a blanket block is wrong) but every member
  *       configures their own endpoint (so an instance-wide switch is too coarse) — §1.6, §6,
- *       owner decision 9. With both keys set the policy lifts every block except link-local
- *       ({@code 169.254.0.0/16} and {@code fe80::/10}, which includes {@code 169.254.169.254}; see
- *       {@link #unconditionalBlockReason}), so the unspecified, CGNAT, ULA, multicast and reserved
- *       ranges become reachable as well as RFC 1918 and loopback.</li>
+ *       owner decision 9. With both keys set the policy lifts the private-network blocks only:
+ *       RFC 1918, loopback, CGNAT and ULA. Link-local (including {@code 169.254.169.254}), the
+ *       Alibaba and AWS-IPv6 metadata addresses, and the unspecified, multicast and reserved
+ *       ranges stay refused whatever the keys say; see {@link #unconditionalBlockReason}.</li>
  * </ul>
  *
  * <p>Userinfo in the URL is refused outright: {@code https://evil.example@10.0.0.1/} reads as a
@@ -168,14 +168,17 @@ public class OutboundUrlPolicy {
      * Why {@code address} may not be contacted <em>even by an opted-in caller on an install that
      * allows private targets</em>, or {@code null} if the two-key opt-in may reach it.
      *
-     * <p>The link-local ranges — IPv4 {@code 169.254.0.0/16} and IPv6 {@code fe80::/10} — are the
-     * one part of this policy the opt-in cannot lift, because {@code 169.254.169.254} lives in them
-     * and is the cloud instance-metadata service: reaching it returns the host's own credentials.
-     * The opt-in exists so a member can point at a LAN model on RFC 1918 or on loopback (with both
-     * keys set, the other non-public ranges are lifted too); nothing about that story needs
-     * link-local, and treating the two as one setting is what would turn a
-     * per-user endpoint into an SSRF primitive against the install itself — with no administrator
-     * anywhere in the path, since every member configures their own endpoint.
+     * <p>What the opt-in cannot lift: link-local (IPv4 {@code 169.254.0.0/16}, IPv6
+     * {@code fe80::/10}), which holds {@code 169.254.169.254}, the cloud instance-metadata service
+     * whose answer is the host's own credentials; the two metadata addresses that sit inside
+     * ranges the opt-in does lift, Alibaba's {@code 100.100.100.200} (in CGNAT) and AWS's IPv6
+     * {@code fd00:ec2::254} (in ULA); and the ranges that are not private networks at all, which no
+     * LAN model lives on: unspecified ({@code 0.0.0.0/8}, {@code ::}), multicast
+     * ({@code 224.0.0.0/4}, {@code ff00::/8}) and reserved ({@code 240.0.0.0/4}). The opt-in
+     * exists so a member can point at a LAN model on RFC 1918, loopback, CGNAT or ULA; treating
+     * the rest as one setting is what would turn a per-user endpoint into an SSRF primitive
+     * against the install itself, with no administrator anywhere in the path, since every member
+     * configures their own endpoint.
      *
      * <p>An IPv4-mapped IPv6 address is unwrapped before the check, because
      * {@code ::ffff:169.254.169.254} is the same destination written differently and
@@ -184,18 +187,56 @@ public class OutboundUrlPolicy {
     static String unconditionalBlockReason(InetAddress address) {
         byte[] ipv4 = embeddedIpv4(address);
         if (ipv4 != null) {
-            if ((ipv4[0] & 0xFF) == 169 && (ipv4[1] & 0xFF) == 254) {
+            int first = ipv4[0] & 0xFF;
+            int second = ipv4[1] & 0xFF;
+            if (first == 169 && second == 254) {
                 return (ipv4[2] & 0xFF) == 169 && (ipv4[3] & 0xFF) == 254
                     ? "the cloud instance-metadata address"
                     : "a link-local address";
             }
+            if (first == 100 && second == 100 && (ipv4[2] & 0xFF) == 100
+                && (ipv4[3] & 0xFF) == 200) {
+                // Alibaba Cloud's metadata service. It sits inside CGNAT 100.64.0.0/10, which the
+                // opt-in does lift (Tailscale and similar overlays live there), so it is named.
+                return "the cloud instance-metadata address";
+            }
+            if (first == 0) {
+                return ipv4[1] == 0 && ipv4[2] == 0 && ipv4[3] == 0
+                    ? "the unspecified address"
+                    : "a 0.0.0.0/8 address";
+            }
+            if (first >= 224 && first < 240) {
+                return "a multicast address";
+            }
+            if (first >= 240) {
+                return "a reserved (240.0.0.0/4) address";
+            }
             return null;
         }
         byte[] bytes = address.getAddress();
-        if (bytes.length == 16 && (bytes[0] & 0xFF) == 0xFE && (bytes[1] & 0xC0) == 0x80) {
+        if (bytes.length != 16) {
+            return null;
+        }
+        if ((bytes[0] & 0xFF) == 0xFE && (bytes[1] & 0xC0) == 0x80) {
             return "a link-local address";
         }
+        if ((bytes[0] & 0xFF) == 0xFF) {
+            return "a multicast address";
+        }
+        if (address.isAnyLocalAddress()) {
+            return "the unspecified address";
+        }
+        if (isAwsImdsIpv6(bytes)) {
+            // AWS's IPv6 metadata endpoint, fd00:ec2::254, inside the ULA range the opt-in lifts.
+            return "the cloud instance-metadata address";
+        }
         return null;
+    }
+
+    private static boolean isAwsImdsIpv6(byte[] bytes) {
+        byte[] imds = {(byte) 0xFD, 0, 0x0E, (byte) 0xC2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x02,
+            0x54};
+        return Arrays.equals(bytes, imds);
     }
 
     /**

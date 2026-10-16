@@ -4,7 +4,7 @@ Optional, off by default. A member turns it on by saving their own AI provider
 settings (per user, not per household) — Trove ships no built-in model access and calls no AI vendor unless
 configured to. Outbound calls are checked by
 `finance.trove.common.net.OutboundUrlPolicy` (the same SSRF guard used for webhooks
-and bank sync), gated by `TROVE_EGRESS_ALLOW_PRIVATE` and, per member, the `allowPrivateEndpoint` setting; both must be on to reach a private address.
+and bank sync), gated by `TROVE_EGRESS_ALLOW_PRIVATE` and, per member, the `allowPrivateEndpoint` setting; both must be on to reach a private address (RFC 1918, loopback, carrier-grade NAT or IPv6 unique-local). Link-local, cloud-metadata, unspecified, multicast and reserved addresses are refused regardless.
 
 | Method | Path | Purpose |
 |---|---|---|
