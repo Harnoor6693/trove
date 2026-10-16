@@ -147,6 +147,17 @@ run_trove "$D" up
 case "$OUT" in *"GRAFANA_ADMIN_PASSWORD set (monitoring profile is on)"*) pass "monitoring on + no password fails preflight" ;; *) fail "monitoring on + no password fails preflight" "$OUT" ;; esac
 [ "$RC" -ne 0 ] && pass "up exits non-zero" || fail "up exits non-zero"
 
+echo "update and restore: same Grafana password check"
+run_trove "$D" update
+case "$OUT" in *"GRAFANA_ADMIN_PASSWORD is not set but the monitoring profile is on"*) pass "update refuses monitoring on + no password" ;; *) fail "update refuses monitoring on + no password" "$OUT" ;; esac
+[ "$RC" -ne 0 ] && pass "update exits non-zero" || fail "update exits non-zero"
+case "$OUT" in *"FAKE_DOCKER"*" up "*) fail "update never reached compose up" "$OUT" ;; *) pass "update never reached compose up" ;; esac
+run_trove "$D" restore /nonexistent.tar
+case "$OUT" in *"GRAFANA_ADMIN_PASSWORD is not set but the monitoring profile is on"*) pass "restore refuses monitoring on + no password" ;; *) fail "restore refuses monitoring on + no password" "$OUT" ;; esac
+printf 'GRAFANA_ADMIN_PASSWORD=not-a-placeholder-1234\n' >> "$D/deploy/.env"
+run_trove "$D" update
+case "$OUT" in *"GRAFANA_ADMIN_PASSWORD is not set"*) fail "update with a password set passes the check" "$OUT" ;; *) pass "update with a password set passes the check" ;; esac
+
 echo "TROVE_BIND_ADDR derived from TROVE_TLS_MODE"
 bind_for() { # bind_for DIR : the TROVE_BIND_ADDR the CLI hands to docker compose
   run_trove "$1" down
@@ -154,7 +165,7 @@ bind_for() { # bind_for DIR : the TROVE_BIND_ADDR the CLI hands to docker compos
 }
 D=$(new_install)
 TROVE_DOMAIN=trove.test ACME_EMAIL=ops@trove.test TROVE_ADMIN_EMAIL=me@trove.test FAKE_NO_VOLUME=1 run_trove "$D" bootstrap
-[ "$(bind_for "$D")" = "bind=unset" ] && pass "acme-http: not set (compose default 0.0.0.0)" || fail "acme-http: not set (compose default 0.0.0.0)"
+[ "$(bind_for "$D")" = "bind=unset" ] && pass "acme-http: not set (compose publishes without a host IP)" || fail "acme-http: not set (compose publishes without a host IP)"
 printf 'TROVE_TLS_MODE=off\n' >> "$D/deploy/.env"
 [ "$(bind_for "$D")" = "bind=127.0.0.1" ] && pass "off: loopback" || fail "off: loopback"
 printf 'TROVE_BIND_ADDR=0.0.0.0\n' >> "$D/deploy/.env"

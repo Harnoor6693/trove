@@ -141,6 +141,29 @@ require_env_file() {
   derive_tls_vars
 }
 
+# True when the monitoring profile is on and GRAFANA_ADMIN_PASSWORD is empty or a placeholder.
+monitoring_password_missing() {
+  case ",${COMPOSE_PROFILES:-}," in
+    *,monitoring,*) is_placeholder "${GRAFANA_ADMIN_PASSWORD:-}" ;;
+    *) return 1 ;;
+  esac
+}
+
+# For every command that can start the stack (update, restore): compose does not require the
+# Grafana password, so refuse here instead of starting Grafana on its built-in admin/admin login.
+# `up` and `doctor` report the same condition in their own preflight list.
+require_monitoring_password() {
+  if monitoring_password_missing; then
+    die "GRAFANA_ADMIN_PASSWORD is not set but the monitoring profile is on" \
+        "run: ./trove bootstrap, or set GRAFANA_ADMIN_PASSWORD in deploy/.env (otherwise Grafana would start with its built-in admin/admin login)"
+  fi
+}
+
+require_startable_env() {
+  require_env_file
+  require_monitoring_password
+}
+
 derive_tls_vars() {
   case "${TROVE_TLS_MODE:-acme-http}" in
     acme-http)
@@ -427,7 +450,7 @@ cmd_up() {
   case ",${COMPOSE_PROFILES:-}," in
     *,monitoring,*)
       if is_placeholder "${GRAFANA_ADMIN_PASSWORD:-}"; then
-        bad "GRAFANA_ADMIN_PASSWORD set (monitoring profile is on)" "run: ./trove bootstrap, or set GRAFANA_ADMIN_PASSWORD in deploy/.env; Grafana starts with an empty admin password otherwise"
+        bad "GRAFANA_ADMIN_PASSWORD set (monitoring profile is on)" "run: ./trove bootstrap, or set GRAFANA_ADMIN_PASSWORD in deploy/.env; otherwise Grafana ignores the empty value and uses its built-in admin/admin login"
       fi ;;
   esac
 
@@ -677,7 +700,7 @@ cmd_backup() {
 # restore
 # ═════════════════════════════════════════════════════════════════════════
 cmd_restore() {
-  require_env_file
+  require_startable_env
   local archive="${1:-}" include_secrets=0
   shift || true
   for a in "$@"; do
@@ -741,6 +764,7 @@ cmd_restore() {
     chmod 600 "$ENV_FILE"
     load_env
     derive_tls_vars
+    require_monitoring_password
     ok "deploy/.env restored from the archive"
   else
     say ""
@@ -763,7 +787,7 @@ cmd_restore() {
 # update
 # ═════════════════════════════════════════════════════════════════════════
 cmd_update() {
-  require_env_file
+  require_startable_env
   local before after skip_backup=0
   for a in "$@"; do
     [ "$a" = "--no-backup" ] && skip_backup=1

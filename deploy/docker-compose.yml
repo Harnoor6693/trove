@@ -16,7 +16,7 @@
 # Only `traefik` publishes ports to the network (TROVE_BIND_ADDR picks the
 # interface; `./trove` sets it to 127.0.0.1 when TROVE_TLS_MODE=off). Everything
 # else is reachable exclusively through it, except prometheus and grafana, which
-# the optional monitoring profile publishes on 127.0.0.1 only, never 0.0.0.0.
+# the optional monitoring profile publishes on 127.0.0.1 only, never on every interface.
 
 # Fixed project name so `docker compose` and `./trove` address the same
 # containers, volumes and networks no matter which directory you run from.
@@ -66,11 +66,12 @@ services:
     command: ["--configfile=/etc/traefik/traefik.runtime.yml"]
     ports:
       # The only ports published to the network. TROVE_BIND_ADDR is the host interface:
-      # 0.0.0.0 (every interface) by default; `./trove` derives 127.0.0.1 when
+      # unset publishes on every interface, IPv4 and IPv6 (no host IP in the mapping, as a
+      # bare "80:80" does; an explicit 0.0.0.0 would be IPv4 only); `./trove` derives 127.0.0.1 when
       # TROVE_TLS_MODE=off, because that mode serves cleartext HTTP and only a local
       # TLS terminator (for example `tailscale serve`) should reach it.
-      - "${TROVE_BIND_ADDR:-0.0.0.0}:${TROVE_HTTP_PORT:-80}:80"
-      - "${TROVE_BIND_ADDR:-0.0.0.0}:${TROVE_HTTPS_PORT:-443}:443"
+      - "${TROVE_BIND_ADDR:+${TROVE_BIND_ADDR}:}${TROVE_HTTP_PORT:-80}:80"
+      - "${TROVE_BIND_ADDR:+${TROVE_BIND_ADDR}:}${TROVE_HTTPS_PORT:-443}:443"
     environment:
       # Only read by the letsencrypt-dns resolver (TROVE_TLS_MODE=acme-dns).
       CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN:-}

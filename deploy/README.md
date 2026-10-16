@@ -196,7 +196,7 @@ unchanged. Because the port is bound to loopback, only a process on this machine
 `TROVE_BIND_ADDR` to another interface (a terminating proxy on a different host
 needs one), firewall `TROVE_HTTP_PORT` from everything but that proxy;** otherwise the
 install is reachable over unencrypted HTTP. In the `acme-http` and `acme-dns` modes
-Traefik is published on every interface unless you set `TROVE_BIND_ADDR`. The mobile
+Traefik is published on every interface, IPv4 and IPv6, unless you set `TROVE_BIND_ADDR`. The mobile
 app connects over the tailnet only.
 
 **HSTS is one year without `preload`, deliberately.** Preload is a one-way door
@@ -519,9 +519,10 @@ version check. Trove has no server of its own to talk to.
 
 Every outbound target above except the CA and the image registries goes through
 one policy: HTTPS required, DNS pinned at connect time, and private and loopback
-addresses refused. Link-local addresses (including the cloud metadata address) are always
-refused. Only when `TROVE_EGRESS_ALLOW_PRIVATE=true` AND the individual user has opted their
-endpoint in are private and loopback targets allowed, and only then is plain http accepted.
+addresses refused. Link-local addresses, the cloud metadata addresses, the unspecified address and
+0.0.0.0/8, multicast and reserved (240.0.0.0/4) ranges are always refused, even with the
+opt-in. Only when `TROVE_EGRESS_ALLOW_PRIVATE=true` AND the individual user has opted their
+endpoint in are RFC 1918, loopback, CGNAT and IPv6 ULA targets allowed, and only then is plain http accepted.
 Refused targets show an `outbound-url-rejected` error next to the setting; there is
 no outbound-call log screen.
 
