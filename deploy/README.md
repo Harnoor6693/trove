@@ -522,11 +522,17 @@ Trove's own calls to SimpleFIN, AI endpoints and webhooks go through one policy
 and Docker, not by Trove): HTTPS required, DNS pinned at connect time, and private and loopback
 addresses refused. SimpleFIN and webhooks always use that default policy. Only a user's AI
 endpoint can be relaxed: when `TROVE_EGRESS_ALLOW_PRIVATE=true` AND that user has opted their
-endpoint in, RFC 1918, loopback, CGNAT and IPv6 ULA targets are allowed, and only then is
-plain http accepted. Link-local addresses, the cloud metadata addresses, the unspecified
-address and 0.0.0.0/8, multicast and reserved (240.0.0.0/4) ranges are always refused, even
-with the opt-in. An IPv6 address is first checked as IPv6 (link-local, multicast, unspecified,
-`fd00:ec2::254` and the local-use NAT64 prefix `64:ff9b:1::/48` are always refused), then by
+endpoint in, RFC 1918, loopback, CGNAT, IPv6 ULA and the deprecated IPv6 site-local
+`fec0::/10` targets are allowed, and only then is plain http accepted. Always refused, even
+with the opt-in: link-local addresses; the cloud metadata addresses (`169.254.169.254`,
+`100.100.100.200` and the IPv6 ones inside unique-local space: `fd00:ec2::254`,
+`fd00:ec2::23`, `fd20:ce::254`, `fd00:c1::a9fe:a9fe`, `fd00:a9fe:a9fe::1`, `fd00:42::42`);
+the unspecified address and 0.0.0.0/8, multicast and reserved (240.0.0.0/4) ranges; every
+IPv6 range the IANA special-purpose registry marks not globally reachable (such as
+`100::/64`, `2001:2::/48`, `2001:10::/28`, `2001:db8::/32` and `3fff::/20`); and IPv6 space
+IANA has not allocated. An IPv6 address is first checked as IPv6 (link-local, multicast,
+unspecified, the metadata addresses, the IANA and unallocated ranges above and the local-use
+NAT64 prefix `64:ff9b:1::/48` are always refused), then by
 every IPv4 address it could carry (IPv4-mapped, IPv4-compatible, SIIT, 6to4, Teredo, ISATAP,
 or under the well-known NAT64 prefix `64:ff9b::/96`), and is refused if any one of them is.
 A NAT64 prefix you chose yourself cannot be detected, so addresses under it are judged as
