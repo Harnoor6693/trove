@@ -376,17 +376,65 @@ function MembersPanel() {
 
 /* -------------------------------------------------------------- settings */
 
+/**
+ * Opening registration is confirmed in the page, not with `window.confirm`: the
+ * consequence needs saying in full, and a native dialog can neither be styled
+ * nor reliably read by every screen reader.
+ */
+function OpenRegistrationDialog({
+  pending,
+  onConfirm,
+  onCancel,
+}: {
+  pending: boolean
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const ref = useDialogFocus<HTMLDivElement>(true)
+  return (
+    <QlModal isOpen onClose={onCancel} title="Open registration?">
+      <div ref={ref} tabIndex={-1} className={styles.stack} data-testid="open-registration-dialog">
+        <p className={styles.warning}>
+          Anyone who can reach this server will be able to create an account, without an invite. A
+          Trove server has one household, so every new account joins yours and sees its whole shared
+          ledger: every account, transaction, budget and receipt.
+        </p>
+        <p className={styles.note}>
+          Open it only while you expect somebody to sign up, and close it again afterwards.
+        </p>
+        <div className={styles.dialogActions}>
+          <QlButton variant="primary" onClick={onCancel}>
+            Keep it closed
+          </QlButton>
+          <QlButton variant="danger" loading={pending} onClick={onConfirm}>
+            Open registration
+          </QlButton>
+        </div>
+      </div>
+    </QlModal>
+  )
+}
+
 function RegistrationPanel() {
   const settings = useAdminSettings(true)
   const update = useUpdateAdminSettingsMutation()
+  const [confirming, setConfirming] = useState(false)
 
   return (
     <div className={styles.stack}>
       <h3 className={styles.sectionTitle}>Registration</h3>
-      <p className={styles.note}>
-        With registration closed, the only way in is an invite link you create. The setting is
-        stored on the household, so it survives a restart.
+      <p className={styles.note} data-testid="registration-note">
+        With registration closed, the only way in is an invite link you create. Open it, and anyone
+        who can reach this server can create an account, and every account joins this household —
+        there is only one — so it sees the whole shared ledger. The setting is stored on the
+        household, so it survives a restart.
       </p>
+      {settings.data?.registrationOpen && (
+        <p className={styles.warning} role="status" data-testid="registration-open-notice">
+          Registration is open. Anyone who finds this server can sign up and see everything in this
+          household. Close it once the people you expect have joined.
+        </p>
+      )}
       {settings.isError && (
         <p className={styles.error} role="alert">
           {adminErrorCopy(settings.error)}
@@ -399,7 +447,11 @@ function RegistrationPanel() {
             type="checkbox"
             checked={settings.data.registrationOpen}
             disabled={update.isPending}
-            onChange={(e) => update.mutate({ registrationOpen: e.target.checked })}
+            onChange={(e) => {
+              // Closing needs no confirm; opening does, and nothing is written until it is given.
+              if (e.target.checked) setConfirming(true)
+              else update.mutate({ registrationOpen: false })
+            }}
           />
         </label>
       )}
@@ -407,6 +459,15 @@ function RegistrationPanel() {
         <p className={styles.error} role="alert">
           {adminErrorCopy(update.error)}
         </p>
+      )}
+      {confirming && (
+        <OpenRegistrationDialog
+          pending={update.isPending}
+          onCancel={() => setConfirming(false)}
+          onConfirm={() =>
+            update.mutate({ registrationOpen: true }, { onSettled: () => setConfirming(false) })
+          }
+        />
       )}
     </div>
   )

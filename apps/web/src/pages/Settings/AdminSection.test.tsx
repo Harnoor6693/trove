@@ -160,16 +160,67 @@ describe('Admin console', () => {
     expect(document.body.innerHTML).not.toContain('good-reset-token')
   })
 
-  it('writes the registration flag through PUT /v1/admin/settings', async () => {
+  it('writes the registration flag through PUT /v1/admin/settings, after a confirm', async () => {
     const user = userEvent.setup()
     renderWithProviders(<AdminSection />)
 
     const toggle = await screen.findByRole('checkbox', { name: /anyone may sign up/i })
     expect(toggle).not.toBeChecked()
+    expect(screen.queryByTestId('registration-open-notice')).not.toBeInTheDocument()
     await user.click(toggle)
+
+    const confirm = await screen.findByRole('dialog', { name: /open registration/i })
+    await user.click(within(confirm).getByRole('button', { name: /^open registration$/i }))
 
     await waitFor(() => expect(mswState.lastAdminSettingsBody).toEqual({ registrationOpen: true }))
     await waitFor(() => expect(toggle).toBeChecked())
+    expect(screen.getByTestId('registration-open-notice')).toHaveTextContent(
+      /registration is open/i
+    )
+  })
+
+  it('says that strangers join the one household and see its whole ledger (F1-B4)', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<AdminSection />)
+
+    expect(await screen.findByTestId('registration-note')).toHaveTextContent(
+      /joins? this household.*whole shared ledger/i
+    )
+    const toggle = await screen.findByRole('checkbox', { name: /anyone may sign up/i })
+    await user.click(toggle)
+
+    // An in-page confirm, focused, that states the consequence before anything is written.
+    const confirm = await screen.findByRole('dialog', { name: /open registration/i })
+    expect(confirm).toHaveTextContent(/anyone who can reach this server/i)
+    expect(confirm).toHaveTextContent(/whole shared ledger/i)
+    await waitFor(() => expect(confirm.contains(document.activeElement)).toBe(true))
+    expect(mswState.lastAdminSettingsBody).toBeNull()
+    expect(toggle).not.toBeChecked()
+
+    await user.click(within(confirm).getByRole('button', { name: /keep it closed/i }))
+    expect(screen.queryByRole('dialog', { name: /open registration/i })).not.toBeInTheDocument()
+    expect(mswState.lastAdminSettingsBody).toBeNull()
+    expect(toggle).not.toBeChecked()
+  })
+
+  it('shows that registration is open while it is, and closes it without a confirm', async () => {
+    resetMswState({
+      me: { ...DEFAULT_ME, role: 'ADMIN' },
+      adminSettings: { registrationOpen: true, scheduledSyncEnabled: false },
+    })
+    const user = userEvent.setup()
+    renderWithProviders(<AdminSection />)
+
+    const notice = await screen.findByTestId('registration-open-notice')
+    expect(notice).toHaveTextContent(/registration is open/i)
+    const toggle = screen.getByRole('checkbox', { name: /anyone may sign up/i })
+    await user.click(toggle)
+
+    await waitFor(() => expect(mswState.lastAdminSettingsBody).toEqual({ registrationOpen: false }))
+    expect(screen.queryByRole('dialog', { name: /open registration/i })).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.queryByTestId('registration-open-notice')).not.toBeInTheDocument()
+    )
   })
 
   it('makes a member an administrator through PUT /v1/admin/users/{id}/role (F1-B2)', async () => {
