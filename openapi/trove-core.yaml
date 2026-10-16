@@ -13845,6 +13845,22 @@ components:
             exists. The server also applies Jakarta `@Email`, which is stricter
             than this pattern.
           example: alerts@example.test
+        emailAvailable:
+          type: boolean
+          readOnly: true
+          description: |
+            Whether this server can send email at all: true only when an
+            operator has configured and enabled the email channel
+            (`SMTP_ENABLED=true`). Read-only, and not part of the update body.
+            While it is false, clients hide the email toggle and address,
+            because nothing would ever be mailed; `emailEnabled` and
+            `emailAddress` are still stored and returned as written.
+
+            This server always sends it. It is left out of `required` on
+            purpose: a mobile build talks to whatever server version its
+            household runs, and a server older than this field does not send
+            it. A client treats an absent value as false.
+          example: false
         weeklyDigestEnabled:
           type: boolean
           description: |

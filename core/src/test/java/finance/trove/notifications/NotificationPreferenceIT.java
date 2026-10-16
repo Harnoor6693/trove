@@ -77,6 +77,21 @@ class NotificationPreferenceIT extends NotificationSupport {
     }
 
     @Test
+    @DisplayName("emailAvailable is false while the install has no email channel (F1-B8)")
+    void emailIsUnavailableWithoutSmtp() {
+        // Every shipped configuration leaves SMTP off, so the EMAIL channel bean does not exist
+        // and nothing would ever be mailed. The clients hide "Also email me" on exactly this flag.
+        assertThat(read().path("emailAvailable").isBoolean()).isTrue();
+        assertThat(read().path("emailAvailable").asBoolean()).isFalse();
+
+        HttpResponse<String> written = write("{\"weeklyDigestEnabled\":false}");
+        assertThat(written.statusCode()).as("%s", written.body()).isEqualTo(200);
+        assertThat(Json.data(written.body()).path("emailAvailable").asBoolean())
+            .as("the PUT echo is the same resource, flag included")
+            .isFalse();
+    }
+
+    @Test
     @DisplayName("The response carries no push field of any kind")
     void thereIsNoPushFieldOnTheWire() {
         // The spec's response schema is closed, so an accidental field would already have failed

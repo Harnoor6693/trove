@@ -16,7 +16,7 @@ HMAC-signed.
 | `GET` | `/v1/notifications` | List the caller's notifications |
 | `GET` | `/v1/notifications/unread-count` | Unread count for a badge |
 | `POST` | `/v1/notifications/{id}/read`, `/read-all` | Mark read |
-| `GET`/`PUT` | `/v1/notifications/preferences` | Per-channel, per-event preferences |
+| `GET`/`PUT` | `/v1/notifications/preferences` | Per-channel, per-event preferences; read-only `emailAvailable` says whether this server can send email at all |
 | `DELETE` | `/v1/notifications/{id}` | Remove a notification |
 | `GET`/`POST` | `/v1/webhooks` | List / register a webhook |
 | `DELETE` | `/v1/webhooks/{id}` | Remove a webhook |
