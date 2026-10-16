@@ -77,7 +77,6 @@ class AccountServiceTest {
         ConnectedAccount created = service().create(HOUSEHOLD, USER, request());
 
         verify(accounts).save(any(ConnectedAccount.class));
-        verify(accounts, never()).saveAndFlush(any(ConnectedAccount.class));
         assertThat(created.getExternalAccountId())
             .as("an account typed in by hand has no provider identity, so it is given its own "
                 + "primary key: V18's uniqueness key treats nulls as EQUAL, and a household needs "

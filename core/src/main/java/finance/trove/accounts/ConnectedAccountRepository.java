@@ -30,23 +30,6 @@ public interface ConnectedAccountRepository extends UserScopedRepository<Connect
         UUID householdId, SourceKind sourceKind, String externalAccountId);
 
     /**
-     * Saves and flushes in one call, so that a uniqueness violation is raised while the caller is
-     * still inside its own {@code try}.
-     *
-     * <p>This is not a stylistic preference. {@code save()} on a new entity is
-     * {@code EntityManager.persist}, and this entity's {@code @GeneratedValue} UUID is produced in
-     * memory, so the INSERT is not issued until the persistence context flushes — which, for a
-     * method that runs no further query, happens at COMMIT, after the method body and its
-     * {@code catch} clauses have already been left. A {@code try/catch} around a bare
-     * {@code save()} therefore catches nothing, and the specific 409 the caller means to raise
-     * would be replaced by whatever the global handler makes of the escaping exception.
-     *
-     * <p>Declared here rather than on {@link UserScopedRepository} because flushing is a choice a
-     * caller makes for a reason, and the reason is local to {@link AccountService#create}.
-     */
-    <S extends ConnectedAccount> S saveAndFlush(S entity);
-
-    /**
      * Takes the sync claim (§6 M0): sets {@code sync_status} to {@code SYNCING} only if it is not
      * already, and reports how many rows that changed.
      *

@@ -118,8 +118,8 @@ public class NotificationEventListener {
     /**
      * A detected recurring charge changed price. Every active member of the household whose own
      * subscription-alert toggle is on is told: the subscription belongs to the household, and the
-     * toggle is offered to every member, so the event's {@code userId} (the member the detection
-     * run was attributed to) only decides who the alert row is attributed to, not who hears.
+     * toggle is offered to every member, so the event's {@code userId} is not read here: only
+     * {@code householdId} decides who hears.
      *
      * <p>Dedup key: {@code subscriptionId:newAmount}. A price that changes twice is two alerts; a
      * rescan that sees the same new price is one. Keying on the new amount rather than on a date

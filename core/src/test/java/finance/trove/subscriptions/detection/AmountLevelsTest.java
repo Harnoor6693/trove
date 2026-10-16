@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 /**
  * The price-level split that replaced the source's coefficient-of-variation gate.
  *
- * <p>The gate mattered: over a thirteen-month window an ordinary rise from 9.99 to 12.99 has a CV
+ * <p>The gate mattered: over a long (25-month) window an ordinary rise from 9.99 to 12.99 has a CV
  * of about 13%, so a CV &le; 0.05 rule threw away exactly the merchants this feature exists to
  * report on. These tests pin the replacement rule — at most two contiguous price levels — and the
  * arithmetic, which is {@link BigDecimal} throughout.

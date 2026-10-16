@@ -18,8 +18,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * <p><strong>This is not a supported setting.</strong> The web and mobile apps say "seven days" in
  * fixed text (account deletion dialogs and the administrator's member list), and the OpenAPI
  * description says seven days by default. Changing the value makes the server and those screens
- * disagree, and the property is not documented for operators for that reason. Leave it at the
- * default; making it configurable means serving the value to the clients first (CI-53).
+ * disagree. It is listed in {@code docs-site/guide/environment-variables.md} with exactly that
+ * warning, and nowhere else (it has no {@code .env.example} entry). Leave it at the default;
+ * making it a supported setting means serving the value to the clients first (CI-53).
  *
  * @param deletionGrace how long a stamped account survives before {@code AccountPurgeJob} erases
  *                      it. Seven days is gap row 16's figure and it is the right shape: long

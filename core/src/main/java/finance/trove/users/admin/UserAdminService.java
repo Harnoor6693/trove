@@ -74,7 +74,8 @@ public class UserAdminService {
      * rather than comparing ids.
      *
      * <p>The member is deactivated, stamped and their sessions revoked; the row survives for the
-     * restore window ({@link AccountDeletionProperties#grace()}) and is then erased by {@code AccountPurgeJob}.
+     * restore window ({@link AccountDeletionProperties#grace()}) and is then erased by
+     * {@code AccountPurgeJob}.
      * {@code GET /v1/admin/users} already returns {@code active}, so a soft-deleted member is
      * visible to the administrator who has to decide whether to restore them.
      *
