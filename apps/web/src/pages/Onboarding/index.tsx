@@ -236,10 +236,7 @@ function StepThree({ onFinish }: { onFinish: () => void }) {
   return (
     <>
       <h1 className={styles.title}>You're set up</h1>
-      <p className={styles.subtitle}>
-        Trove is yours to use now. Anything still open lives on the Today screen as a checklist —
-        nothing here blocks you.
-      </p>
+      <p className={styles.subtitle}>Trove is yours to use now.</p>
 
       <ul className={styles.checklist} data-testid="finish-setup-checklist">
         <li className={styles.checkItem}>
