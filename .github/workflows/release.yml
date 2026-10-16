@@ -60,6 +60,20 @@ jobs:
         env:
           OWNER: ${{ github.repository_owner }}
         run: echo "IMAGE=ghcr.io/${OWNER,,}/trove-core" >> "$GITHUB_ENV"
+      # `:latest` follows stable releases only. A pre-release tag (anything
+      # with a `-`, e.g. v1.0.0-rc1, the same rule the GitHub Release uses to
+      # set `prerelease`) is published under its own tag and leaves `:latest`
+      # on the last stable image.
+      - name: Choose image tags
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          {
+            echo 'IMAGE_TAGS<<EOF'
+            echo "${IMAGE}:${REF_NAME}"
+            if [[ "${REF_NAME}" != *-* ]]; then echo "${IMAGE}:latest"; fi
+            echo 'EOF'
+          } >> "$GITHUB_ENV"
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
@@ -73,9 +87,7 @@ jobs:
           file: core/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: |
-            ${{ env.IMAGE }}:${{ github.ref_name }}
-            ${{ env.IMAGE }}:latest
+          tags: ${{ env.IMAGE_TAGS }}
 
   build-sideload-apk:
     name: Build signed sideload APK
@@ -93,7 +105,7 @@ jobs:
           node-version: '22'
           package-manager-cache: false
       - name: Install EAS CLI
-        run: npm install -g eas-cli@10.2.4
+        run: npm install -g eas-cli@24.12.1
       - name: Install mobile dependencies
         working-directory: apps/mobile
         run: npm ci
