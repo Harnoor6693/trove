@@ -256,12 +256,14 @@ trove:
     # is CLOSED — an empty configured secret must never mean "everybody matches".
     token: ${TROVE_METRICS_TOKEN:}
 
-  # Whether ANY private or loopback outbound target (RFC 1918, loopback, CGNAT, IPv6 ULA) may be
-  # opted into on this install. Link-local, the cloud metadata addresses and the unspecified,
-  # multicast and reserved ranges are always refused (§1.6, gap P2-10). False by default. Even
-  # when true, an individual member must additionally opt their own endpoint in — both keys are
-  # required, because a LAN Ollama is the primary AI story but the AI endpoint is per-user (owner
-  # decision 9).
+  # Whether a member may point their own AI endpoint at a private or loopback target (RFC 1918,
+  # loopback, CGNAT, IPv6 ULA, the deprecated IPv6 site-local fec0::/10) on this install. Even
+  # when true, the member must additionally opt their own endpoint in — both keys are required,
+  # because a LAN Ollama is the primary AI story but the AI endpoint is per-user (owner decision
+  # 9). SimpleFIN and webhooks never use the opt-in, so this does not open a private target to
+  # them. Link-local, the cloud metadata addresses, the unspecified, multicast and reserved
+  # ranges, and the IPv6 ranges IANA marks not globally reachable are always refused (§1.6, gap
+  # P2-10). False by default.
   egress:
     allow-private: ${TROVE_EGRESS_ALLOW_PRIVATE:false}
 

@@ -154,14 +154,17 @@ class OutboundUrlPolicyTest {
             "::,                 unspecified",
             "::ffff:127.0.0.1,   loopback",
             "::0.0.0.2,          IPv4-compatible",
+            // Deprecated (RFC 3879), not RFC 1918: its own reason, still lifted by the opt-in
+            "fec0::1,            site-local",
+            "feff:ffff::1,       site-local",
             // B3-11: IPv6 transition prefixes carry an IPv4 address the network may route to
             "64:ff9b::7f00:1,                       loopback",
             "64:ff9b::a00:1,                        private",
             "2002:c0a8:101::1,                      private",
             "::ffff:0:a00:1,                        private",
             "::ffff:0:7f00:1,                       loopback",
-            "2001:db8::5efe:c0a8:101,               private",
-            "2001:db8::200:5efe:a00:1,              private",
+            "2600::5efe:c0a8:101,                   private",
+            "2600::200:5efe:a00:1,                  private",
             "2002:7f00:1::1,                        loopback",
             "2001:0:4136:e378:8000:63bf:f5ff:fffe,  private",
             // An ISATAP identifier does not hide the range or the other format around it
@@ -207,7 +210,12 @@ class OutboundUrlPolicyTest {
             "93.184.216.34", "8.8.8.8", "1.1.1.1", "172.32.0.1", "100.63.255.255",
             "100.128.0.1", "192.0.1.1", "198.20.0.1", "2606:2800:220:1:248:1893:25c8:1946",
             "2001:4860:4860::8888", "64:ff9b::808:808", "2002:808:808::1",
-            "::ffff:0:808:808", "2001:4860::5efe:808:808", "2001:db8::5efe:808:808",
+            "::ffff:0:808:808", "2001:4860::5efe:808:808", "2600::5efe:808:808",
+            "2001:0:4136:e378:8000:63bf:f7f7:f7f7",
+            // The IANA special-purpose registry marks these 2001::/23 blocks globally
+            // reachable, so they stay allowed: anycast, AMT, AS112, ORCHIDv2 and DETs
+            "2001:1::1", "2001:1::2", "2001:1::3", "2001:3::1", "2001:4:112::1",
+            "2001:20::1", "2001:2f:ffff::1", "2001:30::1", "2001:3f:ffff::1",
         })
         @DisplayName("a genuinely public address on either family is allowed")
         void publicAddressesAreAllowed(String address) throws UnknownHostException {
@@ -328,15 +336,54 @@ class OutboundUrlPolicyTest {
             "64:ff9b:1:ffff::a9fe:a9fe, local-use NAT64",
             "64:ff9b:1::a00:1,  local-use NAT64",
             "::ffff:0:a9fe:a9fe, instance-metadata",
-            "2001:db8::5efe:a9fe:a9fe, instance-metadata",
-            "2001:db8::200:5efe:a9fe:a9fe, instance-metadata",
-            "2001:db8::5efe:e000:1, multicast",
+            "2600::5efe:a9fe:a9fe, instance-metadata",
+            "2600::200:5efe:a9fe:a9fe, instance-metadata",
+            "2600::5efe:e000:1, multicast",
             "::169.254.1.1,     link-local",
             "::6464:64c8,       instance-metadata",
             "::0.1.2.3,         0.0.0.0/8",
             "::e000:1,          multicast",
             "100.100.100.200,   instance-metadata",
             "fd00:ec2::254,     instance-metadata",
+            // The other clouds' IPv6 metadata (and EKS credential) endpoints, all inside the
+            // ULA range the opt-in lifts
+            "fd00:ec2::23,      instance-metadata",
+            "fd20:ce::254,      instance-metadata",
+            "fd00:c1::a9fe:a9fe, instance-metadata",
+            "fd00:a9fe:a9fe::1, instance-metadata",
+            "fd00:42::42,       instance-metadata",
+            // IANA special-purpose registry: not globally reachable, so never a LAN model
+            "100::1,                      discard-only",
+            "100::ffff:ffff:ffff:ffff,    discard-only",
+            "100:0:0:1::1,                dummy",
+            "2001:2::1,                   benchmarking",
+            "2001:2:0:ffff::1,            benchmarking",
+            "2001:10::1,                  ORCHID",
+            "2001:1f:ffff::1,             ORCHID",
+            "2001:db8::1,                 documentation",
+            "2001:db8::5efe:808:808,      documentation",
+            "2001:db8::5efe:c0a8:101,     documentation",
+            "3fff::1,                     documentation",
+            "3fff:fff:ffff::1,            documentation",
+            "5f00::1,                     SRv6",
+            // 2001::/23 is not globally reachable unless a more specific entry says so
+            "2001:1::4,                   2001::/23",
+            "2001:4::1,                   2001::/23",
+            "2001:4:113::1,               2001::/23",
+            "2001:5::1,                   2001::/23",
+            "2001:40::1,                  2001::/23",
+            "2001:1ff:ffff::1,            2001::/23",
+            // Reserved by the IETF: outside 2000::/3 and none of the named ranges
+            "::ffff:1:a9fe:a9fe,          reserved",
+            "::1:0:0:1,                   reserved",
+            "1::1,                        reserved",
+            "64:ff9b:2::1,                reserved",
+            "64:ff9b:0:1::a00:1,          reserved",
+            "100:0:0:2::1,                reserved",
+            "4000::1,                     reserved",
+            "e000::1,                     reserved",
+            "fe00::1,                     reserved",
+            "fec0::5efe:a9fe:a9fe,        instance-metadata",
             "0.0.0.0,           unspecified",
             "::,                unspecified",
             "0.1.2.3,           0.0.0.0/8",
@@ -397,7 +444,8 @@ class OutboundUrlPolicyTest {
         @ParameterizedTest(name = "{0} is a private target the opt-in does lift")
         @ValueSource(strings = {"10.1.2.3", "192.168.1.50", "127.0.0.1", "::1", "100.64.0.1",
             "100.100.100.199", "fd12:3456::1", "fd00:ec2::253",
-            "::ffff:0:a00:1", "2001:db8::5efe:c0a8:101", "2002:a00:1::5efe:808:808"})
+            "::ffff:0:a00:1", "2600::5efe:c0a8:101", "2002:a00:1::5efe:808:808",
+            "fec0::1", "64:ff9b::a00:1", "::a00:1"})
         @DisplayName("RFC 1918, loopback, CGNAT and ULA stay reachable with both keys")
         void theOptInStillLiftsPrivateRanges(String address) {
             assertThat(policy(true, address).check("http://ollama.lan:11434/v1", true).port())
