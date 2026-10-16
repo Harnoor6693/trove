@@ -49,9 +49,10 @@ base_env > "${WORK}/ok.env"
 compose_config "${WORK}/ok.env" -q
 [ "$RC" -eq 0 ] && pass "complete env parses" || fail "complete env parses" "$OUT"
 
-echo "TROVE_ADMIN_PASSWORD unset"
-compose_config "${WORK}/ok.env" -q
-[ "$RC" -eq 0 ] && pass "config -q passes with no TROVE_ADMIN_PASSWORD" || fail "config -q passes with no TROVE_ADMIN_PASSWORD" "$OUT"
+echo "TROVE_ADMIN_PASSWORD empty"
+{ base_env; echo "TROVE_ADMIN_PASSWORD="; } > "${WORK}/admin.env"
+compose_config "${WORK}/admin.env" -q
+[ "$RC" -eq 0 ] && pass "config -q passes with an empty TROVE_ADMIN_PASSWORD" || fail "config -q passes with an empty TROVE_ADMIN_PASSWORD" "$OUT"
 
 echo "GRAFANA_ADMIN_PASSWORD unset, monitoring profile off"
 { base_env; echo "GRAFANA_ADMIN_PASSWORD="; echo "COMPOSE_PROFILES="; } > "${WORK}/grafana.env"
@@ -67,7 +68,10 @@ done
 
 echo "TROVE_BIND_ADDR"
 compose_config "${WORK}/ok.env"
-printf '%s\n' "$OUT" | grep -q 'host_ip: 0.0.0.0' && pass "unset: published on 0.0.0.0" || fail "unset: published on 0.0.0.0" "$OUT"
+# No host IP at all: Docker then publishes on every interface, IPv4 and IPv6, like a bare "80:80".
+# An explicit 0.0.0.0 would publish IPv4 only.
+printf '%s\n' "$OUT" | grep -q 'host_ip' && fail "unset: no host_ip (IPv4 and IPv6)" "$OUT" || pass "unset: no host_ip (IPv4 and IPv6)"
+[ "$(printf '%s\n' "$OUT" | grep -c 'published: "\(80\|443\)"')" -eq 2 ] && pass "unset: traefik still publishes 80 and 443" || fail "unset: traefik still publishes 80 and 443" "$OUT"
 { base_env; echo "TROVE_BIND_ADDR=127.0.0.1"; } > "${WORK}/bind.env"
 compose_config "${WORK}/bind.env"
 n=$(printf '%s\n' "$OUT" | grep -c 'host_ip: 127.0.0.1')
