@@ -13,7 +13,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * their own endpoint in on top of it (§6, owner decision 9). Both must be true for a private
  * target to be reachable.
  *
- * @param allowPrivate whether any private, loopback or link-local target may be opted into
+ * <p>"Private" means RFC 1918, loopback, carrier-grade NAT ({@code 100.64.0.0/10}) and IPv6
+ * unique-local ({@code fc00::/7}). Link-local, the cloud metadata addresses, and the unspecified,
+ * multicast and reserved ranges are refused whatever this is set to; see
+ * {@link OutboundUrlPolicy}.
+ *
+ * @param allowPrivate whether a private or loopback target may be opted into
  */
 @ConfigurationProperties(prefix = "trove.egress")
 public record EgressProperties(boolean allowPrivate) {

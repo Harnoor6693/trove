@@ -90,8 +90,10 @@ Ollama, a LAN model server, or a cloud provider. A fresh install calls no AI end
 all: there is no bundled model runtime and no default endpoint. Outbound calls go
 through `finance.trove.common.net.OutboundUrlPolicy`, which blocks private and loopback
 addresses unless the operator sets `TROVE_EGRESS_ALLOW_PRIVATE=true` (for a LAN model server)
-and the member also opts their own endpoint in (`allowPrivateEndpoint`). Link-local and
-cloud-metadata addresses are always blocked.
+and the member also opts their own endpoint in (`allowPrivateEndpoint`). Even then only the
+private ranges open up (RFC 1918, loopback, carrier-grade NAT and IPv6 unique-local). Link-local,
+cloud-metadata (including `100.100.100.200` and `fd00:ec2::254`), unspecified, multicast and
+reserved addresses are always blocked.
 
 ## Storage
 

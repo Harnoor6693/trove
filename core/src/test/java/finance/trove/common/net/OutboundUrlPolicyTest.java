@@ -305,8 +305,20 @@ class OutboundUrlPolicyTest {
             "fe80::1,           link-local",
             "64:ff9b::a9fe:a9fe, instance-metadata",
             "2002:a9fe:a9fe::1, instance-metadata",
+            "100.100.100.200,   instance-metadata",
+            "fd00:ec2::254,     instance-metadata",
+            "0.0.0.0,           unspecified",
+            "::,                unspecified",
+            "0.1.2.3,           0.0.0.0/8",
+            "224.0.0.1,         multicast",
+            "239.255.255.250,   multicast",
+            "ff02::1,           multicast",
+            "240.0.0.1,         reserved",
+            "255.255.255.255,   reserved",
+            "::ffff:0.0.0.0,    unspecified",
         })
-        @DisplayName("the opt-in widens to LAN and loopback, never to link-local or metadata")
+        @DisplayName("the opt-in widens to LAN and loopback, never to link-local, metadata, "
+            + "unspecified, multicast or reserved ranges")
         void theOptInNeverReachesLinkLocal(String address, String expectedReason)
             throws UnknownHostException {
             assertThat(OutboundUrlPolicy.unconditionalBlockReason(InetAddress.getByName(address)))
@@ -317,6 +329,15 @@ class OutboundUrlPolicyTest {
                     + "read this host's cloud credentials")
                 .isInstanceOf(OutboundUrlPolicyException.class)
                 .hasMessageContaining("ollama.lan");
+        }
+
+        @ParameterizedTest(name = "{0} is a private target the opt-in does lift")
+        @ValueSource(strings = {"10.1.2.3", "192.168.1.50", "127.0.0.1", "::1", "100.64.0.1",
+            "100.100.100.199", "fd12:3456::1", "fd00:ec2::253"})
+        @DisplayName("RFC 1918, loopback, CGNAT and ULA stay reachable with both keys")
+        void theOptInStillLiftsPrivateRanges(String address) {
+            assertThat(policy(true, address).check("http://ollama.lan:11434/v1", true).port())
+                .isEqualTo(11434);
         }
 
         @Test
