@@ -36,7 +36,7 @@ import tools.jackson.databind.ObjectMapper;
  * <h2>Everything that is not a transaction is JSON</h2>
  * Which is what gap row 16 asks for, and which needs no formula escaping at all because no
  * spreadsheet evaluates a JSON string. It also means the builder never has to answer "what are
- * this dataset's columns?" for fourteen different shapes.
+ * this dataset's columns?" for nineteen different shapes.
  *
  * <h2>The manifest lists what was actually written</h2>
  * Not what was meant to be. {@link #build} renders every entry into bytes first, then builds
@@ -47,7 +47,11 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class DataExportArchiveBuilder {
 
-    /** The archive format's own version. Bumped when an entry's shape changes meaning. */
+    /**
+     * The archive format's own version. Bumped when an existing entry's shape changes meaning;
+     * adding an entry does not bump it, because a reader of version 1 can still read every entry
+     * it knows and the manifest lists the rest.
+     */
     public static final int SCHEMA_VERSION = 1;
 
     /** The manifest, always the first entry. */
@@ -127,9 +131,11 @@ public class DataExportArchiveBuilder {
         manifest.put("generatedAt", request.generatedAt().toString());
         manifest.put("ledgerScope",
             "The transactions, accounts, categories, rules, budgets, envelopes, goals, snapshots, "
-                + "assets, liabilities, subscriptions and receipts in this archive belong to the "
-                + "household and are shared with its other members. The run itself belongs to the "
-                + "member named by userId.");
+                + "assets, liabilities, subscriptions, subscription alerts and receipts in this "
+                + "archive belong to the household and are shared with its other members. The "
+                + "profile, webhooks, notifications, coach insights, coach conversations, tax-line "
+                + "mappings and notification preferences belong to the member named by userId, "
+                + "and so does the run itself.");
         manifest.put("receipts",
             "Receipts are exported as metadata only: no image bytes, no storage key and no URL. "
                 + "The images stay with the household and are downloaded from the receipts API.");
