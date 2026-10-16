@@ -8,7 +8,7 @@ AGPL-3.0) is listed first in the server section.
 
 Server: trove-core (Maven runtime and compile scope)
 ====================================================
-156 third-party components, grouped by licence.
+155 third-party components, grouped by licence.
 
 --- GNU Affero General Public License v3 (AGPL-3.0) ---
 com.itextpdf:bouncy-castle-connector:9.8.0 — GNU Affero General Public License v3
@@ -210,7 +210,6 @@ tools.jackson.core:jackson-databind:3.2.3 — The Apache Software License, Versi
 
 --- The MIT License ---
 org.checkerframework:checker-qual:3.55.1 — The MIT License
-org.projectlombok:lombok:1.18.48 — The MIT License
 
 Web app: apps/web (npm production dependencies)
 ===============================================

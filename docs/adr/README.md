@@ -10,7 +10,7 @@ This directory contains Architecture Decision Records (ADRs) for the Trove platf
 | [0002](0002-jwt-shared-secret.md) | JWT Signing with Shared Symmetric Secret (HMAC-SHA256) | superseded in part by [ADR-0020](0020-monolith-collapse.md) | 2026-04-27 |
 | [0003](0003-plugin-architecture.md) | Plugin Architecture for Bank Data Sources | superseded by [ADR-0020](0020-monolith-collapse.md) | 2026-04-27 |
 | [0004](0004-envelope-budgeting-model.md) | Envelope Budgeting with Read-Time Health Calculation | accepted (amended 2026-10-16) | 2026-04-27 |
-| [0005](0005-lombok-usage.md) | Lombok for Boilerplate Reduction in Entity Classes | deprecated | 2026-04-27 |
+| [0005](0005-lombok-usage.md) | Lombok for Boilerplate Reduction in Entity Classes | deprecated, never adopted (removed from the build 2026-10-16) | 2026-04-27 |
 | [0006](0006-valkey-for-rate-limiting.md) | ValKey (Redis Clone) for Distributed Rate Limiting | superseded by [ADR-0020](0020-monolith-collapse.md) | 2026-04-27 |
 | [0007](0007-authentik-as-identity-provider.md) | Authentik as External Identity Provider (SSO/OIDC) | superseded by [ADR-0020](0020-monolith-collapse.md) | 2026-04-27 |
 | [0008](0008-minio-for-report-storage.md) | MinIO for Report Storage and Retrieval | superseded by [ADR-0020](0020-monolith-collapse.md) | 2026-04-27 |
