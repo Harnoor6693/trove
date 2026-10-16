@@ -8,34 +8,43 @@ why an earlier ten-service design was collapsed into this one.
 ## Shape
 
 ```
-                    ┌─────────────────────────────────┐
-                    │  Clients: web (React), mobile    │
-                    │  (Expo, iOS + Android)           │
-                    └────────────────┬──────────────────┘
-                                     │ HTTPS
-                                     ▼
-                    ┌─────────────────────────────────┐
-                    │      Traefik (deploy/ only)      │
-                    │  TLS termination, routing        │
-                    └────────────────┬──────────────────┘
-                                     │
-                                     ▼
-        ┌───────────────────────────────────────────────────────┐
-        │                      core (one JVM)                    │
-        │  auth · users · households                             │
-        │  transactions · accounts · budgets · networth          │
-        │  ingestion · categorisation · receipts · subscriptions │
-        │  taxexport · dataexport · notifications · ai · app     │
-        └────────────────────────┬────────────────────────────────┘
-                                 │
-                                 ▼
-                    ┌─────────────────────────────────┐
-                    │   PostgreSQL — one schema,       │
-                    │   one Flyway history             │
-                    └─────────────────────────────────┘
+              ┌──────────────────────────────────┐
+              │  Clients: web (React), mobile    │
+              │  (Expo, iOS + Android)           │
+              └──────────────────────────────────┘
+                               │ HTTPS
+                               ▼
+              ┌──────────────────────────────────┐
+              │  Traefik (deploy/ only)          │
+              │  TLS termination, routing        │
+              └──────────────────────────────────┘
+                               │
+             ┌─────────────────┴─────────────────┐
+             │ everything else                   │ /api
+             ▼                                   ▼
+   ┌──────────────────────┐ ┌──────────────────────────────────────┐
+   │  web (nginx)         │ │  core (one JVM)                      │
+   │  serves the React app│ │  auth · users · households           │
+   └──────────────────────┘ │  transactions · accounts · budgets   │
+                            │  networth · ingestion · receipts     │
+                            │  categorisation · subscriptions      │
+                            │  taxexport · dataexport · ai         │
+                            │  notifications · app                 │
+                            │  common (shared plumbing,            │
+                            │  not a domain)                       │
+                            └──────────────────────────────────────┘
+                                                 │
+                                                 ▼
+                                ┌──────────────────────────────────┐
+                                │  PostgreSQL — one schema,        │
+                                │  one Flyway history              │
+                                └──────────────────────────────────┘
 ```
 
-`core` is 17 packages under `finance.trove`, each owning its own domain. They are Java
+In the Docker Compose deployment, Traefik sends `/api` to the `trove-core` container and
+everything else to a `web` container (nginx serving the React app).
+
+`core` is 17 packages under `finance.trove`; all but `common` own a domain. They are Java
 packages, not deployable units — there is one build, one JAR, one running process.
 
 ## Request flow: importing a transaction
@@ -44,16 +53,20 @@ packages, not deployable units — there is one build, one JAR, one running proc
    against [`openapi/trove-core.yaml`](https://github.com/Harnoor6693/trove/blob/canary/openapi/trove-core.yaml) —
    the same spec `OpenApiRouteDriftIT` and `OpenApiConformance` check every integration
    test run, so the served routes cannot silently diverge from the documented contract.
-2. `finance.trove.ingestion` parses the source (CSV, OFX/QFX, SimpleFIN, manual entry,
-   receipt OCR) and writes rows scoped to the caller's household.
-3. `finance.trove.categorisation` assigns a category: exact/fuzzy merchant match first
-   (`MerchantCategoryMap`, `CommunityMerchantRegistry`), then a rules tier, then —
-   only if the household has opted a category tier into AI — `finance.trove.ai` calls
-   the endpoint the user configured.
+2. `finance.trove.ingestion` parses CSV, OFX/QFX and SimpleFIN sources and writes rows
+   scoped to the caller's household. Manual entry goes through `finance.trove.transactions`
+   and receipts through `finance.trove.receipts`.
+3. `finance.trove.categorisation` assigns a category: the household's exact then prefix
+   merchant-map rows (`MerchantCategoryMap`) first, then `CommunityMerchantRegistry`
+   defaults, then — only if the transaction owner has turned AI on in their own
+   settings — `finance.trove.ai` calls the endpoint that user configured, and finally the
+   Uncategorised system category.
 4. `finance.trove.budgets` updates the relevant envelope/period totals.
-5. `finance.trove.notifications` dispatches an in-app notification (`InAppChannel`,
-   always on) and, if the household enabled it, an email (`EmailChannel`, off by
-   default — see [environment variables](./environment-variables)).
+5. If the import crosses a budget threshold (or a sync fails), `finance.trove.notifications`
+   writes an in-app notification (`InAppChannel`, always on). Email (`EmailChannel`)
+   exists only when the operator sets `SMTP_ENABLED=true`, and then only for members who
+   enabled it in their own notification preferences — see
+   [environment variables](./environment-variables).
 
 ## Authentication
 
@@ -75,8 +88,8 @@ OpenAI-compatible endpoint a user points their own account at from Settings — 
 Ollama, a LAN model server, or a cloud provider. A fresh install calls no AI endpoint at
 all: there is no bundled model runtime and no default endpoint. Outbound calls go
 through `finance.trove.common.net.OutboundUrlPolicy`, which blocks private/link-local/
-metadata addresses unless the operator opts the whole install into
-`TROVE_EGRESS_ALLOW_PRIVATE` (for a LAN model server).
+metadata addresses unless the operator sets `TROVE_EGRESS_ALLOW_PRIVATE=true` (for a
+LAN model server) and the member also opts their own endpoint in (`allowPrivateEndpoint`).
 
 ## Storage
 
@@ -96,4 +109,4 @@ There is no S3-compatible object store in this architecture.
 | Web client | React + Vite |
 | Mobile client | Expo (React Native), iOS + Android |
 | API contract | OpenAPI 3.0.3, conformance-tested every integration test run |
-| Deployment | Docker Compose, one `core` container + Postgres, behind Traefik |
+| Deployment | Docker Compose: `trove-core` + web (nginx, serves the SPA) + Postgres, behind Traefik |

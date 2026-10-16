@@ -36,18 +36,19 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * The public half of {@code /v1/auth} — everything a caller can reach without a session
+ * The public half of {@code /v1/auth} — the sign-in, session and discovery routes
  * ({@code docs/recovery/06-COLLAPSE-PLAN.md} §4.1).
  *
  * <p>Every body here is the {@code ApiResponse} envelope. §4.1 states that explicitly because an
- * earlier draft left it ambiguous while every other route family used the envelope; the one
- * exception in the whole API is {@code GET /v1/status}, which is bare so that an uptime check has
- * something trivial to key off.
+ * earlier draft left it ambiguous while every other route family used the envelope; the only
+ * JSON exception in the whole API is {@code GET /v1/status}, which is bare so that an uptime
+ * check has something trivial to key off (file downloads, the chat stream and the OIDC redirect
+ * are not JSON bodies at all).
  *
- * <p>The credential-handling half — password change, reset, TOTP enrolment — lives in
- * {@link AccountSecurityController}. The split is by whether a session is required, which is also
- * the split the security chain's permit-list is written against, so the two files and the matcher
- * list can be read side by side.
+ * <p>The credential-management half (password change, reset, TOTP enrolment) lives in
+ * {@link AccountSecurityController}. Most of it needs a session, but
+ * {@code POST /v1/auth/password/reset} is public and is listed in {@code
+ * SecurityConfig.PUBLIC_POST}.
  */
 @RestController
 @RequestMapping("/v1/auth")
@@ -100,7 +101,8 @@ public class AuthController {
      *
      * <p>A second factor being owed is a <strong>200 success</strong> carrying
      * {@code {challengeToken}}, not an error status. The clients discriminate on the presence of
-     * that field inside a successful envelope ({@code apps/web/src/pages/Login/index.tsx:58}); an
+     * that field inside a successful envelope ({@code apps/web/src/pages/Login/index.tsx:81},
+     * {@code isTotpChallenge}); an
      * error status would never reach that check and the user would be told their password was
      * wrong instead of being shown the code screen.
      */
@@ -229,7 +231,8 @@ public class AuthController {
 
     /**
      * {@code GET /v1/auth/start} — the OIDC entry point the web login page links to
-     * ({@code apps/web/src/api/auth.ts:101}).
+     * ({@code oidcStartUrl} in {@code apps/web/src/api/auth.ts:132}, linked from
+     * {@code apps/web/src/pages/Login/index.tsx:218}).
      *
      * <p>A 302 to Spring Security's own authorization endpoint rather than linking there directly,
      * so the client has one stable URL whose behaviour changes with configuration instead of a

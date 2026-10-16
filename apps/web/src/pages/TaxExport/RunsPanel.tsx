@@ -188,7 +188,7 @@ export function RunsPanel() {
       // PENDING, GENERATING *and* FAILED all answer 409 on download. A FAILED run
       // will never become COMPLETE, so "still generating" would be permanently
       // misleading for it — the Download button is not even offered for a FAILED
-      // row (see the `status === 'COMPLETE'` guard below), but keep this branch
+      // row (see the `row.status !== 'FAILED'` guard below), but keep this branch
       // honest for the PENDING/GENERATING race this button IS offered for.
       if (apiErr.code === 'conflict' && run.status !== 'FAILED') {
         setDownload({ runId: run.id, stillGenerating: true, error: null })

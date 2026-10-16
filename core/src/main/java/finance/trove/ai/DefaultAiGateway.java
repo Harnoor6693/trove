@@ -33,7 +33,9 @@ import org.springframework.stereotype.Service;
  *       resolved publicly a minute ago can resolve to {@code 169.254.169.254} now — which is
  *       exactly the attack the pinning exists to stop, and it is only stopped if the check is here
  *       rather than at save time.</li>
- *   <li><strong>Write the audit row.</strong> Success or failure, always, in its own transaction.</li>
+ *   <li><strong>Write the audit row.</strong> Once the call has been attempted, success or
+ *       failure, in its own transaction. A refusal in steps 1 to 3 (AI off, privacy tier, egress
+ *       policy) throws before any request is made and writes no audit row.</li>
  * </ol>
  *
  * <p>The settings themselves are read once per {@link #forUser} and held for the life of the handle,
@@ -72,7 +74,7 @@ public class DefaultAiGateway implements AiGateway {
     /**
      * Resolves the destination and the credentials for one call.
      *
-     * <p>Public so that {@link AiSettingsService} can use the identical path for
+     * <p>Package-private so that {@link AiSettingsService} can use the identical path for
      * {@code POST /v1/ai/settings/test} and {@code GET /v1/ai/models}: a "test connection" button
      * that resolved the endpoint differently from the real calls would be able to pass while the
      * real calls failed, which is the one thing such a button must never do.

@@ -11,8 +11,10 @@ import java.util.UUID;
  * {@link PdfExportBuilder} take, and the shape collapse step 18's full data export reuses
  * ({@code docs/recovery/06-COLLAPSE-PLAN.md} §2.9, §6; gap P2-16).
  *
- * <p>The field list IS the column list §2.9 fixes: {@code date, merchant, description, notes,
- * amount, currency, category, taxLineCode, taxLineLabel, receiptId}. Two of them carry a decision:
+ * <p>The first eleven components are the tax export's column list: {@code date, merchant,
+ * description, notes, amount, currency, category, taxLineCode, taxLineLabel, receiptId, type}.
+ * {@code accountId}, {@code transferGroupId} and {@code pending} are extra and written only by the
+ * full data export ({@code CsvExportBuilder#buildLedger}). Two of the columns carry a decision:
  *
  * <ul>
  *   <li><strong>{@code notes} is its own column</strong> and never folded into
@@ -24,7 +26,7 @@ import java.util.UUID;
  *       {@code transaction.receipt_id} (V38) and populates it; it is the receipt's <em>id</em> and
  *       nothing more — never a download URL, never a storage key, and above all never a figure
  *       computed from the receipt. The receipt's own GST/PST/HST split stays on the receipt and is
- *       never exported (§2.9, open question 1). The cell is empty for a transaction with no
+ *       never part of the tax export (§2.9, open question 1). The cell is empty for a transaction with no
  *       receipt attached, which is most of them.</li>
  * </ul>
  *

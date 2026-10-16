@@ -94,8 +94,9 @@ public class SubscriptionService {
      * does not read figures in.
      *
      * <p>The upcoming window is counted from the CALLER's today, so two household mates in
-     * different timezones can briefly disagree about whether a charge is "in the next fourteen
-     * days". That is the right trade for a read: the window is a display convenience, whereas
+     * different timezones can briefly disagree about whether a charge is "in the next
+     * {@code trove.subscriptions.upcoming-days} days (14 by default)". That is the right trade
+     * for a read: the window is a display convenience, whereas
      * {@code nextChargeDate} itself is a stored fact about the household and is computed once, in
      * the household's own zone.
      */

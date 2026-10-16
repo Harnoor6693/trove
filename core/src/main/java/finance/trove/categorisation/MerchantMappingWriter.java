@@ -21,10 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
  * a distinct Spring bean, injected wherever it is called from, so any caller reaches it through
  * the real proxy and {@code REQUIRES_NEW} genuinely opens a second, independent transaction.
  *
- * <p><strong>No listener calls this yet</strong> (§6: "publish and consume nothing yet" is this
- * step's instruction) — {@code MerchantMappingWriterIT} exercises it directly, proving the write
- * survives an outer transaction's rollback, which is the property a listener wired in step 16
- * will depend on.
+ * <p>The AI categorisation tier ({@code DefaultAiCategorisationTier}) calls it through the
+ * injected bean. {@code MerchantMappingWriterIT} proves the write survives an outer
+ * transaction's rollback.
  */
 @Service
 public class MerchantMappingWriter {

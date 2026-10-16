@@ -8,14 +8,20 @@ Two delivery channels, implemented in `finance.trove.notifications.send`:
   [environment variables](../guide/environment-variables). There is **no push
   notification channel** (no APNs, no FCM) — see the README's "What is not here".
 
-Webhooks (tag `Webhooks`) let a household forward events to its own HTTP endpoint,
-HMAC-signed.
+Webhooks (tag `Webhooks`) let a member forward events to their own HTTP endpoint (up to 20
+per member by default), HMAC-signed with a write-only secret of 16 to 128 characters.
+Subscriptions belong to the member who created them, not the household. Event types:
+`budget.threshold_crossed`, `subscription.price_changed`, `sync.completed`,
+`receipt.processed`. Payloads carry ids, enum names, counts and amounts only, never merchant
+or bank text; fetch detail from the API. A failed delivery is retried with exponential
+backoff, up to 5 attempts.
 
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/v1/notifications` | List the caller's notifications |
 | `GET` | `/v1/notifications/unread-count` | Unread count for a badge |
-| `POST` | `/v1/notifications/{id}/read`, `/read-all` | Mark read |
+| `PATCH` | `/v1/notifications/{id}/read` | Mark one read |
+| `POST` | `/v1/notifications/read-all` | Mark all read |
 | `GET`/`PUT` | `/v1/notifications/preferences` | Per-channel, per-event preferences; read-only `emailAvailable` says whether this server can send email at all |
 | `DELETE` | `/v1/notifications/{id}` | Remove a notification |
 | `GET`/`POST` | `/v1/webhooks` | List / register a webhook |

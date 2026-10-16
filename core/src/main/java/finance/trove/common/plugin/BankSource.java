@@ -23,9 +23,9 @@ import java.util.Map;
  *       for the egress policy to be forgotten.</li>
  * </ul>
  *
- * <p><strong>Nothing on the main classpath implements this in collapse step 6.</strong> The
- * SimpleFIN, OFX and CSV sources are step 7's; a test-only in-memory source under
- * {@code core/src/test} is what exercises {@code SyncOrchestrator} until then. A
+ * <p>{@code SimplefinSource} implements this for SIMPLEFIN; {@code OfxSource} and
+ * {@code CsvSource} implement it through {@code FileImportSource}, which extends it. A test-only
+ * {@code TestBankSource} also exercises {@code SyncOrchestrator}. A
  * {@code POST /v1/accounts/{id}/sync} for a kind with no registered source is 409
  * {@code conflict}, not a 500.
  *

@@ -6,7 +6,7 @@ stack, and `deploy/trove` is the only command you need.
 
 ```
 deploy/
-├── trove                       the CLI: up, down, status, logs, backup,
+├── trove                       the CLI: bootstrap, up, down, status, logs, backup,
 │                               restore, update, reset, doctor, support-bundle
 ├── docker-compose.yml          the whole stack
 ├── .env.example                every setting, with the generation command
@@ -15,9 +15,9 @@ deploy/
 └── prometheus/prometheus.yml   only used by the optional monitoring profile
 ```
 
-Trove's images are built from this repository on your machine. The repository is
-private, so there is no registry to pull from: `./trove up` and `./trove update`
-run `docker compose build`.
+Trove's images are built from this repository on your machine (`docker-compose.yml`
+uses the local tag `trove-core:local`): `./trove up` and `./trove update` run
+`docker compose build`.
 
 ---
 
@@ -70,10 +70,14 @@ machine that is not this one, or leave AI off.
    ./trove bootstrap
    ```
 
-   It asks for the hostname, an email for certificate notices, and the first
-   admin address, then generates every secret with `openssl rand` and writes
-   `.env` with mode 0600. **Copy the printed admin password and backup
-   passphrase somewhere safe — they are printed once.**
+   It asks for the hostname, an email for certificate notices, the first admin
+   address and the first admin's country (CA or US; this sets the currency to CAD
+   or USD and cannot be changed later), then generates every secret with
+   `openssl rand` and writes `.env` with mode 0600. Without a terminal it reads
+   `TROVE_DOMAIN`, `ACME_EMAIL`, `TROVE_ADMIN_EMAIL` and `TROVE_ADMIN_COUNTRY`
+   from the environment instead. **Copy the printed admin password and backup
+   passphrase somewhere safe — they are printed once. Copy `TROVE_ENCRYPTION_KEY`
+   into a password manager too.**
 
 4. Start:
 
@@ -88,14 +92,31 @@ machine that is not this one, or leave AI off.
    *readiness* — which includes Flyway having finished, so a green `up` means the
    database is migrated. Expect 5-15 minutes the first time, most of it Maven.
 
-5. Open `https://your-domain/`, sign in as the admin, change the password, and
-   remove `TROVE_ADMIN_PASSWORD` from `.env` (it is only read while the `users`
-   table is empty).
+5. Open `https://your-domain/`, sign in as the admin, and change the password in
+   Settings. `TROVE_ADMIN_PASSWORD` stays in `.env` (compose requires it) but is
+   ignored once any user exists, so it is harmless; do not rely on it to sign in
+   afterwards.
 
 6. Invite the rest of the household from **Settings → Household**. Signup is
    closed by default (`TROVE_REGISTRATION_OPEN=false`); invites are single-use
    links valid for 72 hours, and they work without email configured — copy the
    link and send it however you like.
+
+### Optional: single sign-on (OIDC)
+
+Set `TROVE_OIDC_ENABLED=true`, `TROVE_OIDC_ISSUER_URI`, `TROVE_OIDC_CLIENT_ID`,
+`TROVE_OIDC_CLIENT_SECRET` and optionally `TROVE_OIDC_DISPLAY_NAME` in `.env`.
+Register `<TROVE_PUBLIC_URL>/api/login/oauth2/code/oidc` as the redirect URI at
+your provider. Scopes are `openid,profile,email`. The issuer is contacted at boot,
+so a wrong or unreachable issuer makes the container fail to start.
+
+An existing link between the provider identity and a Trove account wins.
+Otherwise a local account with the same email is linked automatically only when
+the provider sends `email_verified=true`; if not, the user must prove ownership
+with their local password. With no local account, sign-in follows the
+registration policy (closed by default), so OIDC never opens the install to
+strangers. Password accounts keep working. The sign-in buttons come from
+`GET /v1/auth/providers`.
 
 ---
 
@@ -158,10 +179,12 @@ sudo tailscale serve --bg --https=443 http://127.0.0.1:8080
 ```
 
 Then browse to `https://<machine>.<tailnet>.ts.net/`. In this mode Traefik serves
-plain HTTP on the loopback port and does no ACME at all; Tailscale owns the
+plain HTTP on `TROVE_HTTP_PORT`, which Docker publishes on every host interface, and
+does no ACME at all; Tailscale owns the
 certificate. The HTTP→HTTPS redirect is removed from the rendered Traefik config
 automatically. Everything else — headers, CSP, rate limits, routing — is
-unchanged. The mobile app connects over the tailnet only.
+unchanged. **Firewall `TROVE_HTTP_PORT` from anything but this machine (or allow
+only the tailnet);** otherwise the install is reachable over unencrypted HTTP. The mobile app connects over the tailnet only.
 
 **HSTS is one year without `preload`, deliberately.** Preload is a one-way door
 that would strand this install if it ever moves domain or drops TLS.
@@ -174,8 +197,8 @@ CLI and env are mutually exclusive sources). `./trove up` therefore renders
 `ACME_EMAIL` and `TROVE_ACME_CA_SERVER` and dropping the redirect block when TLS
 is off. **Edit `traefik.yml`, never `traefik.runtime.yml`** — the latter is
 overwritten on every `up`, `update` and `restore`. If you drive `docker compose`
-by hand, render it first with `./trove doctor` (which reports when it is
-missing) or just use `./trove up`.
+by hand, run `./trove up` once first: it renders `traefik.runtime.yml`
+(`./trove doctor` only reports whether it exists).
 
 ---
 
@@ -233,6 +256,8 @@ connected account has to be re-linked. That is why the key is in the archive —
 and why the archive is encrypted with AES-256 (PBKDF2, 600 000 iterations) using
 `TROVE_BACKUP_PASSPHRASE`, or to an `age` recipient if you set
 `TROVE_BACKUP_AGE_RECIPIENT` and have `age` installed.
+With an age recipient the archive is named `.tar.gz.age`; to restore it run
+`TROVE_BACKUP_AGE_IDENTITY=/path/to/age-key.txt ./trove restore <archive>`.
 
 **Keep `TROVE_BACKUP_PASSPHRASE` and `TROVE_ENCRYPTION_KEY` somewhere that is not
 this machine.** An archive whose passphrase died with the disk is not a backup.
@@ -283,6 +308,35 @@ more often; it is safe to run while the stack is up.
 thousand transactions, plus however long it takes you to get the archive back
 onto the machine. Most of the wall clock is `pg_restore` and the JVM start.
 
+### Background jobs and retention
+
+The server runs these on its own. Clock-time triggers are UTC, and each job holds a
+lock so two instances never run one twice.
+
+| Job | When (UTC) | What |
+|---|---|---|
+| Envelope rollover | daily 00:40 | rolls budget envelopes over |
+| Subscription scan | daily 02:00 | detects subscriptions |
+| Refresh-token purge | daily 03:10 | removes expired tokens |
+| Invite expiry sweep | daily 03:20 | removes expired invites |
+| Password-reset purge | daily 03:30 | removes expired reset links |
+| Login-attempt purge | daily 03:40 | deletes rows older than 30 days |
+| Audit-log purge | daily 03:50 | deletes rows older than 365 days |
+| Import retention sweep | daily 04:05 | deletes abandoned import previews (default 7 days, `TROVE_IMPORT_PREVIEW_RETENTION`) |
+| Account purge | daily 04:05 | hard-deletes a removed member after the 7-day grace |
+| SimpleFIN sync | daily 09:17 | only when an admin enabled it (`TROVE_SIMPLEFIN_SCHEDULED_SYNC_CRON`) |
+| Net-worth snapshot | daily 23:30 | records the day's net worth |
+| Transfer pairing | hourly at :10 | pairs matching transfers |
+| Data-export sweep | hourly at :12 | deletes export archives after their 24-hour link lapses |
+| Receipt orphan sweep | hourly at :20 | re-queues receipts stuck for over an hour |
+| Weekly digest | Mondays 08:00 | sends the digest |
+| Weekly insight | Mondays 08:30 | AI, only for users who configured an endpoint |
+| Webhook retry | every 30 s | up to 5 attempts, backoff of 2^n seconds |
+| Rate-limit rule reload | every 5 minutes | picks up rule changes |
+
+Retention periods are fixed in code, except the import preview retention and the
+SimpleFIN cron, which the shipped compose file does not forward to `trove-core`.
+
 ---
 
 ## 6. Troubleshooting by symptom
@@ -313,9 +367,25 @@ answer "too many requests". After 100 failures in an hour for one account, from
 anywhere, the account accepts sign-ins only from addresses it has signed in
 from before. Wait, or have an admin unlock the member (Settings, Admin), or,
 for the admin, run
-`docker compose run --rm trove-core --trove.cli.command="unlock <email>"`. For
-the Traefik limit, raise `ratelimit-auth` in
+`docker compose run --rm trove-core --trove.cli.command="unlock <email>"` (see the
+next entry). For the Traefik limit, raise `ratelimit-auth` in
 `traefik/dynamic/middlewares.yml` (hot-reloaded, no restart).
+
+**Locked out of the only admin account.** A forgotten password or a lost
+authenticator on the only admin cannot be fixed from the app. Run one of these
+on the server:
+
+```bash
+docker compose run --rm trove-core --trove.cli.command="reset-password <email>"
+docker compose run --rm trove-core --trove.cli.command="disable-totp <email>"
+docker compose run --rm trove-core --trove.cli.command="unlock <email>"
+```
+
+`reset-password` prints a one-hour, single-use reset link to open in the browser;
+`disable-totp` removes the second factor; `unlock` clears a sign-in lock without
+touching the password. The command prints its result and exits instead of starting
+the server (exit code 0 means it worked). Shell access to the server is the only
+authorisation needed.
 
 **Disk full.** `./trove status` shows database and data-directory sizes. Receipts
 are the usual growth; each household has a `TROVE_RECEIPT_QUOTA_MB` cap (one
@@ -342,8 +412,8 @@ Done, and verifiable in this directory:
   `postgres`, `ollama` publish nothing; Postgres sits on an `internal: true`
   network with no route off the box, and Ollama on another one so it cannot
   reach the database.
-- **The management port is never routed.** Actuator, `/metrics` and
-  `/prometheus` live on port 9090, reachable only from inside the stack. The
+- **The management port is never routed.** Actuator (`/actuator/health`,
+  `/actuator/info`, `/actuator/metrics`, `/actuator/prometheus`) lives on port 9090, reachable only from inside the stack. The
   public health endpoint is the detail-free `/api/v1/status`.
 - **Traefik does not touch the Docker socket.** It reads a filtered, read-only
   API through `socket-proxy`.
@@ -356,8 +426,9 @@ Done, and verifiable in this directory:
   `/api/v1/auth/*`) and the application's own per-user and per-account limits.
 - **No secret has a default.** Compose refuses to start naming any variable you
   missed; `bootstrap` generates all of them with `openssl rand`; `.env` is 0600.
-- **Grafana has no default password** and the monitoring profile will not start
-  without one. Prometheus and Grafana bind to loopback only — reach them over an
+- **Grafana has no default password:** `GRAFANA_ADMIN_PASSWORD` must be non-empty in
+  `.env` (compose refuses to start any profile without it, even when monitoring is
+  off; bootstrap generates one). Prometheus and Grafana bind to loopback only — reach them over an
   SSH tunnel, never through Traefik.
 - **Backups are encrypted** and include the encryption key, so a restore is a
   real restore.
@@ -381,9 +452,10 @@ Not done, and you should know it:
   operation — stored bank credentials are encrypted with the current key and
   there is no re-encryption command. Until there is: back the key up, and if you
   lose it, re-link every account after restoring.
-- **Alerting is in-app.** There is no Alertmanager. Disk, backup age, certificate
-  expiry and failing syncs surface as banners and optional email/webhook
-  notifications, plus `./trove status` and `./trove doctor`.
+- **Alerting is mostly manual.** Failing bank syncs raise an in-app notification (and
+  optional email/webhook). Disk space, backup age and certificate expiry are not
+  alerted on: check them with `./trove status` and `./trove doctor`, or poll
+  `GET /api/v1/status` (DEGRADED when disk space is low). There is no Alertmanager.
 
 Report a vulnerability through the repository's private vulnerability reporting,
 not a public issue.
@@ -400,19 +472,20 @@ connections this stack can make:
 | Let's Encrypt (`acme-v02.api.letsencrypt.org`) | `TROVE_TLS_MODE=acme-http` or `acme-dns` | your domain name and `ACME_EMAIL` |
 | Cloudflare API (`api.cloudflare.com`) | `TROVE_TLS_MODE=acme-dns` only | the DNS challenge record, using your token |
 | Your bank aggregator (SimpleFIN) | only after a user connects an account | the setup token, then account and transaction fetches |
-| An AI endpoint | only after a *user* configures one, per user | the prompt content for that feature: transaction descriptions for categorisation, the coach conversation, receipt images for extraction. Each user chooses their own endpoint and key; point it at the `ai` profile's Ollama and it never leaves the box |
+| An AI endpoint | only after a *user* configures one, per user | the prompt content for that feature: transaction descriptions for categorisation, the coach conversation, receipt images for extraction. Each user chooses their own endpoint and key; point it at the `ai` profile's Ollama and it never leaves the box (this needs `TROVE_EGRESS_ALLOW_PRIVATE=true`) |
 | Your webhook URLs | only if a user adds one | the notification payload |
-| Your SMTP server | only if `SMTP_ENABLED=true` | notification and password-reset emails |
+| Your SMTP server | only if `SMTP_ENABLED=true` | notification emails (for example the weekly digest); password resets never use email |
 | Docker Hub / GHCR | `up` and `update` | base image pulls, nothing about you |
 
 There is no telemetry, no analytics, no crash reporting, and no phone-home
 version check. Trove has no server of its own to talk to.
 
 Every outbound target above except the CA and the image registries goes through
-one policy: HTTPS required, DNS pinned at connect time, and private/loopback/
-link-local addresses refused unless `TROVE_EGRESS_ALLOW_PRIVATE=true` and the
-individual user has opted their endpoint in. Each user can see their own
-outbound calls under **Settings → Data egress**.
+one policy: HTTPS required (plain http only for a private target that both
+`TROVE_EGRESS_ALLOW_PRIVATE=true` and the individual user have opted in), DNS pinned
+at connect time, and private/loopback/link-local addresses refused otherwise.
+Refused targets show an `outbound-url-rejected` error next to the setting; there is
+no outbound-call log screen.
 
 ---
 

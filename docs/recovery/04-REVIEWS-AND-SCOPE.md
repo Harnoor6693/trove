@@ -1,5 +1,7 @@
 # Trove — Senior Reviews and Scope Recommendation
 
+> **Historical record, written before 2026-09-03.** Reviews of `01-FINDINGS.md` and the scope cut taken from them. The decisions listed as open below were settled by the owner; see the Decisions table in `06-PROGRESS.md`. Current state: `docs-site/guide/architecture.md`.
+
 Four independent senior reviews of the verified findings (`01-FINDINGS.md`), plus the
 resulting scope recommendation and the decisions still open.
 

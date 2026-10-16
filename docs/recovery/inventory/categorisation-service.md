@@ -1,5 +1,7 @@
 # Inventory: services/categorisation-service
 
+> **Historical record, 2026-09-03.** Inventory of the pre-rebuild code, since removed. Current state: `docs-site/guide/architecture.md`.
+
 Verified against source on 2026-09-03. Cross-referenced against `docs/recovery/01-FINDINGS.md`
 (section O supersedes earlier sections). Existing defect IDs are cited, not re-numbered; new
 observations specific to this module are marked NEW.

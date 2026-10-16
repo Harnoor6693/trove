@@ -1,5 +1,7 @@
 # model-manager — Inventory
 
+> **Historical record, from the 2026-09-03 audit of the pre-rebuild code.** The file itself carries no date or commit; "HEAD" below means the working tree at that audit. The model-manager service has since been removed. Current state: `docs-site/guide/architecture.md`.
+
 Verified against source at HEAD (working tree). Cited paths are repo-relative from the repository root.
 
 ---

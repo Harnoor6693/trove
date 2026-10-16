@@ -27,7 +27,8 @@ import { FormScroll } from '@components/ui/FormScroll/FormScroll';
  * description**, because a member cannot find any of it out afterwards:
  *
  *  - The account is disabled immediately and every session of it ends.
- *  - An administrator can restore it inside a seven-day grace.
+ *  - An administrator can restore it inside the grace period (seven days by
+ *    default; the server's configured window).
  *  - After the grace it is purged for good, and the address stays reserved
  *    until that purge runs.
  *  - The **household keeps the shared ledger**, with this member's authorship

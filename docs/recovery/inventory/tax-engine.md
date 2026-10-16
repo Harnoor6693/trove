@@ -1,5 +1,7 @@
 # Inventory: services/tax-engine
 
+> **Historical record, 2026-09-03.** Inventory of the pre-rebuild tax engine, which was cut and not carried over. Current state: `docs-site/guide/architecture.md`.
+
 Verified against source at commit `9ad1b5f` (working tree, 2026-09-03). Every claim below was
 read directly from the cited file; nothing here is carried over from README.md (fiction — see
 `docs/recovery/01-FINDINGS.md` §N) without independent verification. Cross-references to the

@@ -272,7 +272,10 @@ public class RefreshTokenService {
         return tokens.findByTokenHash(hash(rawToken)).map(RefreshToken::getFamilyId);
     }
 
-    /** Daily purge (§5.6 {@code refresh-token-purge}); collapse step 4 schedules it. */
+    /**
+     * Daily purge, run by {@code PurgeJobs#purgeRefreshTokens} at 03:10 UTC (§5.6
+     * {@code refresh-token-purge}).
+     */
     @Transactional
     public int purgeExpired(Instant cutoff) {
         return tokens.purgeExpired(cutoff);

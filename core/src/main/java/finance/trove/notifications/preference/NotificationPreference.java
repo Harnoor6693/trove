@@ -89,10 +89,10 @@ public class NotificationPreference {
     }
 
     /**
-     * The row a member who has never saved anything gets. It is PERSISTED on first read rather
-     * than returned transient, because the digest enumerates recipients from this table: a member
-     * with no row would silently never be in it, which is how the pre-collapse digest managed to
-     * report success with nothing sent.
+     * The row a member who has never saved anything gets. It is PERSISTED on first read
+     * ({@code getOrCreate}) rather than returned transient, so every active member has one stored
+     * row once any code path has read their preferences. (The digest does not depend on it:
+     * {@code findDigestRecipients} also includes members with no row.)
      */
     public static NotificationPreference defaultsFor(UUID userId) {
         return new NotificationPreference(userId);
@@ -109,9 +109,10 @@ public class NotificationPreference {
     }
 
     /**
-     * This member's threshold as the fraction {@code EnvelopeSpendService} compares against, e.g.
-     * {@code 0.90} for 90 %. Two decimal places exactly, so two members holding the same percent
-     * produce values that compare equal in a {@code Set}.
+     * This member's threshold as a two-decimal fraction, e.g. {@code 0.90} for 90 %. Two decimal
+     * places exactly, so two members holding the same percent produce values that compare equal
+     * in a {@code Set}. {@code PreferenceAlertThresholds} builds the set
+     * {@code EnvelopeSpendService} compares against.
      */
     public BigDecimal thresholdFraction() {
         return BigDecimal.valueOf(budgetAlertThresholdPercent).divide(ONE_HUNDRED, 2,

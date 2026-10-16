@@ -12,9 +12,12 @@ import { Platform } from 'react-native';
  * Rules:
  *  - `https://` is always accepted.
  *  - `http://` is rejected for public hosts, unconditionally.
- *  - `http://` is accepted for `localhost`, loopback, `.local` mDNS names and
- *    RFC1918/CGNAT/link-local addresses **only** when the caller passes
- *    `allowInsecureLan` (the "allow http on my network" toggle).
+ *  - `http://` is accepted for private hosts (`localhost`/`*.localhost`,
+ *    loopback, `.local`, `.internal` and `.home.arpa` names, RFC1918/CGNAT/
+ *    link-local IPv4, IPv6 loopback/ULA/link-local) **only** when the caller
+ *    passes `allowInsecureLan` (the "allow http on my network" toggle), and
+ *    only if the running platform will actually allow cleartext to that host
+ *    (`INSECURE_HOST_BLOCKED`).
  *  - No other scheme is accepted; a bare host defaults to `https://`.
  *  - Any path, query or fragment is stripped: the base URL is origin-only,
  *    because `/api/v1/...` is appended to it verbatim.
@@ -86,9 +89,9 @@ function parseIpv4(host: string): number[] | null {
 }
 
 /**
- * True for hosts that are unambiguously on the user's own network: loopback,
- * mDNS `.local` names, RFC1918 ranges, link-local, CGNAT, and IPv6
- * loopback/ULA/link-local.
+ * True for hosts that are unambiguously on the user's own network: loopback
+ * and `localhost`, `.local` (mDNS), `.internal` and `.home.arpa` names,
+ * RFC1918 ranges, link-local, CGNAT, and IPv6 loopback/ULA/link-local.
  */
 export function isPrivateHost(rawHost: string): boolean {
   const host = rawHost.toLowerCase().replace(/^\[|\]$/g, '');
@@ -120,10 +123,11 @@ export function isPrivateHost(rawHost: string): boolean {
 /**
  * True when the running platform will actually let an http request to `host`
  * through, given the native config in `app.config.ts`:
- *  - iOS `NSAllowsLocalNetworking`: IP addresses, `.local`.
+ *  - iOS `NSAllowsLocalNetworking`: `localhost`, `.local`, and IP literals
+ *    (IPv4 and IPv6).
  *  - Android network security config: names, not ranges, so only `localhost`,
- *    the emulator alias `10.0.2.2` and `.local`. Keep in step with
- *    `app.config.ts`.
+ *    `127.0.0.1`, the emulator alias `10.0.2.2` and `.local`. Keep in step
+ *    with `ANDROID_CLEARTEXT_HOSTS` in `app.config.ts`.
  * Anything else would pass the check on the connect screen and then fail at
  * the OS with "Couldn't reach that address" (B5-03, B5-13).
  */

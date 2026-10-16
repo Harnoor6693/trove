@@ -25,8 +25,9 @@ import java.util.UUID;
  *
  * <p>{@code apiKeyEnc} is AES-GCM ciphertext from {@code FieldEncryptionService}. The plaintext key
  * exists on the heap for the length of one call and is never logged, never returned and never
- * written anywhere else. Nothing on this class exposes it decrypted; {@link AiSettingsService} is
- * the only caller that decrypts, and it hands the result straight to the HTTP client.
+ * written anywhere else. Nothing on this class exposes it decrypted; {@code DefaultAiGateway.resolve}
+ * is the only caller that decrypts, and it hands the result straight to the HTTP client
+ * ({@link AiSettingsService} reaches it through the gateway).
  *
  * <p>The timeouts are what the member ASKED for. The effective values are capped at call time
  * against the install's {@code TROVE_HTTP_*} limits, so a stored value can never hold a request
@@ -178,7 +179,7 @@ public class AiSettings {
     }
 
     /**
-     * Applies a validated replacement. Everything except the key comes from {@code source}; the
+     * Applies a validated replacement. Everything except the key comes from the arguments; the
      * key has its own two routes because it is write-only and cannot round-trip through a GET.
      */
     public void replaceWith(boolean newEnabled, String newEndpointUrl, String newModel,

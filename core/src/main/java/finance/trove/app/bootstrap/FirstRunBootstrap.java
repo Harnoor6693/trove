@@ -79,8 +79,12 @@ public class FirstRunBootstrap implements ApplicationRunner {
         } catch (PasswordPolicyException e) {
             // swallow-ok: the operator's chosen admin password is too weak. Refusing to start
             // would make an un-onboarded install unreachable, including the status endpoint they
-            // would use to find out why. The install boots with no users, every login fails
-            // safely, and the next restart with a better password succeeds.
+            // would use to find out why. The credential is refused after the household and
+            // ADMIN rows are already committed (bootstrapIfEmpty runs on this, so its
+            // @Transactional does not apply). The install boots with an administrator who has
+            // no password, and a restart will not retry because the users table is no longer
+            // empty. Recover with the console: --trove.cli.command="reset-password <email>"
+            // (LocalAccountService.setPassword creates the missing credential on redemption).
             LOG.error("TROVE_ADMIN_PASSWORD was refused by the password policy: {}. {}",
                 e.getMessage(), REMEDY);
         }

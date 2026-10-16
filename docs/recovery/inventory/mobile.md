@@ -1,5 +1,7 @@
 # Mobile App Inventory — `apps/mobile`
 
+> **Historical record, 2026-09-03.** Inventory of the pre-rebuild `apps/mobile`. The "every call is broken" finding below describes that code and no longer applies; the app was rewritten in rebuild steps 21a and 211-215. The versions in the header are those of 2026-09-03. Current state: `docs-site/guide/architecture.md`.
+
 Expo 55 / expo-router / React Native 0.83.6 / React 19.2.8 / TanStack Query v5 / zustand v5.
 Verified directly against source on 2026-09-03. Supersedes prose about mobile in
 `docs/recovery/01-FINDINGS.md` sections J and A6 where more precise; does not contradict them.

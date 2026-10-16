@@ -8,7 +8,8 @@
  *    nobody can be locked out of the app, because `AuthGuard`'s onboarding
  *    redirect can no longer fire. Everything after step 1 is progressive
  *    disclosure, not a gate.
- *  - Every step continues without a server round-trip succeeding first. Defect I2
+ *  - Steps 2 and 3 continue without a server round-trip succeeding first (step 1
+ *    is the one save that must land, and it is what clears the onboarding redirect). Defect I2
  *    was step 3's Continue being `disabled={!mutation.isSuccess}` against
  *    SimpleFIN — a paid hosted service — with no skip path and no logout button,
  *    which locked a tokenless self-hoster inside setup permanently.

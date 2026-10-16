@@ -51,7 +51,7 @@ export function NotificationsCard() {
   const emailAvailable = preferences.data?.emailAvailable === true;
 
   // Seed the form during render, the same pattern `AiSettingsCard` uses: an
-  // effect that ran six setters would flash the defaults for one render pass
+  // effect that ran seven setters would flash the defaults for one render pass
   // before the real row arrived.
   const [seededFrom, setSeededFrom] = useState<NotificationPreferencesResponse | null>(null);
   if (preferences.data !== undefined && preferences.data !== seededFrom) {

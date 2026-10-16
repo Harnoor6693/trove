@@ -1,5 +1,7 @@
 # Inventory: services/receipt-processor
 
+> **Historical record, 2026-09-03.** Inventory of the pre-rebuild code, since removed. Current state: `docs-site/guide/architecture.md`.
+
 Audited against working tree at commit `9ad1b5f` (main), 2026-09-03. Every claim below was
 verified by reading the cited file; where a claim from `docs/recovery/01-FINDINGS.md`
 did not reproduce against current source, that is called out explicitly (see §10).

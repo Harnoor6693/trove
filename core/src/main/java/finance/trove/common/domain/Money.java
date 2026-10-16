@@ -17,8 +17,10 @@ import java.util.Objects;
  * and to hand out of a service without defensive copying.
  *
  * <p><strong>No floating point, ever.</strong> There is no {@code double} or {@code float} on
- * this type's API — {@code ArchitectureTest} enforces that for the whole {@code domain} package
- * ({@code docs/recovery/06-COLLAPSE-PLAN.md} §9 risk 6). Cross-currency arithmetic throws rather
+ * this type's API. {@code ArchitectureTest} forbids {@code float} and {@code double} fields
+ * across the domain and events packages and JPA entities, and forbids {@code float} and
+ * {@code double} return types in the domain and events packages. Only method parameters are
+ * left to convention ({@code docs/recovery/06-COLLAPSE-PLAN.md} §9 risk 6). Cross-currency arithmetic throws rather
  * than silently mixing CAD and USD, which is the bug that would corrupt envelope balances and
  * net worth (§9 risk 5).
  *

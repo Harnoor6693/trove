@@ -15,10 +15,10 @@ import org.springframework.data.repository.query.Param;
  * Repository over {@link Transaction}.
  *
  * <p>Extends {@link UserScopedRepository}: no inherited {@code findById}, no {@code findAll}, and
- * every query below names its scope. Two of them take {@code accountId} rather than
- * {@code householdId} and are package-private to the ingestion path — an account id has already
- * been resolved inside a household by the time they are reached, so the scope is established, not
- * skipped.
+ * every query below names its scope. Three of them take {@code accountId} rather than
+ * {@code householdId} and are used only by the ingestion path ({@code DeduplicationService}) —
+ * an account id has already been resolved inside a household by the time they are reached, so the
+ * scope is established, not skipped.
  */
 public interface TransactionRepository extends UserScopedRepository<Transaction, UUID> {
 

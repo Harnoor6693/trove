@@ -1,7 +1,10 @@
 # ADR-0010: AES-256-GCM Field-Level Encryption for Sensitive Credentials
 
 **Date**: 2026-04-27  
-**Status**: accepted  
+**Status**: accepted (amended 2026-10-16, see note)
+
+> Update 2026-10-16: ciphertext is now stored as `v1:` + Base64(IV || ciphertext || tag); unprefixed values and other versions are rejected. The key is 64 hex characters or base64 of 32 bytes, checked at startup. Changing `TROVE_ENCRYPTION_KEY` does NOT rotate: existing values become undecryptable until a re-encrypt migration exists (the version prefix only prepares for one). `FieldEncryptionService` now also protects the AI API key, coach conversation and insight content, TOTP secrets, webhook subscription secrets, household invite tokens, the SimpleFIN setup exchange and the OIDC state cookie, so decryption is not limited to `SyncOrchestrator`. `config_encrypted` is nullable. There are no separate services sharing the key. The original text below is kept unchanged.  
+
 **Deciders**: Security team
 
 ## Context

@@ -17,20 +17,19 @@ cd apps/web
 npm run test:e2e
 ```
 
-Environment variables (read directly by the spec files, not by
-`playwright.config.ts`'s own `E2E_BASE_URL` default — override explicitly):
+Sign in as the seeded admin on a `load-stack.sh` stack: `TROVE_E2E_EMAIL=admin@trove.test`, and `TROVE_E2E_PASSWORD` from `TROVE_ADMIN_PASSWORD` in `<workdir>/.env`. Point `TROVE_E2E_BASE` and `E2E_BASE_URL` at `https://trove.test:18443`. Make `trove.test` resolve to 127.0.0.1 first, for example with an `/etc/hosts` entry. Run `npm run e2e:install` once to install Chromium.
+
+Environment variables. `auth-flow`, `onboarding-to-today` and `consecutive-writes` read `TROVE_E2E_BASE` directly; `smoke` reads `E2E_BASE_URL` through `playwright.config.ts`.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `TROVE_E2E_BASE` | `http://localhost:5173` | Base URL of the running stack. Point this at whatever you actually brought up, e.g. `https://trove.test:18443`. |
-| `TROVE_E2E_EMAIL` | `test@yopmail.com` | Login used by `onboarding-to-today.spec.ts`. |
-| `TROVE_E2E_PASSWORD` | _(none)_ | Required for `onboarding-to-today.spec.ts` — it skips itself if unset. |
+| `TROVE_E2E_BASE` | `http://localhost:5173` | Base URL of the running stack. Point it at the stack you actually brought up, e.g. `https://trove.test:18443`. |
+| `E2E_BASE_URL` | `http://localhost:5173` | Base URL used by `smoke.spec.ts` via `playwright.config.ts`; set it to the same value as `TROVE_E2E_BASE`. |
+| `TROVE_E2E_EMAIL` | `test@yopmail.com` | Login used by `onboarding-to-today`, `smoke` and `consecutive-writes`. |
+| `TROVE_E2E_PASSWORD` | _(none)_ | Password for the login above; those specs skip themselves if it is unset. |
 
 ## Notes
 
-- `onboarding-to-today.spec.ts` uses a real public SimpleFIN demo token from
-  `https://beta-bridge.simplefin.org/info/developers` (a fresh token per page
-  visit, scraped inline by the spec) to exercise a real account-linking flow.
-  SimpleFIN's free tier caps this at ~24 requests/day per access URL — don't
-  loop the spec more than a handful of times against the same one.
-- `auth-flow.spec.ts` only needs `TROVE_E2E_BASE`.
+- `onboarding-to-today.spec.ts` signs in with the local account, completes the three ungated onboarding steps and checks that a reload mid-onboarding lands on Today (onboardingCompleted is written at the end of step 1). It needs a seeded user that has not finished onboarding and it changes that user's server-side state. No external service or token is involved.
+- `consecutive-writes.spec.ts` and `smoke.spec.ts` also need `TROVE_E2E_PASSWORD` and skip without it.
+- `auth-flow.spec.ts` only needs `TROVE_E2E_BASE`. It does not need a password.

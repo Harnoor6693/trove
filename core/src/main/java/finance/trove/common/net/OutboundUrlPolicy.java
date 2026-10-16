@@ -43,9 +43,10 @@ import org.springframework.stereotype.Component;
  *       install-wide {@code TROVE_EGRESS_ALLOW_PRIVATE} and the caller's own opt-in, because a
  *       LAN Ollama is the primary AI story (so a blanket block is wrong) but every member
  *       configures their own endpoint (so an instance-wide switch is too coarse) — §1.6, §6,
- *       owner decision 9. It widens the policy to RFC 1918 and loopback and no further: the
- *       link-local ranges stay refused whatever the two keys say, because {@code 169.254.169.254}
- *       is in them (see {@link #unconditionalBlockReason}).</li>
+ *       owner decision 9. With both keys set the policy lifts every block except link-local
+ *       ({@code 169.254.0.0/16} and {@code fe80::/10}, which includes {@code 169.254.169.254}; see
+ *       {@link #unconditionalBlockReason}), so the unspecified, CGNAT, ULA, multicast and reserved
+ *       ranges become reachable as well as RFC 1918 and loopback.</li>
  * </ul>
  *
  * <p>Userinfo in the URL is refused outright: {@code https://evil.example@10.0.0.1/} reads as a
@@ -170,8 +171,9 @@ public class OutboundUrlPolicy {
      * <p>The link-local ranges — IPv4 {@code 169.254.0.0/16} and IPv6 {@code fe80::/10} — are the
      * one part of this policy the opt-in cannot lift, because {@code 169.254.169.254} lives in them
      * and is the cloud instance-metadata service: reaching it returns the host's own credentials.
-     * The opt-in exists so a member can point at a LAN model on RFC 1918 or on loopback; nothing
-     * about that story needs link-local, and treating the two as one setting is what would turn a
+     * The opt-in exists so a member can point at a LAN model on RFC 1918 or on loopback (with both
+     * keys set, the other non-public ranges are lifted too); nothing about that story needs
+     * link-local, and treating the two as one setting is what would turn a
      * per-user endpoint into an SSRF primitive against the install itself — with no administrator
      * anywhere in the path, since every member configures their own endpoint.
      *

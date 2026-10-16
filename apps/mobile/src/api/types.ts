@@ -99,12 +99,12 @@ type WireErrorResponse = Schemas['ErrorResponse'];
  * problem-details body from an entry point that never went through
  * `GlobalExceptionHandler` at all (Spring's own `/error` page, a reverse
  * proxy in front of it), where only `status` is dependable. Each field's
- * *type* still comes from the generated schema, so the 28-slug `type` union
+ * *type* still comes from the generated schema, so the 35-slug `type` union
  * and the rest stay accurate.
  */
 export interface ErrorDetail {
   /**
-   * Widened to `string` rather than `WireErrorResponse['type']`'s 28-slug
+   * Widened to `string` rather than `WireErrorResponse['type']`'s 35-slug
    * literal union: `readErrorDetail` also parses bodies that never went
    * through `GlobalExceptionHandler` (a proxy, a future slug this build
    * predates), and `slugOf` does string surgery on it, not an enum switch —

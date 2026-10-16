@@ -66,21 +66,23 @@ import tools.jackson.databind.ObjectMapper;
  * <h2>Filter order — final, §5.1</h2>
  * <pre>
  *   RequestIdMdcFilter        (outside the chain, highest precedence — ObservabilityConfig)
- *   CorsFilter                (Spring, order 800)
- *   CookieOrBearerJwtAuthFilter   801  — sets the principal AND trove.authSource
- *   RateLimitFilter                    — after the JWT filter, so it can key on a principal
- *   CsrfRequiresHeaderFilter      899  — needs authSource, so it must be after the JWT filter
- *   CsrfFilter                (Spring, order 900)
- *   CsrfCookieFilter              901  — materialises the token cookie, so it must be AFTER
- *   AuditLogFilter                     — last, so the status it records is the final one
+ *   CorsFilter                (Spring, order 1000)
+ *   CookieOrBearerJwtAuthFilter   1001 — sets the principal AND trove.authSource
+ *   RateLimitFilter               1002 — after the JWT filter, so it can key on a principal
+ *   CsrfRequiresHeaderFilter      1099 — needs authSource, so it must be after the JWT filter
+ *   CsrfFilter                (Spring, order 1100)
+ *   CsrfCookieFilter              1101 — materialises the token cookie, so it must be AFTER
+ *   AuditLogFilter                1102 — last, so the status it records is the final one
  * </pre>
+ * The numbers are Spring Security 7.1's, from {@code FilterOrderRegistration}; they can move
+ * between releases. {@code FilterOrderIT} asserts only the sequence.
  *
  * <p><strong>Each custom filter is anchored to a different neighbour</strong>, and that is not
  * cosmetic: two filters registered "after X" receive the <em>same</em> order value and their
  * relative order then depends on sort stability, i.e. on nothing anybody wrote down. So the four
- * anchors are {@code CorsFilter}, {@code CookieOrBearerJwtAuthFilter}, {@code CsrfFilter} and
- * {@code CsrfCookieFilter} — four distinct classes for four filters. {@code FilterOrderIT} asserts
- * the resulting sequence.
+ * anchors are {@code CorsFilter}, {@code CookieOrBearerJwtAuthFilter}, {@code CsrfFilter} (once
+ * with {@code addFilterBefore}, once with {@code addFilterAfter}) and {@code CsrfCookieFilter} —
+ * no two filters share an order value. {@code FilterOrderIT} asserts the resulting sequence.
  *
  * <p>The limiter's position is §5.1's correction of the original draft, which put it <em>before</em>
  * the JWT filter: there it never sees a principal, every authenticated request falls into one flat
@@ -314,8 +316,9 @@ public class SecurityConfig {
      *       and it is in this step's merge notes). {@code frame-ancestors 'none'} is inside it,
      *       which is the modern statement of the framing rule.</li>
      *   <li><strong>{@code Referrer-Policy: strict-origin-when-cross-origin}</strong> and
-     *       <strong>{@code Permissions-Policy}</strong> denying camera, microphone, geolocation
-     *       and interest-cohort — this application asks for none of them, and saying so is what
+     *       <strong>{@code Permissions-Policy}</strong> denying accelerometer, camera, geolocation,
+     *       gyroscope, magnetometer, microphone, payment and usb — this application asks for none
+     * of them, and saying so is what
      *       stops an injected script asking on its behalf.</li>
      *   <li><strong>{@code X-Content-Type-Options: nosniff}</strong>, Spring Security's default,
      *       kept. An uploaded receipt served back with a guessed content type is a stored-XSS

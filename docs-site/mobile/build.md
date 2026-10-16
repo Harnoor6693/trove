@@ -27,8 +27,8 @@ Defined in `apps/mobile/eas.json` — all four profiles use `distribution: "inte
 |---|---|---|
 | `development` | `http://localhost:8080` | Dev client, iOS Simulator / Android emulator. |
 | `preview` | `http://localhost:8080` | Internal build for manual QA. |
-| `staging` | _(unset — set per environment)_ | Internal build against a real deployment. |
-| `production` | _(unset — set per environment)_ | Signed Android APK; this is the profile the `Release` GitHub Actions workflow builds and attaches to a GitHub Release. Android only, `buildType: apk`. |
+| `staging` | _(empty by design - the user enters the server address on first launch)_ | Internal build against a real deployment. |
+| `production` | _(empty by design - the user enters the server address on first launch)_ | Signed Android APK; this is the profile the `Release` GitHub Actions workflow builds and attaches to a GitHub Release. Android only, `buildType: apk`. |
 
 ## Build commands
 
@@ -38,6 +38,7 @@ cd apps/mobile
 npm run build:dev    # eas build --profile development --platform all
 npm run build:prev   # eas build --profile preview --platform all
 npm run build:prod   # eas build --profile production --platform all
+# build:prod passes --platform all; the Release workflow uses `eas build --profile production --platform android`, the only platform this profile defines
 ```
 
 The `submit:ios`/`submit:android` npm scripts (`eas submit`) exist in `package.json`
@@ -66,3 +67,5 @@ npm run test:e2e:android        # Detox E2E (Android emulator)
 
 # iOS Detox targets exist (build:ios:debug / test:e2e:ios) but need a macOS runner.
 ```
+
+Detox needs a generated native project and a running server. Run `npx expo prebuild --platform android --no-install --clean` once to generate `android/`. Start an empty Postgres and run `scripts/e2e-server.sh` from the repo root (it builds the core jar if missing and listens on :8080). Start Metro with `npm start`. Create an AVD named `Pixel_5_API_36` (API 36, google_apis). The Detox jobs in Mobile CI run only on manual dispatch (workflow_dispatch).

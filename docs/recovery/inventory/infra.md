@@ -1,5 +1,7 @@
 # Infra/Deployment Inventory — Trove Monolith Collapse
 
+> **Historical record, 2026-09-03.** Inventory of the pre-rebuild infrastructure; "today" below means that date. Current state: `docs-site/guide/architecture.md`.
+
 Verified directly against source on 2026-09-03 (commit `9ad1b5f`, main). Every compose
 file, Dockerfile, `.env.example`, and infra config referenced below was read in full, not
 sampled. `docs/recovery/01-FINDINGS.md` section O supersedes earlier sections in that

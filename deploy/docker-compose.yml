@@ -8,8 +8,10 @@
 #   ./trove bootstrap   # generate .env (0600) with real secrets
 #   ./trove up          # build from source, start, wait for readiness
 #
-# Images are built locally from this repository on purpose: the repo is
-# private, so there is no public registry to pull `trove-core` from.
+# Images are built locally from this checkout so the running code is exactly
+# the source you can read (AGPL). Tagged releases are also published to
+# ghcr.io/harnoor6693/trove-core by .github/workflows/release.yml, but this
+# compose file does not pull them.
 #
 # Only `traefik` publishes ports. Everything else is reachable exclusively
 # through it (prometheus/grafana bind to loopback under the monitoring
@@ -32,8 +34,8 @@ x-hardening: &hardening
 services:
 
   # ─── Docker API gate for Traefik ────────────────────────────────────────
-  # Copied from infra/full-stack/docker-compose.yml: Traefik never gets raw
-  # access to /var/run/docker.sock; it reads a filtered, read-only subset.
+  # Traefik never gets raw access to /var/run/docker.sock; it reads a
+  # filtered, read-only subset through this proxy.
   socket-proxy:
     image: ghcr.io/tecnativa/docker-socket-proxy:0.3
     environment:
@@ -159,7 +161,7 @@ services:
       TROVE_RATE_LIMIT_ENABLED: ${TROVE_RATE_LIMIT_ENABLED:-true}
       TROVE_EGRESS_ALLOW_PRIVATE: ${TROVE_EGRESS_ALLOW_PRIVATE:-false}
       TROVE_RECEIPT_QUOTA_MB: ${TROVE_RECEIPT_QUOTA_MB:-2048}
-      TROVE_AUDIT_RETENTION_DAYS: ${TROVE_AUDIT_RETENTION_DAYS:-90}
+      # audit_log rows are purged after 365 days (PurgeJobs.AUDIT_RETENTION); not configurable
       # Optional OIDC (all-or-nothing, validated at boot)
       TROVE_OIDC_ENABLED: ${TROVE_OIDC_ENABLED:-false}
       TROVE_OIDC_ISSUER_URI: ${TROVE_OIDC_ISSUER_URI:-}

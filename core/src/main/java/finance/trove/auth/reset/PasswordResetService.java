@@ -32,7 +32,8 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>The premise: most self-hosters have no SMTP, so a forgotten password otherwise means editing
  * the database or reinstalling. Instead a household admin generates a one-hour, single-use link
  * and hands it over through whatever channel they already use. The console equivalent
- * ({@code trove admin reset-password}, {@code finance.trove.app.cli.AdminConsole}) covers the case
+ * ({@code --trove.cli.command="reset-password <email>"}, {@code
+ * finance.trove.app.cli.AdminConsole}) covers the case
  * this cannot: the last administrator is the one locked out, and there is no admin session left to
  * issue anything. It calls {@link #issueFromConsole}.
  *
@@ -186,7 +187,10 @@ public class PasswordResetService {
         LOG.info("A password was reset through a link; {} sessions revoked", revoked);
     }
 
-    /** Daily sweep (§5.6 {@code export-link-expiry-sweep} sibling); step 4 schedules it. */
+    /**
+     * Daily sweep, run by {@code PurgeJobs#purgeExpiredPasswordResets} at 03:30 UTC (§5.6
+     * {@code export-link-expiry-sweep} sibling).
+     */
     @Transactional
     public int purgeExpired(Instant cutoff) {
         return tokens.purgeExpiredBefore(cutoff);

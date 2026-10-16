@@ -21,9 +21,11 @@ import tools.jackson.databind.ObjectMapper;
  * Turns one member's collected data into the ZIP the download serves (collapse step 18; gap row
  * 16).
  *
- * <h2>The transactions file is {@code CsvExportBuilder}'s, unchanged</h2>
- * {@link CsvExportBuilder#build(List)} takes ONE fixed column list and appends a tax-line totals
- * section, and this step neither widens it nor copies its escaping. That escaping — a leading
+ * <h2>The transactions file is {@code CsvExportBuilder}'s, with the ledger columns</h2>
+ * {@link CsvExportBuilder#buildLedger(List)} writes the same fixed 11 columns as the tax export
+ * plus {@code accountId}, {@code transferGroupId} and {@code pending}, with no totals section so
+ * the file stays rectangular for an importer (B2-03). This step does not copy its escaping. That
+ * escaping — a leading
  * apostrophe on any cell beginning with an equals sign, a plus, a minus, an at sign, a tab or a
  * carriage return — is the named regression of gap row 16, and the entire value of it living in
  * one class is that there is exactly one copy to get right. A merchant literally called
@@ -34,7 +36,7 @@ import tools.jackson.databind.ObjectMapper;
  * <h2>Everything that is not a transaction is JSON</h2>
  * Which is what gap row 16 asks for, and which needs no formula escaping at all because no
  * spreadsheet evaluates a JSON string. It also means the builder never has to answer "what are
- * this dataset's columns?" for thirteen different shapes.
+ * this dataset's columns?" for fourteen different shapes.
  *
  * <h2>The manifest lists what was actually written</h2>
  * Not what was meant to be. {@link #build} renders every entry into bytes first, then builds
@@ -69,7 +71,7 @@ public class DataExportArchiveBuilder {
      * @param userId       the member who asked for it
      * @param householdId  the ledger the rows came from — shared, and the manifest says so
      * @param generatedAt  the instant the archive was built, in UTC
-     * @param transactions the household's whole spendable history, already transfer-leg-free
+     * @param transactions the household's whole ledger, transfer legs and pending rows included
      * @param datasets     entry name to serialisable content, in the order they are written
      */
     public record ArchiveRequest(UUID runId, UUID userId, UUID householdId, Instant generatedAt,
@@ -170,8 +172,9 @@ public class DataExportArchiveBuilder {
     private static void write(ZipOutputStream zip, String name, byte[] content, Instant at)
         throws IOException {
         ZipEntry entry = new ZipEntry(name);
-        // A fixed timestamp rather than "now": two archives of the same data then differ only
-        // where the data differs, which is what makes an archive comparable to the one before it.
+        // Every entry is stamped with the archive's generatedAt instant, so all entries and the
+        // manifest agree on when the archive was built rather than each carrying its own write
+        // time.
         entry.setTime(at.toEpochMilli());
         zip.putNextEntry(entry);
         zip.write(content);

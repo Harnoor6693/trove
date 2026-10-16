@@ -1,5 +1,7 @@
 # Database Inventory — Trove Monolith Collapse (DATABASE plan)
 
+> **Historical record, 2026-09-03.** Inventory of the ten pre-rebuild Flyway histories. The permission to rewrite migrations applied only before the rebuild; the current schema is one history ending at V46 and is not to be rewritten. Current state: `docs-site/guide/architecture.md`.
+
 Verified directly against source on 2026-09-03. Every migration file below was read in
 full (not sampled). Section O of `docs/recovery/01-FINDINGS.md` was treated as
 superseding earlier sections; where this report touches O6/O7 it is called out.

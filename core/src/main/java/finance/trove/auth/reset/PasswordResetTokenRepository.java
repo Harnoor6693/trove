@@ -38,7 +38,8 @@ public interface PasswordResetTokenRepository
     /**
      * Invalidates every outstanding link for one account.
      *
-     * <p>Called when a new one is issued and again when one is redeemed. Without it, an admin who
+     * <p>Called when a new link is issued; redeeming consumes only the redeemed token. Without it,
+     * an admin who
      * generates a second link because the first was mistyped leaves the first one live for the
      * rest of its hour — two valid resets for one account, only one of which anybody is watching.
      */

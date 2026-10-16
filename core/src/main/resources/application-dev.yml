@@ -3,7 +3,7 @@
 #
 # Defaults here cover convenience values only. Secrets still have no default: TROVE_JWT_SECRET
 # must be exported even in dev, because a shipped dev secret is exactly the "known value"
-# failure that §9 risk 16 and JwtProperties.validate() exist to prevent.
+# failure that §9 risk 16 and the JwtProperties constructor checks exist to prevent.
 
 spring:
   datasource:

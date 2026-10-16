@@ -54,7 +54,7 @@ public final class Amounts {
     /**
      * The direction of a signed amount: {@code DEBIT} below zero, {@code REFUND} when one of
      * {@code texts} (the row's description, name or memo) calls it a refund or a return, and
-     * {@code CREDIT} otherwise.
+     * {@code CREDIT} otherwise, and also when the text mentions tax (a tax refund is income).
      *
      * <p>B1-10: every importer typed a store's refund {@code CREDIT}, which the dashboard counts as
      * income, so a $300 return inflated income and left spending unreduced. {@code REFUND} is the

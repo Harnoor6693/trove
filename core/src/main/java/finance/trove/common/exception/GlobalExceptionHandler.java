@@ -36,8 +36,9 @@ import tools.jackson.core.JacksonException;
  *
  * <p>What the rewrite adds over the seven handlers it replaces: {@link ResponseStatusException}
  * (its own status, so Spring's own 404/415 keep the envelope), {@link AccessDeniedException}
- * → 403 and {@link AuthenticationException} → 401 (today an admin-route 403 falls through to a
- * bare 500 — gap P2-7), {@link ConstraintViolationException} alongside
+ * → 403 and {@link AuthenticationException} → 401 (in the handler this replaces, an admin-route
+ * 403 fell through to a bare 500 — gap P2-7, now closed here), {@link ConstraintViolationException}
+ * alongside
  * {@link MethodArgumentNotValidException}, {@link MaxUploadSizeExceededException} → 413 (a
  * receipt over the 20 MB multipart cap, §1.6), and {@link DataIntegrityViolationException} /
  * {@link OptimisticLockingFailureException} → 409.

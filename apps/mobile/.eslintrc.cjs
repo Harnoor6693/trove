@@ -8,8 +8,8 @@
  * were live in this codebase: `toLocaleString()` (device locale, not the
  * user's), a bare `'$'` (wrong for USD shown to a CAD user and vice versa),
  * and a hardcoded `'CAD'` (this app defaulted `MoneyDisplay` to it). Use
- * `useUserFormat()` — `src/lib/useUserFormat.ts` — which is the one exempted
- * module.
+ * `useUserFormat()` — `src/lib/useUserFormat.ts` — which is the formatting core
+ * (exempted, with the narrow overrides listed below).
  */
 const moneyFormattingRules = [
   {

@@ -21,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
  * {@code POST /v1/me/export} calls from one member all read {@code already == 0}, all walk past
  * the guard and all start a run — and the cap is the only ceiling on the most expensive
  * authenticated operation in the product. Each run reads the household's whole ledger plus
- * thirteen datasets into memory on the shared {@code exportExecutor} (2 core / 4 max / 50 queued)
+ * fourteen datasets into memory on the shared {@code exportExecutor} (2 core / 4 max / 50 queued)
  * and writes a ZIP to the data volume. Nothing in the schema catches it either: V41's indexes are
  * ordinary btrees, and a unique index cannot express "one per the member's own local day" because
  * that boundary comes from {@code users.timezone} rather than from the stored instant.

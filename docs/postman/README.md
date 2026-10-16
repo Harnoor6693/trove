@@ -32,7 +32,9 @@ Cookie mode is not used here — it demands the CSRF double-submit token
 (`X-XSRF-TOKEN`) dance, which a JSON-only Postman flow gains nothing from over bearer.
 
 1. Set the environment's `email` and `password` (left blank on purpose — no real
-   credential ships in this file).
+   credential ships in this file). The account must have the `ADMIN` role: the
+   Smoke folder reads `GET /v1/admin/users`, which a `MEMBER` receives as 403, so
+   the run fails.
 2. Open **Smoke → Sign in with an email address and password** and **Send**. Its test
    script reads the response and, on success, stores `accessToken` and `refreshToken`
    into the environment automatically — every later request in the collection picks
@@ -71,6 +73,7 @@ npx -y newman@6.2.2 run docs/postman/trove-core.postman_collection.json \
 
 `Smoke` is a folder of copies (login, the two unauthenticated/self reads, and one
 representative list read per resource domain) meant to run unattended against a fresh
-local server — this is what the docs-site/CI smoke task
-runs. It excludes tags with no safe idempotent read (Account security: every route
-mutates; Imports: every route needs an existing batch id).
+local server. Nothing in CI runs it; run it by hand. The account must have the
+`ADMIN` role, because the folder reads `GET /v1/admin/users` and a `MEMBER` gets 403.
+It excludes tags with no safe idempotent read (Account security: every route
+mutates; Imports: the upload mutates and every other route needs an existing batch id).

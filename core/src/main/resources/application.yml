@@ -8,9 +8,9 @@
 # dies further on (Postgres: "password authentication failed") rather than with a clear message.
 # The clear message therefore lives on the operator's side of the boundary: compose uses
 # ${VAR:?…} for every required row and refuses to create the container at all, and
-# core/.env.example documents each one. From collapse step 3 the values that are read by a
-# @ConfigurationProperties bean (trove.jwt.secret, trove.crypto.key) additionally get a
-# validate() that rejects a short or placeholder value at startup.
+# core/.env.example documents each one. From collapse step 3 trove.jwt.secret is additionally
+# checked in the JwtProperties constructor (rejects a short or placeholder value at startup),
+# and trove.crypto.key is checked at startup by FieldEncryptionService.
 #
 # Non-secrets may carry a default. Dev-only conveniences live in application-dev.yml.
 
@@ -153,7 +153,7 @@ trove:
 
   # Field encryption for the columns that hold a secret: the SimpleFIN access URL, a user's AI
   # API key, TOTP secrets, the OIDC state cookie (§1.5). Secret — no default, by policy.
-  # Unlike TROVE_JWT_SECRET this one IS read at startup by FieldEncryptionService, so an unset
+  # This one is read at startup by FieldEncryptionService, so an unset
   # or malformed value fails the boot immediately with a sentence naming the two accepted forms
   # (64 hex characters, or base64 of exactly 32 bytes).
   crypto:

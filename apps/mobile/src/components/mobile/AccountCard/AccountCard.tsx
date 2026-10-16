@@ -13,27 +13,6 @@ import {
 import type { AccountResponse } from '@api/types';
 
 /**
- * One row of the accounts list.
- *
- * The account's **own** currency is shown, never the member's reporting one:
- * `AccountResponse.currency` is the denomination every transaction stored
- * against this account was written in, and there is no exchange rate anywhere
- * in this product. The card therefore states the code beside the type rather
- * than leaving the reader to assume.
- *
- * Sync state is a word (`ACCOUNT_SYNC_STATUS_LABEL`) with a colour behind it,
- * not a colour alone, and `errorMessage` — the reason the last run failed — is
- * rendered rather than swallowed.
- *
- * **There is no balance on this card because the contract carries none.**
- * `AccountResponse` has no `balance` or current-value property, and no other
- * operation in the accounts family exposes one, so a figure here could only be
- * computed on the phone from a page of transactions — a number the server
- * never agreed to, in a product where nothing is ever summed across
- * currencies. The gap is reported in step 211's openIssues for the
- * orchestrator to weigh; it is not something a client fills in.
- */
-/**
  * How fresh a bank connection is (C-01r): "Synced 3 hours ago" on screen, the
  * exact time in the member's zone as the accessibility label. Only a SimpleFIN
  * account — the kind the scheduled sync refreshes — gets the relative wording;
@@ -58,6 +37,27 @@ export interface AccountCardProps {
   testID?: string;
 }
 
+/**
+ * One row of the accounts list.
+ *
+ * The account's **own** currency is shown, never the member's reporting one:
+ * `AccountResponse.currency` is the denomination every transaction stored
+ * against this account was written in, and there is no exchange rate anywhere
+ * in this product. The card therefore states the code beside the type rather
+ * than leaving the reader to assume.
+ *
+ * Sync state is a word (`ACCOUNT_SYNC_STATUS_LABEL`) with a colour behind it,
+ * not a colour alone, and `errorMessage` — the reason the last run failed — is
+ * rendered rather than swallowed.
+ *
+ * **There is no balance on this card because the contract carries none.**
+ * `AccountResponse` has no `balance` or current-value property, and no other
+ * operation in the accounts family exposes one, so a figure here could only be
+ * computed on the phone from a page of transactions — a number the server
+ * never agreed to, in a product where nothing is ever summed across
+ * currencies. The contract carries no balance for an account, so none is
+ * shown; showing one would need a server-side figure.
+ */
 export function AccountCard({ account, onPress, testID }: AccountCardProps) {
   const theme = useTheme();
   const format = useUserFormat();

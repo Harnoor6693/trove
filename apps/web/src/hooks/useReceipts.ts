@@ -68,8 +68,8 @@ export function useReceipt(id: string | null) {
  * `GET /v1/receipts/{id}/status`, polled to completion.
  *
  * `COMPLETE` and `FAILED` are terminal and the interval stops on either — a
- * poller that keeps asking after a terminal status is a request per second per
- * open tab, for ever. The route exists precisely so this costs a fraction of
+ * poller that keeps asking after a terminal status is a request every two seconds
+ * (the default interval) per open tab, for ever. The route exists precisely so this costs a fraction of
  * refetching the whole row, so nothing here polls `getReceipt` instead.
  */
 export function useReceiptStatus(id: string | null, opts: { intervalMs?: number } = {}) {

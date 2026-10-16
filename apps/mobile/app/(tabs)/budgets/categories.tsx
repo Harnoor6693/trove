@@ -222,9 +222,9 @@ function CategoryForm({
   const failure: ApiFailure | null =
     pending.error == null ? null : toApiFailure(pending.error, 'Could not save that category.');
 
-  // A category cannot become its own ancestor, and it cannot pick itself as a
-  // parent — the server would 400 `validation-error`, but there is no reason
-  // to offer the choice the client already knows is wrong.
+  // A category cannot pick itself as its parent, so the picker leaves it out.
+  // Choosing one of its own descendants would make it its own ancestor; the
+  // picker does not filter those, and the server answers 400 `validation-error`.
   const parentChoices = categories.filter((c) => c.id !== category?.id);
 
   const submit = () => {

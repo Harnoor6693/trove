@@ -228,7 +228,7 @@ cmd_bootstrap() {
   if [ -f "$ENV_FILE" ]; then
     say "deploy/.env already exists — nothing to do."
     say "Secrets are never regenerated automatically (that would lock you out of"
-    say "your own data). To rotate one, see deploy/README.md -> Key rotation."
+    say "your own data). For what can and cannot be rotated, see deploy/README.md section 7 (\"Key rotation is partial\")."
     return 0
   fi
 

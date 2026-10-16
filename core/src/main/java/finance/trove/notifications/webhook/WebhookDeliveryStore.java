@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * The two short transactions the split {@code deliver()} needs, and nothing else
+ * The two short transactions the split {@code deliverDue()} needs, and nothing else
  * ({@code docs/recovery/06-COLLAPSE-PLAN.md} §6 D3).
  *
  * <h2>Why a class and not a Spring Data interface</h2>
@@ -125,7 +125,8 @@ public class WebhookDeliveryStore {
      * a delivery the member had just cancelled and then failing the foreign key. An UPDATE simply
      * affects nothing.
      *
-     * <p>It also writes exactly the five columns an attempt owns. Everything else on the row is
+     * <p>It also writes exactly the six columns an attempt owns (status, attempt_count,
+     * next_attempt_at, last_status_code, error_message, updated_at). Everything else on the row is
      * immutable after insert, so nothing here can overwrite state that changed while the call was
      * in flight.
      *
@@ -148,7 +149,7 @@ public class WebhookDeliveryStore {
         return updated == 1;
     }
 
-    /** One row by id, for tests and for the retry loop's re-read. Detached. */
+    /** One row by id, for tests. Detached. */
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public WebhookDeliveryLog find(UUID id) {
         WebhookDeliveryLog row = entityManager.find(WebhookDeliveryLog.class, id);

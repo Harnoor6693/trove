@@ -27,10 +27,10 @@ import { CategoryPicker } from '@components/ui/CategoryPicker/CategoryPicker';
 
 /**
  * `/v1/categories/rules*` — the household's merchant rules, in the ORDER
- * `listCategoryRules` returns them (`priority` ascending). Reorder is
- * reachable two ways: a drag gesture would be unreachable with a screen
- * reader, so move-up/move-down buttons with accessible names are the
- * PRIMARY control here, not a fallback bolted onto a drag list.
+ * `listCategoryRules` returns them (`priority` ascending). Reorder is by
+ * move-up/move-down buttons with accessible names (there is no drag gesture,
+ * which a screen-reader user could not reach). The buttons call
+ * `POST /v1/categories/rules/reorder`.
  */
 export default function CategoryRulesScreen() {
   const theme = useTheme();

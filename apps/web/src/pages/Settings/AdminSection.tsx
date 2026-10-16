@@ -6,7 +6,7 @@
  *
  * Every operation here declares `x-trove-required-role: ADMIN`. This component
  * checks the role from the server's own `me` response purely so a MEMBER's
- * Settings page does not fire four pointless 403s — the SERVER is what refuses,
+ * Settings page does not fire three pointless 403s (members, settings, audit log) — the SERVER is what refuses,
  * always. A member who reaches this surface anyway (a stale `me`, a demotion
  * mid-session, someone poking at the store) gets a clean, explained 403 state
  * rather than a broken page: that is what `retry: false` plus the forbidden

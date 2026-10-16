@@ -164,9 +164,10 @@ public class TransactionService {
         try {
             saved = transactions.save(transaction);
         } catch (DataIntegrityViolationException e) {
-            // merchant_category_map.category_id is ON DELETE RESTRICT and category_override's
-            // category_id has no cascade either, so a category that vanished between the
-            // visibility check and the write surfaces here rather than as a 500.
+            // If the category vanished between the visibility check and the write, the FK on
+            // transaction.category_id or category_override.category_id rejects it, which surfaces
+            // here rather than as a 500. (Deleting a category cascades the pin since V46;
+            // merchant_category_map.category_id is ON DELETE RESTRICT.)
             throw new ConflictException(
                 "The transaction could not be updated because a referenced row changed. "
                     + "Reload and try again.", e);
@@ -263,9 +264,10 @@ public class TransactionService {
     /**
      * Publishes {@link TransactionCategorisedEvent} (§6 D4 → D1).
      *
-     * <p>Nothing consumes it in this step — {@code EnvelopeSpendListener} is step 8's and
-     * {@code CategorisationListener} step 16's. Publishing it now is what lets those steps be
-     * additive: they add a listener, they do not have to go back and find every write path.
+     * <p>Consumed after commit by {@code EnvelopeSpendListener}. {@code CategorisationListener}
+     * listens to {@code TransactionsIngestedEvent} instead. Publishing it from every write path
+     * keeps new listeners additive: they add a listener, they do not have to go back and find
+     * every write path.
      *
      * <p>The month comes from the transaction's own {@code date}, which is already a calendar date
      * in the source's terms, so no timezone conversion is involved or wanted here.

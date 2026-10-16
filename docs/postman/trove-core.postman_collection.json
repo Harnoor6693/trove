@@ -24,7 +24,7 @@
   "info": {
     "_postman_id": "00000000-0000-0000-0000-000000000026",
     "description": {
-      "content": "The HTTP contract of the Trove core service. Four rules run through all of it.\n\n**The envelope.** Every route below answers with\n`ApiResponse{success, data, error, meta}`. A success is `{\"success\": true}`\nplus `data` when the operation returns a value (`data` is *omitted*, not\nnull, when it returns none — Jackson serialises the envelope with\n`@JsonInclude(NON_NULL)`). A failure is `{\"success\": false, \"error\": {…}}`\nwith no `data`. `meta` carries pagination and is absent on every operation\nin this version. The single exception to the envelope in the whole API is\n`GET /v1/status`, which is bare so an uptime probe has something trivial to\nkey off.\n\n**Auth modes.** One session, two carriers, chosen per request with\n`X-Trove-Auth-Mode`. In **bearer** mode (the default when the header is\nabsent, and what the mobile client uses) the tokens come back in the\nresponse body and the caller sends `Authorization: Bearer …`. In **cookie**\nmode (`X-Trove-Auth-Mode: cookie`, what the web client sends) the body\ncarries no tokens at all and the server sets `__Host-trove_access` and\n`__Host-trove_refresh` — HttpOnly, Secure, SameSite=Lax, Path=/. Because\nthe two modes return different shapes, every session-bearing response is a\n`oneOf` and the client discriminates on which fields are present.\n\n**CSRF.** Demanded only of requests that carry an ambient browser\ncredential — but the two demands are separate rules with different\ntriggers, and a client that conflates them will send a header the server\nnever asked for or, worse, expect one it does not get.\n\n* The **double-submit token** (`X-XSRF-TOKEN`, echoing the non-HttpOnly\n  `XSRF-TOKEN` cookie the server plants) is demanded of any mutating\n  request that either presents a session cookie or declares\n  `X-Trove-Auth-Mode: cookie` — *including the browser's anonymous login\n  and register*, because login CSRF, logging a victim into the attacker's\n  account, is a real attack and only the token stops it.\n* **`X-Requested-With: XMLHttpRequest`** is demanded only once a request\n  has actually authenticated **through the session cookie**. An anonymous\n  cookie-mode login or register has no session to ride and does not need\n  it, though the web client sends it on everything anyway.\n\nA bearer caller sends neither and is never checked — a third-party page\ncannot set an `Authorization` header, so there is nothing to ride. A\nmissing token is 403 `forbidden`; a missing `X-Requested-With` on a\ncookie-authenticated mutation is 403 `csrf-header-missing`.\n\n**Errors.** RFC 7807 inside the envelope:\n`error{type, title, status, detail, instance, requestId, fieldErrors}`.\n`type` is always `https://trove.finance/errors/<slug>` and the slug — not\nthe status, not the prose — is what clients switch on. `instance` is the\nmatched route template (`/api/v1/auth/invites/{token}`), never the caller's\nraw URI. `requestId` is echoed in the `X-Request-Id` response header and is\nthe string to quote when reporting a 500. `fieldErrors` is present only on\na 400 that failed field validation, as `[{field, message}]`.\n\nRequests that match no operation are answered outside this document:\nan unknown path is 404 `not-found`, a known path with an unsupported method\nis 405 `method-not-allowed`, and a body sent with an unsupported media type\ncurrently falls through to 500 `internal-server-error`.\n\n\nContact Support:\n Name: Trove",
+      "content": "The HTTP contract of the Trove core service. Four rules run through all of it.\n\n**The envelope.** Every route below answers with\n`ApiResponse{success, data, error, meta}`. A success is `{\"success\": true}`\nplus `data` when the operation returns a value (`data` is *omitted*, not\nnull, when it returns none — Jackson serialises the envelope with\n`@JsonInclude(NON_NULL)`). A failure is `{\"success\": false, \"error\": {…}}`\nwith no `data`. `meta` carries pagination (`PaginationMeta`) and is present\nonly on paged list operations such as `GET /v1/audit` and `GET\n/v1/me/export`; it is absent everywhere else. The only JSON response that is not an envelope is\n`GET /v1/status`, which is bare so an uptime probe has something trivial to\nkey off.\n\n**Auth modes.** One session, two carriers, chosen per request with\n`X-Trove-Auth-Mode`. In **bearer** mode (the default when the header is\nabsent, and what the mobile client uses) the tokens come back in the\nresponse body and the caller sends `Authorization: Bearer …`. In **cookie**\nmode (`X-Trove-Auth-Mode: cookie`, what the web client sends) the body\ncarries no tokens at all and the server sets `__Host-trove_access` and\n`__Host-trove_refresh` — HttpOnly, Secure, SameSite=Lax, Path=/. Because\nthe two modes return different shapes, every session-bearing response is a\n`oneOf` and the client discriminates on which fields are present.\n\n**CSRF.** Demanded only of requests that carry an ambient browser\ncredential — but the two demands are separate rules with different\ntriggers, and a client that conflates them will send a header the server\nnever asked for or, worse, expect one it does not get.\n\n* The **double-submit token** (`X-XSRF-TOKEN`, echoing the non-HttpOnly\n  `XSRF-TOKEN` cookie the server plants) is demanded of any mutating\n  request that either presents a session cookie or declares\n  `X-Trove-Auth-Mode: cookie` — *including the browser's anonymous login\n  and register*, because login CSRF, logging a victim into the attacker's\n  account, is a real attack and only the token stops it.\n* The **`XSRF-TOKEN` cookie is replaced** on every cookie-mode sign-in\n  (`/v1/auth/register`, `/v1/auth/login` when it returns a session,\n  `/v1/auth/login/totp`, and OIDC). A client must re-read the cookie and\n  send the new value from then on. `POST /v1/auth/refresh` keeps the\n  existing token, so a request replayed after a refresh still carries a\n  valid value. A bearer-mode sign-in does not replace it.\n* **`X-Requested-With: XMLHttpRequest`** is demanded only once a request\n  has actually authenticated **through the session cookie**. An anonymous\n  cookie-mode login or register has no session to ride and does not need\n  it, though the web client sends it on everything anyway.\n\nA bearer caller sends neither and is never checked — a third-party page\ncannot set an `Authorization` header, so there is nothing to ride. A\nmissing token is 403 `forbidden`; a missing `X-Requested-With` on a\ncookie-authenticated mutation is 403 `csrf-header-missing`.\n\n**Errors.** RFC 7807 inside the envelope:\n`error{type, title, status, detail, instance, requestId, fieldErrors}`.\n`type` is always `https://trove.finance/errors/<slug>` and the slug — not\nthe status, not the prose — is what clients switch on. `instance` is the\nmatched route template (`/api/v1/auth/invites/{token}`), never the caller's\nraw URI. `requestId` is echoed in the `X-Request-Id` response header and is\nthe string to quote when reporting a 500. `fieldErrors` is present only on\na 400 that failed field validation, as `[{field, message}]`.\n\nRequests that match no operation are answered outside this document:\nan unknown path is 404 `not-found`, a known path with an unsupported method\nis 405 `method-not-allowed`, and a body sent with an unsupported media type\ncurrently falls through to 500 `internal-server-error`.\n\n\nContact Support:\n Name: Trove",
       "type": "text/plain"
     },
     "name": "Trove core API",
@@ -157,7 +157,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "The unauthenticated, detail-free probe. **The one route in the API whose\nbody is not the `ApiResponse` envelope** — it is bare so that an uptime\ncheck, the SPA's degraded state and `trove status` all have something\ntrivial to key off.\n\n`status` is the actuator aggregate collapsed to two words: anything that\nis not `UP` is `DEGRADED`. Which component is unhappy is management-port\ninformation (port 9090) and never crosses this boundary.\n",
+              "content": "The unauthenticated, detail-free probe. **The one JSON route whose\nbody is not the `ApiResponse` envelope** — it is bare so that an uptime\ncheck and the SPA's degraded state have something trivial to key off.\n\n`status` is the actuator aggregate collapsed to two words: anything that\nis not `UP` is `DEGRADED`. Which component is unhappy is management-port\ninformation (port 9090) and never crosses this boundary.\n",
               "type": "text/plain"
             },
             "header": [
@@ -192,7 +192,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "The session read both clients hydrate from on every app start. Read fresh\nfrom the database rather than assembled from token claims: a token lives\nfifteen minutes, and a display name, locale or `onboardingCompleted` flag\nchanged inside that window has to be visible on the next read — the\nalternative is a settings screen that appears not to have saved.\n\nIt lives under `/v1/auth/` rather than `/v1/me` because that is where the\nshipped clients call it, and it is on their never-refresh list.\n\nIdentity comes from the signed token. No route in this group takes a user\nid from a path, a query or a body.\n",
+              "content": "The session read both clients hydrate from on every app start. Read fresh\nfrom the database rather than assembled from token claims: a token lives\nfifteen minutes, and a display name, locale or `onboardingCompleted` flag\nchanged inside that window has to be visible on the next read — the\nalternative is a settings screen that appears not to have saved.\n\nIt lives under `/v1/auth/` rather than `/v1/me` because that is where\nthe shipped clients call it; the web client calls it with refresh-on-401\nswitched off for the first-visit probe (`skipAuthRefresh`), so an\nanonymous 401 stays a 401.\n\nIdentity comes from the signed token. No route in this group takes a user\nid from a path, a query or a body.\n",
               "type": "text/plain"
             },
             "header": [
@@ -631,7 +631,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "Every non-cancelled `detected_subscription` of the caller's household,\nordered by normalised merchant name. One shared ledger per household\n(owner decision), so a household mate sees exactly the same list;\n`createdBy` records the member the detection was attributed to and is\nfor audit only, never for scoping.\n\nRows here are written **only** by detection — the nightly\n`subscription-scan` job, `POST /v1/subscriptions/scan`, and the listener\nthat runs after an import or a sync writes transactions. There is no\ncreate or update route: a subscription is an observation about the\nledger, not something a member authors.\n\nCancelled rows are excluded. `DELETE /v1/subscriptions/{id}` is a soft\ndelete, so a cancelled subscription disappears from this list but is\nstill readable by id.\n",
+              "content": "Every non-cancelled `detected_subscription` of the caller's household\nwhose charges have not stopped (a next charge more than three whole\nbilling cycles overdue hides the row until charges resume), ordered by\nnormalised merchant name. One shared ledger per household\n(owner decision), so a household mate sees exactly the same list;\n`createdBy` records the member the detection was attributed to and is\nfor audit only, never for scoping.\n\nRows here are written **only** by detection — the nightly\n`subscription-scan` job, `POST /v1/subscriptions/scan`, and the listener\nthat runs after an import or a sync writes transactions. There is no\ncreate or update route: a subscription is an observation about the\nledger, not something a member authors.\n\nCancelled rows are excluded. `DELETE /v1/subscriptions/{id}` is a soft\ndelete, so a cancelled subscription disappears from this list but is\nstill readable by id.\n",
               "type": "text/plain"
             },
             "header": [
@@ -783,7 +783,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "One page of the caller's undismissed notifications, newest first.\n\n**Per member, not per household.** This is one of the three areas of\nthis API where a household mate is refused rather than served: the\nledger is shared, but a notification is addressed to one person and\nanother member's inbox is 404, never 403. The rows are written by\n`NotificationService` on the events the ledger raises — an envelope\ncrossing that member's own alert threshold, a detected price change, a\nfailed account sync — and by the Monday digest.\n\nDismissing a notification (`DELETE /v1/notifications/{id}`) removes it\nfrom this list permanently; the row itself is retained, so this is a\nhide rather than a delete.\n",
+              "content": "One page of the caller's undismissed notifications, newest first.\n\n**Per member, not per household.** This is one of the areas of this API\nwhere a household mate is refused rather than served: the\nledger is shared, but a notification is addressed to one person and\nanother member's inbox is 404, never 403. The rows are written by\n`NotificationService` on the events the ledger raises — an envelope\ncrossing that member's own alert threshold, a detected price change, a\nfailed account sync — and by the Monday digest.\n\nDismissing a notification (`DELETE /v1/notifications/{id}`) removes it\nfrom this list permanently; the row itself is retained, so this is a\nhide rather than a delete.\n",
               "type": "text/plain"
             },
             "header": [
@@ -959,7 +959,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "The unauthenticated, detail-free probe. **The one route in the API whose\nbody is not the `ApiResponse` envelope** — it is bare so that an uptime\ncheck, the SPA's degraded state and `trove status` all have something\ntrivial to key off.\n\n`status` is the actuator aggregate collapsed to two words: anything that\nis not `UP` is `DEGRADED`. Which component is unhappy is management-port\ninformation (port 9090) and never crosses this boundary.\n",
+              "content": "The unauthenticated, detail-free probe. **The one JSON route whose\nbody is not the `ApiResponse` envelope** — it is bare so that an uptime\ncheck and the SPA's degraded state have something trivial to key off.\n\n`status` is the actuator aggregate collapsed to two words: anything that\nis not `UP` is `DEGRADED`. Which component is unhappy is management-port\ninformation (port 9090) and never crosses this boundary.\n",
               "type": "text/plain"
             },
             "header": [
@@ -1576,7 +1576,7 @@
       "name": "Authentication"
     },
     {
-      "description": "Credential management for an account that is already signed in — password\nchange, admin-minted reset links, TOTP enrolment and removal. Every route\nhere except the two reset endpoints re-proves the password (step-up).\n",
+      "description": "Credential management for an account that is already signed in — password\nchange, admin-minted reset links, TOTP enrolment and removal. Every route\nhere re-proves the password (step-up) except the two reset endpoints and\n`POST /v1/auth/totp/confirm`, which confirms an enrolment that was itself\nstarted behind a password.\n",
       "item": [
         {
           "event": [],
@@ -2119,7 +2119,7 @@
       "name": "Account security"
     },
     {
-      "description": "The caller's own profile, preferences and security history.",
+      "description": "The caller's own profile, preferences and security history, plus self-service account deletion and full data export.",
       "item": [
         {
           "event": [],
@@ -2131,7 +2131,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "The session read both clients hydrate from on every app start. Read fresh\nfrom the database rather than assembled from token claims: a token lives\nfifteen minutes, and a display name, locale or `onboardingCompleted` flag\nchanged inside that window has to be visible on the next read — the\nalternative is a settings screen that appears not to have saved.\n\nIt lives under `/v1/auth/` rather than `/v1/me` because that is where the\nshipped clients call it, and it is on their never-refresh list.\n\nIdentity comes from the signed token. No route in this group takes a user\nid from a path, a query or a body.\n",
+              "content": "The session read both clients hydrate from on every app start. Read fresh\nfrom the database rather than assembled from token claims: a token lives\nfifteen minutes, and a display name, locale or `onboardingCompleted` flag\nchanged inside that window has to be visible on the next read — the\nalternative is a settings screen that appears not to have saved.\n\nIt lives under `/v1/auth/` rather than `/v1/me` because that is where\nthe shipped clients call it; the web client calls it with refresh-on-401\nswitched off for the first-visit probe (`skipAuthRefresh`), so an\nanonymous 401 stays a 401.\n\nIdentity comes from the signed token. No route in this group takes a user\nid from a path, a query or a body.\n",
               "type": "text/plain"
             },
             "header": [
@@ -3462,7 +3462,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "**Requires the `ADMIN` role.**\n\nTwo flags. Both are read from the household row rather than from\nconfiguration, so an admin's runtime decision — not the boot-time\nenvironment variable — is what the sign-in page and the scheduled\nbank sync obey.\n",
+              "content": "**Requires the `ADMIN` role.**\n\nTwo flags. `registrationOpen` is seeded once from the environment on\nfirst boot; `scheduledSyncEnabled` has no environment seed and starts\noff. Both are then read from the household row, so the admin's decision\nis what the sign-in page and the scheduled bank sync obey.\n",
               "type": "text/plain"
             },
             "header": [
@@ -3516,7 +3516,7 @@
               "raw": "{\n  \"registrationOpen\": true\n}"
             },
             "description": {
-              "content": "**Requires the `ADMIN` role.**\n\nA partial update: an absent or null field leaves that flag alone, and\nan empty body returns the current settings unchanged. A value is written\nto the household row so it survives a restart; the environment variable\nis only ever a seed for the first boot.\n",
+              "content": "**Requires the `ADMIN` role.**\n\nA partial update: an absent or null field leaves that flag alone, and\nan empty body returns the current settings unchanged. A value is written\nto the household row so it survives a restart; the environment variable\n(for `registrationOpen` only) is only ever a seed for the first boot;\n`scheduledSyncEnabled` has none.\n",
               "type": "text/plain"
             },
             "header": [
@@ -3583,7 +3583,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "**Requires the `ADMIN` role.**\n\nOne row per mutating request (`POST`, `PUT`, `PATCH`, `DELETE`) the\ninstall handled: what was called, what it answered, who was signed in,\nfrom where, and how long it took. Newest first, paged. Reads are not\nrecorded — they would dominate the table, and the question it exists to\nanswer is \"what changed, and who changed it\".\n\n`path` is the matched **route template** (`/api/v1/admin/users/{id}`),\nnever the caller's raw URI. Two routes on this API carry a live credential\nin the path, and a table that stored the URI would become a second,\npermanent, plaintext copy of every invitation token this install has ever\nissued. Nothing else about the request is kept: no body, no headers, no\nquery string, no token.\n\nScoped to the caller's own household. `userId` and `clientIp` are null\nwhen the server had neither — an unauthenticated request has no user, and\na request made in-process has no address — and `userId` keeps the raw id\nof an account that is later deleted, because an incident review must not\nbe erasable by deleting an account.\n",
+              "content": "**Requires the `ADMIN` role.**\n\nOne row per mutating request (`POST`, `PUT`, `PATCH`, `DELETE`) the\ninstall handled: what was called, what it answered, who was signed in,\nfrom where, and how long it took. Newest first, paged. Reads are not\nrecorded — they would dominate the table, and the question it exists to\nanswer is \"what changed, and who changed it\".\n\n`path` is the matched **route template** (`/api/v1/admin/users/{id}`),\nnever the caller's raw URI. One route on this API (`GET\n/v1/auth/invites/{token}`) carries a live credential in the path. It is\na read, so it is never recorded, but the table stores the route template\nregardless, so that a future change to the audit scope could never turn\nit into a second, permanent, plaintext copy of every invitation token\nthis install has issued. Nothing else about the request is kept: no body, no headers, no\nquery string, no token.\n\nScoped to the caller's own household. `userId` and `clientIp` are null\nwhen the server had neither — an unauthenticated request has no user, and\na request made in-process has no address — and `userId` keeps the raw id\nof an account that is later deleted, because an incident review must not\nbe erasable by deleting an account.\n",
               "type": "text/plain"
             },
             "header": [
@@ -6403,7 +6403,7 @@
               "query": [
                 {
                   "description": {
-                    "content": "The window to report. `ALL` has no lower bound. Any other value is\n400 `validation-error`, which is why this is a real enum rather\nthan a free string.\n (This can only be one of 3M,6M,1Y,ALL)",
+                    "content": "The window to report. `3M`, `6M` and `1Y` reach back 90, 180 and\n365 days from the caller's own today; `ALL` reaches back to\n2000-01-01. Any other value is 400 `validation-error`, which is why this is a real enum rather\nthan a free string.\n (This can only be one of 3M,6M,1Y,ALL)",
                     "type": "text/plain"
                   },
                   "disabled": false,
@@ -7063,7 +7063,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "Every non-cancelled `detected_subscription` of the caller's household,\nordered by normalised merchant name. One shared ledger per household\n(owner decision), so a household mate sees exactly the same list;\n`createdBy` records the member the detection was attributed to and is\nfor audit only, never for scoping.\n\nRows here are written **only** by detection — the nightly\n`subscription-scan` job, `POST /v1/subscriptions/scan`, and the listener\nthat runs after an import or a sync writes transactions. There is no\ncreate or update route: a subscription is an observation about the\nledger, not something a member authors.\n\nCancelled rows are excluded. `DELETE /v1/subscriptions/{id}` is a soft\ndelete, so a cancelled subscription disappears from this list but is\nstill readable by id.\n",
+              "content": "Every non-cancelled `detected_subscription` of the caller's household\nwhose charges have not stopped (a next charge more than three whole\nbilling cycles overdue hides the row until charges resume), ordered by\nnormalised merchant name. One shared ledger per household\n(owner decision), so a household mate sees exactly the same list;\n`createdBy` records the member the detection was attributed to and is\nfor audit only, never for scoping.\n\nRows here are written **only** by detection — the nightly\n`subscription-scan` job, `POST /v1/subscriptions/scan`, and the listener\nthat runs after an import or a sync writes transactions. There is no\ncreate or update route: a subscription is an observation about the\nledger, not something a member authors.\n\nCancelled rows are excluded. `DELETE /v1/subscriptions/{id}` is a soft\ndelete, so a cancelled subscription disappears from this list but is\nstill readable by id.\n",
               "type": "text/plain"
             },
             "header": [
@@ -8525,7 +8525,7 @@
       "name": "Budgets"
     },
     {
-      "description": "The tax-time export: a per-member CSV or PDF of a whole calendar year of\nthe household's ledger, categorised and labelled with the line each\ncategory belongs on in the member's own jurisdiction (CA or US).\n\n**Per member, not per household** — the one place on this API where a\nhousehold mate is refused. The rows come from the shared ledger; the run,\nthe file and the line overrides belong to one member, and another\nmember's run is 404.\n\n**No tax is computed anywhere.** There is no rate, no bracket, no GST or\nsales-tax split and no total owing in any schema here: line codes and\nlabels are strings a human reads off a form, and the only figures are the\nmember's own amounts, summed per line and per currency without conversion.\n",
+      "description": "The tax-time export: a per-member CSV or PDF of a whole calendar year of\nthe household's ledger, categorised and labelled with the line each\ncategory belongs on in the member's own jurisdiction (CA or US).\n\n**Per member, not per household** — one of the areas of this API (with\nnotifications, webhooks, AI settings and coach, and the full data export)\nwhere a household mate is refused rather than served. The rows come from the shared ledger; the run,\nthe file and the line overrides belong to one member, and another\nmember's run is 404.\n\n**No tax is computed anywhere.** There is no rate, no bracket, no GST or\nsales-tax split and no total owing in any schema here: line codes and\nlabels are strings a human reads off a form, and the only figures are the\nmember's own amounts, summed per line and per currency without conversion.\n",
       "item": [
         {
           "event": [],
@@ -9004,7 +9004,7 @@
       "name": "Tax export"
     },
     {
-      "description": "Each member's own notification inbox and the preferences that govern it.\n\n**Per member, not per household** — one of the three areas of this API\nwhere a household mate is refused rather than served. The ledger is\nshared; a notification is addressed to one person, so another member's\ninbox, preferences and webhooks are 404 by id, never 403.\n\n**There is no push channel and no device registration**, and that is a\ndecision rather than an omission (owner, 2026-09-03): no push until a\ndirect APNs/FCM path exists, and no Expo relay. Mobile polls\n`GET /v1/notifications/unread-count` and raises a client-local\nnotification from the result. Two channels exist server-side, `IN_APP`\nand `EMAIL`, and email is off on every install until SMTP is configured.\n",
+      "description": "Each member's own notification inbox and the preferences that govern it.\n\n**Per member, not per household** — one of the areas of this API where a\nhousehold mate is refused rather than served. The ledger is\nshared; a notification is addressed to one person, so another member's\ninbox, preferences and webhooks are 404 by id, never 403.\n\n**There is no push channel and no device registration**, and that is a\ndecision rather than an omission (owner, 2026-09-03): no push until a\ndirect APNs/FCM path exists, and no Expo relay. Mobile polls\n`GET /v1/notifications/unread-count` and raises a client-local\nnotification from the result. Two channels exist server-side, `IN_APP`\nand `EMAIL`, and email is off on every install until SMTP is configured.\n",
       "item": [
         {
           "event": [],
@@ -9016,7 +9016,7 @@
             "auth": null,
             "body": {},
             "description": {
-              "content": "One page of the caller's undismissed notifications, newest first.\n\n**Per member, not per household.** This is one of the three areas of\nthis API where a household mate is refused rather than served: the\nledger is shared, but a notification is addressed to one person and\nanother member's inbox is 404, never 403. The rows are written by\n`NotificationService` on the events the ledger raises — an envelope\ncrossing that member's own alert threshold, a detected price change, a\nfailed account sync — and by the Monday digest.\n\nDismissing a notification (`DELETE /v1/notifications/{id}`) removes it\nfrom this list permanently; the row itself is retained, so this is a\nhide rather than a delete.\n",
+              "content": "One page of the caller's undismissed notifications, newest first.\n\n**Per member, not per household.** This is one of the areas of this API\nwhere a household mate is refused rather than served: the\nledger is shared, but a notification is addressed to one person and\nanother member's inbox is 404, never 403. The rows are written by\n`NotificationService` on the events the ledger raises — an envelope\ncrossing that member's own alert threshold, a detected price change, a\nfailed account sync — and by the Monday digest.\n\nDismissing a notification (`DELETE /v1/notifications/{id}`) removes it\nfrom this list permanently; the row itself is retained, so this is a\nhide rather than a delete.\n",
               "type": "text/plain"
             },
             "header": [
