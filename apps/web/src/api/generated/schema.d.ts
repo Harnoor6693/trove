@@ -2184,8 +2184,18 @@ export interface paths {
          *     The category must be one this household can see (a system category or its
          *     own); anything else is 400 `validation-error`.
          *
+         *     `transferPartnerId` links this row and the named one as the two legs of
+         *     one transfer **in a single request**: the server mints the group id and
+         *     writes it onto both rows in one database transaction, so either both are
+         *     linked or neither is. It is 400 when sent together with
+         *     `transferGroupId` or when it names this row itself, 404 when the partner
+         *     is not a transaction of the caller's household, and 409 `conflict` when
+         *     either row is already a transfer leg (unlink it first). A refusal writes
+         *     nothing — not the link, and not any other field in the same body.
+         *
          *     `transferGroupId` marks or unlinks a transfer leg by hand, alongside the
-         *     automatic pairing job. Amount, date, account and type are not writable —
+         *     automatic pairing job; `{"transferGroupId": null}` unlinks this row and
+         *     frees its partner. Amount, date, account and type are not writable —
          *     a wrong ingested amount is a source problem, and a wrong manual one is a
          *     delete and a re-entry.
          */
@@ -6411,9 +6421,21 @@ export interface components {
             /**
              * Format: uuid
              * @description Marks this row as one leg of a transfer, or, with `null`, unlinks it.
+             *     To link two rows, send `transferPartnerId` instead: it writes both
+             *     legs at once.
              * @example null
              */
             transferGroupId?: string | null;
+            /**
+             * Format: uuid
+             * @description Links this row and the named transaction as the two legs of one
+             *     transfer, atomically, under a group id the server mints. Not
+             *     nullable, and not combinable with `transferGroupId` (400). The
+             *     partner must be another transaction of the caller's household (404
+             *     otherwise), and neither row may already be a transfer leg (409).
+             * @example 00000000-0000-4000-8000-0000000000e2
+             */
+            transferPartnerId?: string;
         };
         /**
          * @description One currency's subtotals. Currencies are never converted into one
