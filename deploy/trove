@@ -725,6 +725,12 @@ cmd_restore() {
   [ -f "${staging}/database.dump" ] || die "archive has no database.dump" "wrong file, or the wrong passphrase/key"
   cat "${staging}/manifest.txt" 2>/dev/null || true
 
+  # --include-secrets replaces deploy/.env with the archive's: refuse now, before anything is
+  # touched, if that env turns monitoring on without a Grafana password.
+  if [ "$include_secrets" -eq 1 ] && [ -f "${staging}/env.secrets" ]; then
+    ( unset COMPOSE_PROFILES GRAFANA_ADMIN_PASSWORD; ENV_FILE="${staging}/env.secrets"; load_env; require_monitoring_password ) || exit 1
+  fi
+
   head1 "Stopping the application (postgres stays up)"
   compose stop trove-core web || true
 
@@ -764,7 +770,6 @@ cmd_restore() {
     chmod 600 "$ENV_FILE"
     load_env
     derive_tls_vars
-    require_monitoring_password
     ok "deploy/.env restored from the archive"
   else
     say ""
