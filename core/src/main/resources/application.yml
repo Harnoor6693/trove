@@ -258,9 +258,10 @@ trove:
 
   # Whether ANY private or loopback outbound target (RFC 1918, loopback, CGNAT, IPv6 ULA) may be
   # opted into on this install. Link-local, the cloud metadata addresses and the unspecified,
-  # multicast and reserved ranges are always refused (§1.6, gap P2-10). False by default. Even when true, an individual member must additionally
-  # opt their own endpoint in — both keys are required, because a LAN Ollama is the primary AI
-  # story but the AI endpoint is per-user (owner decision 9).
+  # multicast and reserved ranges are always refused (§1.6, gap P2-10). False by default. Even
+  # when true, an individual member must additionally opt their own endpoint in — both keys are
+  # required, because a LAN Ollama is the primary AI story but the AI endpoint is per-user (owner
+  # decision 9).
   egress:
     allow-private: ${TROVE_EGRESS_ALLOW_PRIVATE:false}
 
