@@ -509,7 +509,7 @@ connections this stack can make:
 | Let's Encrypt (`acme-v02.api.letsencrypt.org`) | `TROVE_TLS_MODE=acme-http` or `acme-dns` | your domain name and `ACME_EMAIL` |
 | Cloudflare API (`api.cloudflare.com`) | `TROVE_TLS_MODE=acme-dns` only | the DNS challenge record, using your token |
 | Your bank aggregator (SimpleFIN) | only after a user connects an account | the setup token, then account and transaction fetches |
-| An AI endpoint | only after a *user* configures one, per user | the prompt content for that feature: transaction descriptions for categorisation, the coach conversation, receipt images for extraction. Each user chooses their own endpoint and key; point it at the `ai` profile's Ollama and it never leaves the box (this needs `TROVE_EGRESS_ALLOW_PRIVATE=true`) |
+| An AI endpoint | only after a *user* configures one, per user | the prompt content for that feature: transaction descriptions for categorisation, the coach conversation, receipt images for extraction. Each user chooses their own endpoint and key; point it at the `ai` profile's Ollama and it never leaves the box (this needs `TROVE_EGRESS_ALLOW_PRIVATE=true` and that user's opt-in) |
 | Your webhook URLs | only if a user adds one | the notification payload |
 | Your SMTP server | only if `SMTP_ENABLED=true` | notification emails (for example the weekly digest); password resets never use email |
 | Docker Hub / GHCR | `up` and `update` | base image pulls, nothing about you |
@@ -517,8 +517,9 @@ connections this stack can make:
 There is no telemetry, no analytics, no crash reporting, and no phone-home
 version check. Trove has no server of its own to talk to.
 
-Every outbound target above except the CA and the image registries goes through
-one policy: HTTPS required, DNS pinned at connect time, and private and loopback
+Trove's own calls to SimpleFIN, AI endpoints and webhooks go through one policy
+(SMTP uses the mail client; the CA, Cloudflare and registries are reached by Traefik
+and Docker, not by Trove): HTTPS required, DNS pinned at connect time, and private and loopback
 addresses refused. SimpleFIN and webhooks always use that default policy. Only a user's AI
 endpoint can be relaxed: when `TROVE_EGRESS_ALLOW_PRIVATE=true` AND that user has opted their
 endpoint in, RFC 1918, loopback, CGNAT and IPv6 ULA targets are allowed, and only then is
