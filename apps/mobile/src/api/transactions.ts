@@ -12,10 +12,11 @@
  *     `patchTransaction` takes the patch object the caller built from what
  *     actually changed and posts it verbatim — nothing here spreads a form, and
  *     nothing here strips a deliberate `null`.
- *  3. **A transfer is not a route.** Linking a leg is
- *     `{transferGroupId: "<uuid>"}` and unlinking it is
- *     `{transferGroupId: null}`; the two helpers at the bottom exist so no
- *     screen has to remember which is which.
+ *  3. **A transfer is not a route.** Linking is one patch,
+ *     `{transferPartnerId: "<other row>"}`, and the server writes both legs in
+ *     one transaction. Unlinking is `{transferGroupId: null}`, which frees the
+ *     partner too; `unlinkTransfer` at the bottom exists so no screen has to
+ *     remember the explicit null.
  */
 
 import { api } from './client';
@@ -128,7 +129,7 @@ export async function deleteTransaction(id: string): Promise<void> {
 }
 
 /**
- * Unlink a transfer leg.
+ * Unlink a transfer leg. The server frees its partner in the same request.
  *
  * `{"transferGroupId": null}` — the explicit null is the request. A body that
  * simply omits the field would leave the link exactly where it was.
