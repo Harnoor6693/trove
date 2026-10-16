@@ -283,11 +283,12 @@ ensure_core_jar() {
 cmd_bootstrap() {
   have openssl || die "openssl is not installed" "macOS: brew install openssl · Debian/Ubuntu: apt install openssl"
 
-  # No marker = bootstrap has never completed here, so the first admin account
-  # (password, country) is still ours to set. With a marker the install has been
-  # through a first boot and those two are left alone.
+  # No marker and no database volume = bootstrap has never completed here, so the
+  # first admin account (password, country) is still ours to set. A marker, or an
+  # existing postgres_data volume (an install set up by hand, with no marker),
+  # means the install has been through a first boot and those two are left alone.
   local first_time=0 existing=0
-  [ -f "$BOOTSTRAP_MARKER" ] || first_time=1
+  if [ ! -f "$BOOTSTRAP_MARKER" ] && ! have_volume postgres_data; then first_time=1; fi
   if [ -f "$ENV_FILE" ]; then
     existing=1
     head1 "Completing deploy/.env (values you already set are kept)"
