@@ -93,7 +93,7 @@ addresses unless the operator sets `TROVE_EGRESS_ALLOW_PRIVATE=true` (for a LAN 
 and the member also opts their own endpoint in (`allowPrivateEndpoint`). Even then only the
 private ranges open up (RFC 1918, loopback, carrier-grade NAT and IPv6 unique-local). Link-local,
 cloud-metadata (including `100.100.100.200` and `fd00:ec2::254`), unspecified, multicast and
-reserved addresses are always blocked.
+reserved addresses are always blocked. IPv6 transition addresses (IPv4-mapped, IPv4-compatible, NAT64, 6to4, Teredo, SIIT, ISATAP) are judged by the IPv4 address they carry; the local-use NAT64 range `64:ff9b:1::/48` is refused whole.
 
 ## Storage
 
