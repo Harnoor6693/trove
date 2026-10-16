@@ -112,10 +112,16 @@ public class NotificationPreference {
      * This member's threshold as a two-decimal fraction, e.g. {@code 0.90} for 90 %. Two decimal
      * places exactly, so two members holding the same percent produce values that compare equal
      * in a {@code Set}. {@code PreferenceAlertThresholds} builds the set
-     * {@code EnvelopeSpendService} compares against.
+     * {@code EnvelopeSpendService} compares against, from stored percents rather than from
+     * entities, through the same {@link #fractionOf(short)} so the two cannot disagree.
      */
     public BigDecimal thresholdFraction() {
-        return BigDecimal.valueOf(budgetAlertThresholdPercent).divide(ONE_HUNDRED, 2,
+        return fractionOf(budgetAlertThresholdPercent);
+    }
+
+    /** A whole percent as a two-decimal fraction: {@code 90} becomes {@code 0.90}. */
+    public static BigDecimal fractionOf(short percent) {
+        return BigDecimal.valueOf(percent).divide(ONE_HUNDRED, 2,
             java.math.RoundingMode.UNNECESSARY);
     }
 

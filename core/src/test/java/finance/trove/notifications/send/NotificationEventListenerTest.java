@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -215,6 +216,7 @@ class NotificationEventListenerTest {
         // a price that changes a second time produces a different one and is a second alert. A
         // timer could not tell those two apart.
         UUID owner = member("America/Toronto", null, true);
+        householdHas(owner);
         ArgumentCaptor<NotificationContent> content =
             ArgumentCaptor.forClass(NotificationContent.class);
 
@@ -233,6 +235,7 @@ class NotificationEventListenerTest {
     @DisplayName("a price that fell is described as falling")
     void aPriceDropReadsAsADrop() {
         UUID owner = member("America/Toronto", null, true);
+        householdHas(owner);
         ArgumentCaptor<NotificationContent> content =
             ArgumentCaptor.forClass(NotificationContent.class);
 
@@ -249,6 +252,7 @@ class NotificationEventListenerTest {
     @DisplayName("a member who turned subscription alerts off is not told")
     void subscriptionAlertsRespectThePreference() {
         UUID owner = member("America/Toronto", null, true);
+        householdHas(owner);
         rows.get(owner).setSubscriptionAlertEnabled(false);
 
         listener.onSubscriptionPriceChanged(new SubscriptionPriceChangedEvent(HOUSEHOLD, owner,
@@ -256,6 +260,28 @@ class NotificationEventListenerTest {
             Money.of("22.99", CurrencyCode.CAD)));
 
         verify(notifications, never()).notify(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("every active member with the toggle on gets the price-change alert, once (CI-46)")
+    void aPriceChangeFansOutToEveryActiveMemberWithTheToggleOn() {
+        UUID admin = member("America/Toronto", null, true);
+        UUID partner = member("America/Vancouver", null, true);
+        UUID optedOut = member("America/Toronto", null, true);
+        UUID dormant = member("America/Toronto", null, false);
+        rows.get(optedOut).setSubscriptionAlertEnabled(false);
+        householdHas(admin, partner, optedOut, dormant);
+
+        listener.onSubscriptionPriceChanged(new SubscriptionPriceChangedEvent(HOUSEHOLD, admin,
+            SUBSCRIPTION, "NETFLIX", Money.of("18.99", CurrencyCode.CAD),
+            Money.of("22.99", CurrencyCode.CAD)));
+
+        verify(notifications, times(1)).notify(eq(admin),
+            eq(NotificationType.SUBSCRIPTION_PRICE_CHANGE), any());
+        verify(notifications, times(1)).notify(eq(partner),
+            eq(NotificationType.SUBSCRIPTION_PRICE_CHANGE), any());
+        verify(notifications, never()).notify(eq(optedOut), any(), any());
+        verify(notifications, never()).notify(eq(dormant), any(), any());
     }
 
     // ------------------------------------------------------------------ sync

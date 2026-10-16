@@ -149,7 +149,10 @@ public class WebhookDeliveryStore {
         return updated == 1;
     }
 
-    /** One row by id, for tests. Detached. */
+    /**
+     * One row by id. Detached. Only the integration tests call this; nothing in production code
+     * reads a delivery row back by id.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public WebhookDeliveryLog find(UUID id) {
         WebhookDeliveryLog row = entityManager.find(WebhookDeliveryLog.class, id);
