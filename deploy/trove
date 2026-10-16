@@ -2,7 +2,8 @@
 #
 # trove — the operator front door for a self-hosted Trove install.
 #
-#   ./trove bootstrap        generate .env with real secrets (once)
+#   ./trove bootstrap        write .env with generated secrets; on an existing .env,
+#                            fill only the empty ones (never overwrites a real value)
 #   ./trove up               check, build, start, wait for readiness
 #   ./trove down             stop (never removes data)
 #   ./trove status           what is running, versions, disk, backup age
@@ -84,6 +85,56 @@ upsert_env() {
   chmod 600 "$ENV_FILE"
 }
 
+# Current value of KEY in $ENV_FILE (last assignment wins, as in load_env;
+# quotes stripped). Empty when absent. Reads the file; exports nothing.
+env_value() {
+  local v
+  v=$( { grep -E "^${1}=" "$ENV_FILE" || true; } | tail -n 1 )
+  v=${v#*=}
+  v=${v%$'\r'}
+  case "$v" in
+    '"'*'"') v=${v#\"}; v=${v%\"} ;;
+    "'"*"'") v=${v#\'}; v=${v%\'} ;;
+  esac
+  printf '%s' "$v"
+}
+
+# A secret that holds nothing usable: empty, the example's change-me literal,
+# or all zeros. Anything else is a real value and is never overwritten.
+is_unset_secret() {
+  case "${1:-}" in
+    ''|'change-me'*) return 0 ;;
+    *[!0]*) return 1 ;;
+  esac
+  return 0
+}
+
+# Write KEY=VALUE unless it is already that value; remember that we changed the file.
+set_if_different() {
+  [ "$(env_value "$1")" = "$2" ] && return 0
+  upsert_env "$1" "$2"
+  BOOTSTRAP_CHANGED=1
+}
+
+# Identity setting (domain, ACME email, admin email): only replaces a placeholder.
+# Value comes from the caller's environment, else a prompt on a terminal.
+fill_setting() {
+  local key="$1" given="$2" prompt="$3"
+  is_placeholder "$(env_value "$key")" || return 0
+  if [ -z "$given" ] && [ -t 0 ]; then
+    printf '  %s: ' "$prompt"
+    read -r given
+  fi
+  if [ -n "$given" ]; then set_if_different "$key" "$given"; fi
+}
+
+# Generated secret: written only when KEY is still empty or a placeholder.
+# Returns 0 when it wrote one, 1 when a real value was left alone.
+fill_secret() {
+  is_unset_secret "$(env_value "$1")" || return 1
+  upsert_env "$1" "$2"
+}
+
 require_env_file() {
   [ -f "$ENV_FILE" ] || die "deploy/.env does not exist" "run: ./trove bootstrap"
   load_env
@@ -100,7 +151,9 @@ derive_tls_vars() {
       export TROVE_ROUTER_TLS_LABEL="tls.certresolver=letsencrypt-dns" ;;
     off)
       export TROVE_ROUTER_ENTRYPOINT=web
-      export TROVE_ROUTER_TLS_LABEL="tls=false" ;;
+      export TROVE_ROUTER_TLS_LABEL="tls=false"
+      # Cleartext HTTP: publish only on loopback unless the operator chose an interface.
+      export TROVE_BIND_ADDR="${TROVE_BIND_ADDR:-127.0.0.1}" ;;
     *)
       die "TROVE_TLS_MODE='${TROVE_TLS_MODE}' is not one of acme-http, acme-dns, off" \
           "edit deploy/.env" ;;
@@ -178,6 +231,9 @@ with_timeout() {
   fi
 }
 
+# True when the named compose volume (project-prefixed) already exists, i.e. the stack has run before.
+have_volume() { docker volume inspect "${PROJECT_NAME}_$1" >/dev/null 2>&1; }
+
 container_id() { compose ps -aq "$1" 2>/dev/null | head -n 1; }
 
 core_running() {
@@ -225,67 +281,89 @@ ensure_core_jar() {
 # bootstrap
 # ═════════════════════════════════════════════════════════════════════════
 cmd_bootstrap() {
+  have openssl || die "openssl is not installed" "macOS: brew install openssl · Debian/Ubuntu: apt install openssl"
+
+  # No marker = bootstrap has never completed here, so the first admin account
+  # (password, country) is still ours to set. With a marker the install has been
+  # through a first boot and those two are left alone.
+  local first_time=0 existing=0
+  [ -f "$BOOTSTRAP_MARKER" ] || first_time=1
   if [ -f "$ENV_FILE" ]; then
-    say "deploy/.env already exists — nothing to do."
+    existing=1
+    head1 "Completing deploy/.env (values you already set are kept)"
+  else
+    head1 "Writing deploy/.env"
+    cp "$ENV_EXAMPLE" "$ENV_FILE"
+  fi
+  chmod 600 "$ENV_FILE"
+  BOOTSTRAP_CHANGED=0
+
+  fill_setting TROVE_DOMAIN "${TROVE_DOMAIN:-}" "Domain this install answers on (e.g. trove.example.com)"
+  fill_setting ACME_EMAIL "${ACME_EMAIL:-}" "Email for Let's Encrypt notices"
+  fill_setting TROVE_ADMIN_EMAIL "${TROVE_ADMIN_EMAIL:-}" "First admin account email"
+
+  if [ "$first_time" = 1 ]; then
+    # Country and currency are fixed for good on the first boot, so ask rather than assume.
+    local country="${TROVE_ADMIN_COUNTRY:-}" shown
+    country=$(printf '%s' "$country" | tr '[:lower:]' '[:upper:]')
+    shown=$(env_value TROVE_ADMIN_COUNTRY)
+    case "$shown" in CA|US) ;; *) shown=CA ;; esac
+    if [ -t 0 ]; then
+      while [ "$country" != "CA" ] && [ "$country" != "US" ]; do
+        printf '  First admin country, CA or US (sets currency CAD or USD; cannot change later) [%s]: ' "$shown"
+        read -r country
+        country=$(printf '%s' "${country:-$shown}" | tr '[:lower:]' '[:upper:]')
+      done
+    fi
+    case "$country" in
+      CA|US) set_if_different TROVE_ADMIN_COUNTRY "$country" ;;
+      '') ;;
+      *) die "TROVE_ADMIN_COUNTRY='${country}' is not CA or US" "set TROVE_ADMIN_COUNTRY=CA or US and re-run" ;;
+    esac
+  fi
+
+  # Only secrets that are still empty or a placeholder are generated. A real
+  # value is never overwritten: that would lock you out of your own data.
+  local admin_pw="" backup_pw="" enc="" filled=0
+  if fill_secret POSTGRES_PASSWORD "$(gen_b64 36)"; then filled=$((filled + 1)); fi
+  if fill_secret TROVE_JWT_SECRET "$(gen_b64 48)"; then filled=$((filled + 1)); fi
+  if fill_secret TROVE_ENCRYPTION_KEY "$(gen_hex 32)"; then
+    enc=$(env_value TROVE_ENCRYPTION_KEY); filled=$((filled + 1))
+  fi
+  if [ "$first_time" = 1 ] && fill_secret TROVE_ADMIN_PASSWORD "$(gen_b64 18)"; then
+    admin_pw=$(env_value TROVE_ADMIN_PASSWORD); filled=$((filled + 1))
+  fi
+  if fill_secret TROVE_BACKUP_PASSPHRASE "$(gen_b64 32)"; then
+    backup_pw=$(env_value TROVE_BACKUP_PASSPHRASE); filled=$((filled + 1))
+  fi
+  if fill_secret GRAFANA_ADMIN_PASSWORD "$(gen_b64 18)"; then filled=$((filled + 1)); fi
+
+  if [ "$existing" = 1 ] && [ "$filled" -eq 0 ] && [ "$BOOTSTRAP_CHANGED" -eq 0 ]; then
+    say "deploy/.env is already complete — nothing to do."
     say "Secrets are never regenerated automatically (that would lock you out of"
-    say "your own data). For what can and cannot be rotated, see deploy/README.md section 7 (\"Key rotation is partial\")."
+    say "your own data). For what can and cannot be rotated, see deploy/README.md section 7 (\"What is and is not secured\", the \"Key rotation is partial\" bullet)."
     return 0
   fi
 
-  have openssl || die "openssl is not installed" "macOS: brew install openssl · Debian/Ubuntu: apt install openssl"
-
-  head1 "Writing deploy/.env"
-  cp "$ENV_EXAMPLE" "$ENV_FILE"
-  chmod 600 "$ENV_FILE"
-
-  local domain="${TROVE_DOMAIN:-}" email="${ACME_EMAIL:-}" admin="${TROVE_ADMIN_EMAIL:-}"
-  local country="${TROVE_ADMIN_COUNTRY:-}"
-  if [ -t 0 ]; then
-    [ -n "$domain" ] || { printf '  Domain this install answers on (e.g. trove.example.com): '; read -r domain; }
-    [ -n "$email" ]  || { printf '  Email for Let'\''s Encrypt notices: '; read -r email; }
-    [ -n "$admin" ]  || { printf '  First admin account email: '; read -r admin; }
-    # Country and currency are fixed for good on the first boot, so ask rather than assume.
-    while [ "$country" != "CA" ] && [ "$country" != "US" ]; do
-      printf '  First admin country, CA or US (sets currency CAD or USD; cannot change later) [CA]: '
-      read -r country
-      country=$(printf '%s' "${country:-CA}" | tr '[:lower:]' '[:upper:]')
-    done
-  fi
-  [ -n "$domain" ] && upsert_env TROVE_DOMAIN "$domain"
-  [ -n "$email" ]  && upsert_env ACME_EMAIL "$email"
-  [ -n "$admin" ]  && upsert_env TROVE_ADMIN_EMAIL "$admin"
-  [ -n "$country" ] && upsert_env TROVE_ADMIN_COUNTRY "$country"
-
-  local pg_pw jwt enc admin_pw backup_pw grafana_pw
-  pg_pw=$(gen_b64 36)
-  jwt=$(gen_b64 48)
-  enc=$(gen_hex 32)
-  admin_pw=$(gen_b64 18)
-  backup_pw=$(gen_b64 32)
-  grafana_pw=$(gen_b64 18)
-
-  upsert_env POSTGRES_PASSWORD "$pg_pw"
-  upsert_env TROVE_JWT_SECRET "$jwt"
-  upsert_env TROVE_ENCRYPTION_KEY "$enc"
-  upsert_env TROVE_ADMIN_PASSWORD "$admin_pw"
-  upsert_env TROVE_BACKUP_PASSPHRASE "$backup_pw"
-  upsert_env GRAFANA_ADMIN_PASSWORD "$grafana_pw"
-
   date -u +%Y-%m-%dT%H:%M:%SZ > "$BOOTSTRAP_MARKER"
 
-  ok "deploy/.env written, mode 0600, six secrets generated"
-  head1 "Write these down NOW — they are not shown again"
-  say "  first admin email    : $(grep -E '^TROVE_ADMIN_EMAIL=' "$ENV_FILE" | cut -d= -f2-)"
-  say "  first admin password : ${admin_pw}"
-  say "  first admin country  : $(grep -E '^TROVE_ADMIN_COUNTRY=' "$ENV_FILE" | cut -d= -f2-)"
-  say "  backup passphrase    : ${backup_pw}"
-  say ""
-  say "Also copy TROVE_ENCRYPTION_KEY out of deploy/.env into your password"
-  say "manager. Every stored bank credential is encrypted with it; a backup"
-  say "restored without it cannot decrypt them."
+  ok "deploy/.env written, mode 0600, ${filled} secret(s) generated"
+  if [ -n "$admin_pw" ] || [ -n "$backup_pw" ]; then
+    head1 "Write these down NOW — they are not shown again"
+    say "  first admin email    : $(env_value TROVE_ADMIN_EMAIL)"
+    [ -z "$admin_pw" ] || say "  first admin password : ${admin_pw}"
+    say "  first admin country  : $(env_value TROVE_ADMIN_COUNTRY)"
+    [ -z "$backup_pw" ] || say "  backup passphrase    : ${backup_pw}"
+  fi
+  if [ -n "$enc" ]; then
+    say ""
+    say "Also copy TROVE_ENCRYPTION_KEY out of deploy/.env into your password"
+    say "manager. Every stored bank credential is encrypted with it; a backup"
+    say "restored without it cannot decrypt them."
+  fi
   head1 "First run"
   say "  1. ./trove up"
-  say "  2. open https://$(grep -E '^TROVE_DOMAIN=' "$ENV_FILE" | cut -d= -f2-)/"
+  say "  2. open https://$(env_value TROVE_DOMAIN)/"
   say "  3. sign in as the admin above. trove-core creates the household and"
   say "     that first ADMIN user on its first boot, while the users table is"
   say "     still empty; after that TROVE_ADMIN_* are ignored."
@@ -330,14 +408,27 @@ cmd_up() {
   fi
 
   local missing=""
-  for v in POSTGRES_PASSWORD TROVE_JWT_SECRET TROVE_ENCRYPTION_KEY TROVE_ADMIN_PASSWORD; do
+  for v in POSTGRES_PASSWORD TROVE_JWT_SECRET TROVE_ENCRYPTION_KEY; do
     if is_placeholder "$(printf '%s' "${!v:-}")"; then missing="${missing} ${v}"; fi
   done
   if [ -n "$missing" ]; then
-    bad "secrets generated (missing:${missing} )" "run: ./trove bootstrap  (or set them by hand with openssl rand — see deploy/.env.example)"
+    bad "secrets generated (missing:${missing} )" "run: ./trove bootstrap  (it fills only the empty ones and keeps everything you set; or set them by hand with openssl rand — see deploy/.env.example)"
   else
     ok "secrets generated"
   fi
+
+  # TROVE_ADMIN_PASSWORD is read only on a first boot with an empty users table, so compose does not
+  # require it. Without it a brand-new install has no admin to sign in as.
+  if is_placeholder "${TROVE_ADMIN_PASSWORD:-}" && ! have_volume postgres_data; then
+    bad "TROVE_ADMIN_PASSWORD set (first install)" "run: ./trove bootstrap  (no database exists yet, so trove-core would start with no admin account)"
+  fi
+
+  case ",${COMPOSE_PROFILES:-}," in
+    *,monitoring,*)
+      if is_placeholder "${GRAFANA_ADMIN_PASSWORD:-}"; then
+        bad "GRAFANA_ADMIN_PASSWORD set (monitoring profile is on)" "run: ./trove bootstrap, or set GRAFANA_ADMIN_PASSWORD in deploy/.env; Grafana starts with an empty admin password otherwise"
+      fi ;;
+  esac
 
   if [ "${TROVE_TLS_MODE:-acme-http}" = "off" ]; then
     ok "TLS mode: off (expects Tailscale HTTPS or another terminating proxy in front)"
@@ -420,8 +511,8 @@ cmd_up() {
     say "  (the first request can take ~30 s while Let's Encrypt issues the certificate)"
   fi
   say "  sign in with TROVE_ADMIN_EMAIL / TROVE_ADMIN_PASSWORD from deploy/.env,"
-  say "  then change that password in Settings. Leave the TROVE_ADMIN_PASSWORD line in the file:"
-  say "  compose requires it, and it is ignored once any user exists."
+  say "  then change that password in Settings. TROVE_ADMIN_PASSWORD is ignored once any"
+  say "  user exists, so you may delete that line from deploy/.env afterwards."
 }
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -825,11 +916,17 @@ cmd_doctor() {
     say "  domain     : ${TROVE_DOMAIN:-unset}"
     say "  tls mode   : ${TROVE_TLS_MODE:-acme-http} -> entrypoint ${TROVE_ROUTER_ENTRYPOINT}, label ${TROVE_ROUTER_TLS_LABEL}"
     say "  profiles   : ${COMPOSE_PROFILES:-<none>}"
-    for v in POSTGRES_PASSWORD TROVE_JWT_SECRET TROVE_ENCRYPTION_KEY TROVE_ADMIN_PASSWORD TROVE_BACKUP_PASSPHRASE; do
+    for v in POSTGRES_PASSWORD TROVE_JWT_SECRET TROVE_ENCRYPTION_KEY TROVE_BACKUP_PASSPHRASE; do
       if is_placeholder "$(printf '%s' "${!v:-}")"; then
         bad "${v} set" "./trove bootstrap, or generate it by hand (see deploy/.env.example)"
       fi
     done
+    case ",${COMPOSE_PROFILES:-}," in
+      *,monitoring,*)
+        if is_placeholder "${GRAFANA_ADMIN_PASSWORD:-}"; then
+          bad "GRAFANA_ADMIN_PASSWORD set (monitoring profile is on)" "./trove bootstrap, or set it by hand (see deploy/.env.example)"
+        fi ;;
+    esac
   else
     bad "deploy/.env present" "run: ./trove bootstrap"
   fi

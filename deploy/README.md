@@ -15,6 +15,10 @@ deploy/
 └── prometheus/prometheus.yml   only used by the optional monitoring profile
 ```
 
+The CLI, the compose file and the web image are checked by `.github/workflows/deploy-ci.yml`,
+which runs `scripts/test-trove-cli.sh`, `scripts/test-compose-config.sh` and
+`scripts/web-healthcheck-probe.sh` (all runnable locally; the last two need Docker).
+
 Trove's images are built from this repository on your machine (`docker-compose.yml`
 uses the local tag `trove-core:local`): `./trove up` and `./trove update` run
 `docker compose build`.
@@ -75,7 +79,10 @@ machine that is not this one, or leave AI off.
    or USD and cannot be changed later), then generates every secret with
    `openssl rand` and writes `.env` with mode 0600. Without a terminal it reads
    `TROVE_DOMAIN`, `ACME_EMAIL`, `TROVE_ADMIN_EMAIL` and `TROVE_ADMIN_COUNTRY`
-   from the environment instead. **Copy the printed admin password and backup
+   from the environment instead. You do not need to copy `.env.example` first. If a
+   `.env` already exists (for example you copied that file), `./trove bootstrap`
+   completes it: it fills in only the placeholder settings and the empty secrets and
+   never overwrites a value you set, and when there is nothing to fill it changes nothing. **Copy the printed admin password and backup
    passphrase somewhere safe — they are printed once. Copy `TROVE_ENCRYPTION_KEY`
    into a password manager too.**
 
@@ -93,9 +100,9 @@ machine that is not this one, or leave AI off.
    database is migrated. Expect 5-15 minutes the first time, most of it Maven.
 
 5. Open `https://your-domain/`, sign in as the admin, and change the password in
-   Settings. `TROVE_ADMIN_PASSWORD` stays in `.env` (compose requires it) but is
-   ignored once any user exists, so it is harmless; do not rely on it to sign in
-   afterwards.
+   Settings. `TROVE_ADMIN_PASSWORD` is read only while the users table is empty, so
+   it is ignored from now on; you may delete that line from `.env` (compose does not
+   require it), and you must not rely on it to sign in afterwards.
 
 6. Invite the rest of the household from **Settings → Household**. Signup is
    closed by default (`TROVE_REGISTRATION_OPEN=false`); invites are single-use
@@ -180,12 +187,17 @@ sudo tailscale serve --bg --https=443 http://127.0.0.1:8080
 ```
 
 Then browse to `https://<machine>.<tailnet>.ts.net/`. In this mode Traefik serves
-plain HTTP on `TROVE_HTTP_PORT`, which Docker publishes on every host interface, and
-does no ACME at all; Tailscale owns the
-certificate. The HTTP→HTTPS redirect is removed from the rendered Traefik config
+plain HTTP on `TROVE_HTTP_PORT`, which Docker publishes on `127.0.0.1` only
+(`./trove` sets `TROVE_BIND_ADDR=127.0.0.1` in this mode), and does no ACME at all;
+Tailscale owns the certificate. The HTTP→HTTPS redirect is removed from the rendered Traefik config
 automatically. Everything else — headers, CSP, rate limits, routing — is
-unchanged. **Firewall `TROVE_HTTP_PORT` from anything but this machine (or allow
-only the tailnet);** otherwise the install is reachable over unencrypted HTTP. The mobile app connects over the tailnet only.
+unchanged. Because the port is bound to loopback, only a process on this machine
+(such as `tailscale serve`) can reach the unencrypted HTTP listener. **If you set
+`TROVE_BIND_ADDR` to another interface (a terminating proxy on a different host
+needs one), firewall `TROVE_HTTP_PORT` from everything but that proxy;** otherwise the
+install is reachable over unencrypted HTTP. In the `acme-http` and `acme-dns` modes
+Traefik is published on every interface unless you set `TROVE_BIND_ADDR`. The mobile
+app connects over the tailnet only.
 
 **HSTS is one year without `preload`, deliberately.** Preload is a one-way door
 that would strand this install if it ever moves domain or drops TLS.
@@ -338,10 +350,12 @@ each instance's own in-memory rules, so it runs on all of them).
 | Webhook retry | every 30 s | up to 5 attempts, backoff of 2^n seconds |
 | Rate-limit rule reload | every 5 minutes | picks up rule changes |
 
-The audit-log (365 days) and login-attempt (30 days) retention are fixed in code. The import
-preview retention, the account-deletion grace, the export link lifetime and the SimpleFIN cron
-are settings (see Environment Variables in the docs site), but the shipped compose file forwards
-none of them to `trove-core`; add them to its `environment:` block to change them.
+The audit-log (365 days) and login-attempt (30 days) retention are fixed in code. The
+SimpleFIN cron (`TROVE_SIMPLEFIN_SCHEDULED_SYNC_CRON`) is forwarded by the shipped compose
+file, so setting it in `.env` is enough. The import preview retention, the account-deletion
+grace and the export link lifetime are settings too (see Environment Variables in the docs
+site), but compose does not forward them to `trove-core`; add them to its `environment:`
+block to change them.
 
 ---
 
@@ -414,8 +428,9 @@ IPs from the access log.
 
 Done, and verifiable in this directory:
 
-- **One published port pair.** Only Traefik binds 80/443. `trove-core`,
-  `postgres`, `ollama` publish nothing; Postgres sits on an `internal: true`
+- **One published port pair.** Only Traefik binds 80/443 (on `TROVE_BIND_ADDR`, loopback
+  in `off` mode). `trove-core`, `web`, `postgres`, `ollama` publish nothing; the optional
+  Prometheus and Grafana publish on `127.0.0.1` only. Postgres sits on an `internal: true`
   network with no route off the box, and Ollama on another one so it cannot
   reach the database.
 - **The management port is never routed.** Actuator (`/actuator/health`,
@@ -429,12 +444,28 @@ Done, and verifiable in this directory:
   connect-src 'self'` for the app, `default-src 'none'` for `/api`.
 - **TLS 1.2 minimum**, forward-secret AEAD ciphers only, `sniStrict`.
 - **Two rate-limit layers**: Traefik per IP (100/s general, 5/s on
-  `/api/v1/auth/*`) and the application's own per-user and per-account limits.
+  `/api/v1/auth/*`) and the application's own limit, counted per signed-in user (per
+  client address for anonymous requests and the sign-in routes) and per route pattern.
+  The application's limits are rows of the `rate_limit_config` table (route pattern,
+  requests per minute, burst capacity), seeded by the database migrations. There is no
+  environment variable or admin screen for them, so you change one with SQL, and
+  `trove-core` picks the edit up within five minutes without a restart:
+
+  ```bash
+  cd deploy && docker compose exec postgres psql -U trove -d trove -c \
+    "UPDATE rate_limit_config SET requests_per_min = 60, burst_capacity = 120 WHERE endpoint_pattern = '/api/v1/ai/**'"
+  ```
+
+  Burst capacity must be at least the per-minute rate. An edit gives that route a full
+  bucket again. Use your `POSTGRES_USER` and `POSTGRES_DB` if you changed them.
 - **No secret has a default.** Compose refuses to start naming any variable you
-  missed; `bootstrap` generates all of them with `openssl rand`; `.env` is 0600.
-- **Grafana has no default password:** `GRAFANA_ADMIN_PASSWORD` must be non-empty in
-  `.env` (compose refuses to start any profile without it, even when monitoring is
-  off; bootstrap generates one). Prometheus and Grafana bind to loopback only — reach them over an
+  missed (`TROVE_ADMIN_PASSWORD` and `GRAFANA_ADMIN_PASSWORD` are checked by `./trove up`
+  and `./trove doctor` instead, see below); `bootstrap` generates all of them with
+  `openssl rand`; `.env` is 0600.
+- **Grafana has no default password:** with `COMPOSE_PROFILES=monitoring`,
+  `GRAFANA_ADMIN_PASSWORD` must be set in `.env` (`./trove up` and `./trove doctor` fail
+  without it; bootstrap generates one). With the monitoring profile off it is not needed
+  and may be empty. Prometheus and Grafana bind to loopback only — reach them over an
   SSH tunnel, never through Traefik.
 - **Backups are encrypted** and include the encryption key, so a restore is a
   real restore.
@@ -499,7 +530,7 @@ no outbound-call log screen.
 ## 9. Configuration reference
 
 `.env.example` is the reference: every variable, grouped, with a comment and the
-`openssl` command for anything secret. Copy it or let `./trove bootstrap` do it.
+`openssl` command for anything secret. Let `./trove bootstrap` write it (copying it first is fine: bootstrap fills in the rest).
 
 Two things worth repeating:
 

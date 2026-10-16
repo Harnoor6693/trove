@@ -27,9 +27,11 @@ read by the code that consumes them and cannot drift from it the same way.
 - **Not every core setting is reachable from `deploy/.env`.** The compose file passes
   through only the variables listed in `deploy/.env.example`. Tunables that exist in
   `core/.env.example` but are not wired in compose (trusted proxies, upload and import
-  limits, outbound timeouts, metrics access, the scheduled-sync cron
-  `TROVE_SIMPLEFIN_SCHEDULED_SYNC_CRON`, household name) take their built-in defaults in a
-  Docker install unless you add them to the `trove-core` `environment:` block. The scheduled
+  limits, outbound timeouts, metrics access) take their built-in defaults in a
+  Docker install unless you add them to the `trove-core` `environment:` block. The
+  exceptions are the first household's name (`TROVE_HOUSEHOLD_NAME`) and the
+  scheduled-sync cron (`TROVE_SIMPLEFIN_SCHEDULED_SYNC_CRON`): compose forwards both, and
+  `deploy/.env.example` lists them commented out. The scheduled
   bank sync itself is off until an admin switches it on in Settings; the cron (daily 09:17
   UTC) is the only thing the variable controls.
 - **`SMTP_ENABLED` is off by default.** Leaving it off is a normal, fully-supported

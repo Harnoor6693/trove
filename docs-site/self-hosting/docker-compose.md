@@ -24,7 +24,8 @@ git clone https://github.com/Harnoor6693/trove && cd trove/deploy
 
 `./trove bootstrap` asks for your domain, an email for certificate notices, the first
 admin address and country, generates every secret, and prints the admin password and
-backup passphrase once. TLS mode is set in `deploy/.env` (`TROVE_TLS_MODE`). `./trove up`
+backup passphrase once. If a `deploy/.env` already exists it only fills in the placeholder
+settings and empty secrets, and never overwrites a value you set. TLS mode is set in `deploy/.env` (`TROVE_TLS_MODE`). `./trove up`
 then builds and starts the stack. `./trove status`, `./trove logs`, `./trove backup`, and
 `./trove doctor` cover day-to-day operation. Full detail, including the three TLS
 modes (`acme-http`, `acme-dns`, `off`/Tailscale) and the backup/restore mechanics, is in
@@ -40,7 +41,8 @@ modes (`acme-http`, `acme-dns`, `off`/Tailscale) and the backup/restore mechanic
   and private targets) and enable the allow-private-endpoint option on the user's AI endpoint
   in Settings → AI.
 - `monitoring` — Prometheus and Grafana, bound to `127.0.0.1` only (reach them over an
-  SSH tunnel; they are never routed through Traefik).
+  SSH tunnel; they are never routed through Traefik). Set `GRAFANA_ADMIN_PASSWORD` in
+  `deploy/.env` first; `./trove up` refuses to start with this profile and no password.
 
 Neither is required. See `deploy/.env.example` for every variable both profiles read.
 
