@@ -44,11 +44,15 @@ import org.springframework.transaction.event.TransactionalEventListener;
  *       handler decides which members that ratio actually reached. V32's per-(user, type, key)
  *       unique index makes the second half idempotent: a member is told once per envelope per
  *       month however many crossings are published.</li>
- *   <li><strong>Price change and sync failure — the member the event names.</strong> Both events
- *       already carry the member they belong to: a detected subscription's alert is attributed to
- *       one member, and a connection is owned by whoever added it. Fanning those out would put one
- *       member's preference in charge of another member's notification and would put N copies of
- *       "your bank connection failed" into a household that has one bank connection.</li>
+ *   <li><strong>Price change — every active member.</strong> A detected subscription belongs to
+ *       the household, not to the member the scan happened to be attributed to, and each member
+ *       holds their own subscription-alert toggle, so the handler fans out the way the budget one
+ *       does. V32's per-(user, type, key) unique index keeps it to one alert per member per new
+ *       price.</li>
+ *   <li><strong>Sync failure — the member the event names.</strong> A connection is owned by
+ *       whoever added it. Fanning that out would put one member's preference in charge of
+ *       another member's notification and would put N copies of "your bank connection failed"
+ *       into a household that has one bank connection.</li>
  * </ul>
  *
  * <p><strong>A SUCCESSFUL sync notifies nobody</strong>, and that is a decision rather than an
@@ -112,7 +116,10 @@ public class NotificationEventListener {
     }
 
     /**
-     * A detected recurring charge changed price.
+     * A detected recurring charge changed price. Every active member of the household whose own
+     * subscription-alert toggle is on is told: the subscription belongs to the household, and the
+     * toggle is offered to every member, so the event's {@code userId} (the member the detection
+     * run was attributed to) only decides who the alert row is attributed to, not who hears.
      *
      * <p>Dedup key: {@code subscriptionId:newAmount}. A price that changes twice is two alerts; a
      * rescan that sees the same new price is one. Keying on the new amount rather than on a date
@@ -122,10 +129,6 @@ public class NotificationEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onSubscriptionPriceChanged(SubscriptionPriceChangedEvent event) {
-        NotificationPreference preference = preferences.getOrCreate(event.userId());
-        if (!preference.isSubscriptionAlertEnabled()) {
-            return;
-        }
         Money delta = event.delta();
         String direction = delta.isNegative() ? "fell" : "rose";
         String subject = event.merchantName() + " " + direction + " to "
@@ -133,9 +136,16 @@ public class NotificationEventListener {
         String body = event.merchantName() + " changed from " + money(event.previousAmount())
             + " to " + money(event.newAmount()) + " (" + money(delta.abs()) + " "
             + (delta.isNegative() ? "less" : "more") + ").";
-        notifications.notify(event.userId(), NotificationType.SUBSCRIPTION_PRICE_CHANGE,
-            NotificationContent.of(subject, body, "/subscriptions/" + event.subscriptionId(),
-                event.subscriptionId() + ":" + event.newAmount().amount().toPlainString()));
+        NotificationContent content = NotificationContent.of(subject, body,
+            "/subscriptions/" + event.subscriptionId(),
+            event.subscriptionId() + ":" + event.newAmount().amount().toPlainString());
+        for (User member : users.findAllByHouseholdIdOrderByCreatedAtAsc(event.householdId())) {
+            if (member.isActive()
+                && preferences.getOrCreate(member.getId()).isSubscriptionAlertEnabled()) {
+                notifications.notify(member.getId(), NotificationType.SUBSCRIPTION_PRICE_CHANGE,
+                    content);
+            }
+        }
     }
 
     /**
