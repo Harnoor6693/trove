@@ -34,7 +34,7 @@ new_install() {
   cat > "${dir}/bin/docker" <<'DOCKER'
 #!/bin/sh
 # Fake docker: succeeds at everything, reports the bind address the CLI exported, and
-# pretends the postgres volume is missing when FAKE_NO_VOLUME=1.
+# pretends the postgres volume is missing when FAKE_NO_VOLUME=1 (a machine that has never run Trove).
 if [ "$1" = "volume" ] && [ "${FAKE_NO_VOLUME:-0}" = "1" ]; then exit 1; fi
 echo "FAKE_DOCKER bind=${TROVE_BIND_ADDR-unset} args=$*"
 exit 0
@@ -56,7 +56,7 @@ is_set() { [ -n "$(env_get "$1" "$2")" ]; }
 echo "bootstrap: no .env yet"
 D=$(new_install)
 TROVE_DOMAIN=trove.test ACME_EMAIL=ops@trove.test TROVE_ADMIN_EMAIL=me@trove.test TROVE_ADMIN_COUNTRY=us \
-  run_trove "$D" bootstrap
+  FAKE_NO_VOLUME=1 run_trove "$D" bootstrap
 [ "$RC" -eq 0 ] && pass "exits 0" || fail "exits 0" "$OUT"
 check ".env created with mode 0600" test "$(ls -l "$D/deploy/.env" | cut -c1-10)" = "-rw-------"
 [ "$(env_get "$D" TROVE_DOMAIN)" = "trove.test" ] && pass "domain from environment" || fail "domain from environment"
@@ -71,7 +71,7 @@ check "bootstrap marker written" test -f "$D/deploy/.bootstrap-done"
 echo "bootstrap: .env.example copied by hand (the old quick start)"
 D=$(new_install)
 cp "$D/deploy/.env.example" "$D/deploy/.env"
-TROVE_DOMAIN=trove.test ACME_EMAIL=ops@trove.test TROVE_ADMIN_EMAIL=me@trove.test run_trove "$D" bootstrap
+TROVE_DOMAIN=trove.test ACME_EMAIL=ops@trove.test TROVE_ADMIN_EMAIL=me@trove.test FAKE_NO_VOLUME=1 run_trove "$D" bootstrap
 [ "$RC" -eq 0 ] && pass "exits 0" || fail "exits 0" "$OUT"
 case "$OUT" in *"nothing to do"*) fail "does not report 'nothing to do'" ;; *) pass "does not report 'nothing to do'" ;; esac
 for k in POSTGRES_PASSWORD TROVE_JWT_SECRET TROVE_ENCRYPTION_KEY TROVE_ADMIN_PASSWORD TROVE_BACKUP_PASSPHRASE GRAFANA_ADMIN_PASSWORD; do
@@ -84,7 +84,7 @@ case "$OUT" in *"secrets generated (missing"*) fail "up no longer reports missin
 
 echo "bootstrap: real secrets are never overwritten"
 D=$(new_install)
-TROVE_DOMAIN=trove.test ACME_EMAIL=ops@trove.test TROVE_ADMIN_EMAIL=me@trove.test run_trove "$D" bootstrap
+TROVE_DOMAIN=trove.test ACME_EMAIL=ops@trove.test TROVE_ADMIN_EMAIL=me@trove.test FAKE_NO_VOLUME=1 run_trove "$D" bootstrap
 cp "$D/deploy/.env" "${WORK}/before.env"
 run_trove "$D" bootstrap
 [ "$RC" -eq 0 ] && pass "second run exits 0" || fail "second run exits 0" "$OUT"
@@ -96,7 +96,7 @@ D=$(new_install)
 cp "$D/deploy/.env.example" "$D/deploy/.env"
 KEY=$(printf 'ab%.0s' $(seq 1 32))
 { printf 'POSTGRES_PASSWORD=my-real-db-password\n'; printf 'TROVE_ENCRYPTION_KEY=%s\n' "$KEY"; } >> "$D/deploy/.env"
-TROVE_DOMAIN=trove.test ACME_EMAIL=ops@trove.test TROVE_ADMIN_EMAIL=me@trove.test run_trove "$D" bootstrap
+TROVE_DOMAIN=trove.test ACME_EMAIL=ops@trove.test TROVE_ADMIN_EMAIL=me@trove.test FAKE_NO_VOLUME=1 run_trove "$D" bootstrap
 [ "$(env_get "$D" POSTGRES_PASSWORD)" = "my-real-db-password" ] && pass "real database password kept" || fail "real database password kept"
 [ "$(env_get "$D" TROVE_ENCRYPTION_KEY)" = "$KEY" ] && pass "real encryption key kept" || fail "real encryption key kept"
 is_set "$D" TROVE_JWT_SECRET && pass "empty JWT secret filled" || fail "empty JWT secret filled"
@@ -106,21 +106,30 @@ echo "bootstrap: an all-zero or change-me value counts as unset"
 D=$(new_install)
 cp "$D/deploy/.env.example" "$D/deploy/.env"
 { printf 'TROVE_ENCRYPTION_KEY=%s\n' "$(printf '0%.0s' $(seq 1 64))"; printf 'TROVE_JWT_SECRET=change-me-please\n'; } >> "$D/deploy/.env"
-TROVE_DOMAIN=trove.test ACME_EMAIL=ops@trove.test TROVE_ADMIN_EMAIL=me@trove.test run_trove "$D" bootstrap
+TROVE_DOMAIN=trove.test ACME_EMAIL=ops@trove.test TROVE_ADMIN_EMAIL=me@trove.test FAKE_NO_VOLUME=1 run_trove "$D" bootstrap
 case "$(env_get "$D" TROVE_ENCRYPTION_KEY)" in *[!0]*) pass "all-zero key replaced" ;; *) fail "all-zero key replaced" ;; esac
 case "$(env_get "$D" TROVE_JWT_SECRET)" in change-me*) fail "change-me JWT secret replaced" ;; *) pass "change-me JWT secret replaced" ;; esac
 
 echo "bootstrap: after a first run the admin password is not regenerated"
 D=$(new_install)
-TROVE_DOMAIN=trove.test ACME_EMAIL=ops@trove.test TROVE_ADMIN_EMAIL=me@trove.test run_trove "$D" bootstrap
+TROVE_DOMAIN=trove.test ACME_EMAIL=ops@trove.test TROVE_ADMIN_EMAIL=me@trove.test FAKE_NO_VOLUME=1 run_trove "$D" bootstrap
 grep -v '^TROVE_ADMIN_PASSWORD=' "$D/deploy/.env" > "$D/deploy/.env.tmp" && mv "$D/deploy/.env.tmp" "$D/deploy/.env"
 run_trove "$D" bootstrap
 is_set "$D" TROVE_ADMIN_PASSWORD && fail "deleted TROVE_ADMIN_PASSWORD stays deleted" || pass "deleted TROVE_ADMIN_PASSWORD stays deleted"
 case "$OUT" in *"nothing to do"*) pass "reports nothing to do" ;; *) fail "reports nothing to do" "$OUT" ;; esac
 
+echo "bootstrap: hand-made install (database volume, no marker) is not a first install"
+D=$(new_install)
+cp "$D/deploy/.env.example" "$D/deploy/.env"
+TROVE_DOMAIN=trove.test ACME_EMAIL=ops@trove.test TROVE_ADMIN_EMAIL=me@trove.test run_trove "$D" bootstrap
+[ "$RC" -eq 0 ] && pass "exits 0" || fail "exits 0" "$OUT"
+is_set "$D" TROVE_ADMIN_PASSWORD && fail "existing database: no admin password generated" || pass "existing database: no admin password generated"
+case "$OUT" in *"first admin password"*) fail "existing database: no admin password printed" "$OUT" ;; *) pass "existing database: no admin password printed" ;; esac
+is_set "$D" POSTGRES_PASSWORD && pass "existing database: other secrets still filled" || fail "existing database: other secrets still filled"
+
 echo "up: TROVE_ADMIN_PASSWORD is a first-install check, not a permanent requirement"
 D=$(new_install)
-TROVE_DOMAIN=trove.test ACME_EMAIL=ops@trove.test TROVE_ADMIN_EMAIL=me@trove.test run_trove "$D" bootstrap
+TROVE_DOMAIN=trove.test ACME_EMAIL=ops@trove.test TROVE_ADMIN_EMAIL=me@trove.test FAKE_NO_VOLUME=1 run_trove "$D" bootstrap
 grep -v '^TROVE_ADMIN_PASSWORD=' "$D/deploy/.env" > "$D/deploy/.env.tmp" && mv "$D/deploy/.env.tmp" "$D/deploy/.env"
 FAKE_NO_VOLUME=1 run_trove "$D" up
 case "$OUT" in *"TROVE_ADMIN_PASSWORD set (first install)"*) pass "no database volume + no admin password fails preflight" ;; *) fail "no database volume + no admin password fails preflight" "$OUT" ;; esac
@@ -129,7 +138,7 @@ case "$OUT" in *"TROVE_ADMIN_PASSWORD set"*) fail "existing database + no admin 
 
 echo "up: monitoring profile needs a Grafana password"
 D=$(new_install)
-TROVE_DOMAIN=trove.test ACME_EMAIL=ops@trove.test TROVE_ADMIN_EMAIL=me@trove.test run_trove "$D" bootstrap
+TROVE_DOMAIN=trove.test ACME_EMAIL=ops@trove.test TROVE_ADMIN_EMAIL=me@trove.test FAKE_NO_VOLUME=1 run_trove "$D" bootstrap
 grep -v '^GRAFANA_ADMIN_PASSWORD=\|^COMPOSE_PROFILES=' "$D/deploy/.env" > "$D/deploy/.env.tmp" && mv "$D/deploy/.env.tmp" "$D/deploy/.env"
 run_trove "$D" up
 case "$OUT" in *"GRAFANA_ADMIN_PASSWORD set"*) fail "monitoring off: no Grafana check" "$OUT" ;; *) pass "monitoring off: no Grafana check" ;; esac
@@ -144,7 +153,7 @@ bind_for() { # bind_for DIR : the TROVE_BIND_ADDR the CLI hands to docker compos
   printf '%s' "$OUT" | grep -o 'bind=[^ ]*' | head -n 1
 }
 D=$(new_install)
-TROVE_DOMAIN=trove.test ACME_EMAIL=ops@trove.test TROVE_ADMIN_EMAIL=me@trove.test run_trove "$D" bootstrap
+TROVE_DOMAIN=trove.test ACME_EMAIL=ops@trove.test TROVE_ADMIN_EMAIL=me@trove.test FAKE_NO_VOLUME=1 run_trove "$D" bootstrap
 [ "$(bind_for "$D")" = "bind=unset" ] && pass "acme-http: not set (compose default 0.0.0.0)" || fail "acme-http: not set (compose default 0.0.0.0)"
 printf 'TROVE_TLS_MODE=off\n' >> "$D/deploy/.env"
 [ "$(bind_for "$D")" = "bind=127.0.0.1" ] && pass "off: loopback" || fail "off: loopback"
