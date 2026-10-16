@@ -127,8 +127,9 @@ public class ReceiptOrphanSweep {
      * A normal pass is seconds. Fifty minutes is above that worst case with 8.3 minutes to spare
      * and below the hourly cadence, so
      * a lock cannot expire under a running pass and two passes cannot overlap. That margin is
-     * only as good as the arithmetic: raising {@code MAX_REQUEUED_PER_PASS} or the AI read
-     * timeout ({@code TROVE_HTTP_READ_TIMEOUT_MS} moves the ceiling) means revisiting
+     * only as good as the arithmetic: raising {@code MAX_REQUEUED_PER_PASS}, the AI read timeout
+     * ({@code TROVE_HTTP_READ_TIMEOUT_MS} moves its ceiling) or the connect timeout
+     * ({@code TROVE_HTTP_CONNECT_TIMEOUT_MS} moves its ceiling) means revisiting
      * {@code lockAtMostFor}.
      */
     @Scheduled(cron = "0 20 * * * *", zone = "UTC")
