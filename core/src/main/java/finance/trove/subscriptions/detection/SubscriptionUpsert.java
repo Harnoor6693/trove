@@ -128,7 +128,7 @@ public class SubscriptionUpsert {
                 first_seen_date = LEAST(detected_subscription.first_seen_date,
                                         EXCLUDED.first_seen_date),
                 last_seen_date = EXCLUDED.last_seen_date,
-                -- Only when something actually moved. A scan that re-reads the same thirteen
+                -- Only when something actually moved. A scan that re-reads the same 25
                 -- months is meant to be a no-op in every column a member can see, and
                 -- `updated_at` is one of them: a nightly job that touched it would make every
                 -- subscription look freshly changed every morning.
@@ -222,7 +222,7 @@ public class SubscriptionUpsert {
      *
      * <p>{@code ON CONFLICT DO NOTHING} rather than delete-then-insert: the link is a historical
      * fact — this charge was part of this subscription — and it stays true after the charge falls
-     * out of the thirteen-month window. Re-running a scan therefore writes nothing the second
+     * out of the 25-month window. Re-running a scan therefore writes nothing the second
      * time, which is part of what makes the whole scan idempotent. A deleted transaction takes its
      * link with it through V29's {@code ON DELETE CASCADE}.
      *

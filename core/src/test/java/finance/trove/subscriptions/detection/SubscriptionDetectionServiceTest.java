@@ -178,13 +178,29 @@ class SubscriptionDetectionServiceTest {
     }
 
     @Test
-    @DisplayName("The window is thirteen months back from the household's own today")
-    void theWindowIsThirteenMonthsFromTheHouseholdsToday() {
+    @DisplayName("Three annual charges, the oldest two years back, fall inside the default window")
+    void threeAnnualChargesFitTheDefaultWindow() {
+        when(transactions.debitsSince(eq(HOUSEHOLD), any())).thenReturn(List.of());
+        // The latest charge is ten days old, so the oldest of three is two years and ten days
+        // back. With the old thirteen-month window an annual subscription could never have the
+        // three charges the classifier needs (CI-45).
+        LocalDate oldestOfThree = TODAY.minusYears(2).minusDays(10);
+
+        service.detectForHousehold(HOUSEHOLD);
+
+        ArgumentCaptor<LocalDate> since = ArgumentCaptor.forClass(LocalDate.class);
+        verify(transactions).debitsSince(eq(HOUSEHOLD), since.capture());
+        assertThat(oldestOfThree).isAfterOrEqualTo(since.getValue());
+    }
+
+    @Test
+    @DisplayName("The window is 25 months back from the household's own today")
+    void theWindowIs25MonthsFromTheHouseholdsToday() {
         when(transactions.debitsSince(eq(HOUSEHOLD), any())).thenReturn(List.of());
 
         service.detectForHousehold(HOUSEHOLD);
 
-        verify(transactions).debitsSince(HOUSEHOLD, TODAY.minusMonths(13));
+        verify(transactions).debitsSince(HOUSEHOLD, TODAY.minusMonths(25));
     }
 
     @Test

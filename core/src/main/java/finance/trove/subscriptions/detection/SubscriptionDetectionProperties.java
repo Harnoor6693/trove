@@ -28,11 +28,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * <p>Defaults, and why each is what it is:
  * <ul>
- *   <li>{@code trove.subscriptions.detection-window} — {@code P13M}, thirteen months (§6 D2). The
- *       thirteenth month is the point: twelve would leave an ANNUAL charge with exactly one
- *       observation in the window on the day before its anniversary, and one charge is no cadence
- *       at all. The source read ninety days and could therefore never detect an annual
- *       subscription.</li>
+ *   <li>{@code trove.subscriptions.detection-window} — {@code P25M}, 25 months (§6 D2, CI-45). The
+ *       window must hold {@code minimum-charges} observations of the slowest cadence, and three
+ *       annual charges span two years: thirteen months held at most two, so no annual
+ *       subscription could ever be detected. The source read ninety days and could never
+ *       detect one either. Twenty-five months, not twenty-four, leaves a month of slack: an
+ *       annual subscription is detected from its third charge until that charge is a month
+ *       old.</li>
  *   <li>{@code trove.subscriptions.minimum-charges} — {@code 3}. Two charges give one interval,
  *       and one interval is a coincidence: any two purchases from the same shop are some number
  *       of days apart, and that number lands inside some cadence's window more often than
@@ -75,8 +77,8 @@ public record SubscriptionDetectionProperties(Period detectionWindow,
                                               Integer upcomingDays,
                                               Map<BillingCycle, Integer> cadenceToleranceDays) {
 
-    /** Thirteen months — long enough to see an ANNUAL charge twice. */
-    public static final Period DEFAULT_WINDOW = Period.ofMonths(13);
+    /** 25 months — long enough to hold the three charges an ANNUAL subscription needs. */
+    public static final Period DEFAULT_WINDOW = Period.ofMonths(25);
 
     /**
      * Three charges, so the classifier has its {@link IntervalClassifier#MIN_INTERVALS} to work

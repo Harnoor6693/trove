@@ -13,7 +13,7 @@ import java.util.Optional;
  *
  * <p><strong>Why this replaces the source's coefficient-of-variation gate.</strong> The
  * pre-collapse detector rejected a merchant whose amounts varied by more than 5% (CV ≤ 0.05) over
- * a 90-day window. This step reads THIRTEEN months (§6 D2), and over thirteen months a perfectly
+ * a 90-day window. This step reads 25 MONTHS (§6 D2), and over a window that long a perfectly
  * ordinary price rise — 9.99 to 12.99 — produces a CV of about 13%. The old gate would therefore
  * throw the merchant away entirely, and the feature could never report the very price change it
  * exists to report. Widening the window without changing the gate would have turned a working
@@ -121,7 +121,7 @@ public final class AmountLevels {
      * The price before the most recent change, when the window contains one.
      *
      * <p>Descriptive only. The row's {@code previous_amount} comes from what was STORED at the
-     * last scan, not from here — otherwise a scan that re-read the same thirteen months would
+     * last scan, not from here — otherwise a scan that re-read the same 25 months would
      * keep re-announcing a change the member was told about months ago.
      */
     public Optional<BigDecimal> priorAmount() {
