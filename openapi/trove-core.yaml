@@ -3796,6 +3796,11 @@ paths:
         (`ON DELETE CASCADE`), which is also the only way a synced transaction
         is ever deleted — `DELETE /v1/transactions/{id}` refuses anything that
         did not come from manual entry.
+
+        Budget envelopes are recomputed: the `spent` of every envelope that
+        counted one of the account's categorised transactions drops those
+        rows, and a transaction on another account that was paired with one
+        of them as a transfer is unpaired and counts as spending again.
       parameters:
         - $ref: '#/components/parameters/AccountIdPath'
         - $ref: '#/components/parameters/RequestedWithHeader'
@@ -3805,7 +3810,9 @@ paths:
         - $ref: '#/components/parameters/RequestIdHeader'
       responses:
         '200':
-          description: The account and its transactions are gone.
+          description: >-
+            The account and its transactions are gone, and the budget envelopes
+            they counted in are recomputed.
           headers:
             X-Request-Id:
               $ref: '#/components/headers/XRequestId'
