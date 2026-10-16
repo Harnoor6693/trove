@@ -35,13 +35,12 @@ function shiftDate(iso: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** A v4 id for a brand-new transfer pair (Hermes has no `crypto.randomUUID`). */
-function newTransferGroupId(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = Math.floor(Math.random() * 16);
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-  });
-}
+/**
+ * How many rows of the window the picker fetches: the contract's maximum page.
+ * The amount, sign and account filter runs here, after the fetch, so a smaller
+ * page silently hid the partner on a busy ledger.
+ */
+const TRANSFER_CANDIDATE_LIMIT = 500;
 
 /**
  * One transaction — `GET`, `PATCH` and `DELETE /v1/transactions/{id}`.
@@ -53,12 +52,13 @@ function newTransferGroupId(): string {
  * so saving a note cannot silently rewrite a category the member never touched,
  * and clearing one is an explicit `null` rather than an omission.
  *
- * **A transfer is not a route.** Marking this row as a transfer leg is
- * `{transferGroupId: "<uuid>"}` and unlinking it is `{transferGroupId: null}`;
- * that patch is the entire affordance the contract offers. Like the web app,
- * the member picks the other leg from candidates (opposite sign, same amount,
- * another account, within a week) and both rows get one group id — the
- * partner's if it already has one, else a fresh id. No id is ever typed.
+ * **A transfer is not a route.** Linking is one patch on this row,
+ * `{transferPartnerId: "<other row>"}`: the server mints the group id and
+ * writes both legs in one transaction, so a failure leaves neither linked.
+ * Unlinking is `{transferGroupId: null}`, which frees the partner too. Like
+ * the web app, the member picks the other leg from candidates (opposite sign,
+ * same amount, another account, within a week, not already a transfer leg —
+ * the server refuses to join an existing pair). No id is ever typed.
  *
  * **Delete is manual-only.** A row that came from a source answers 409 — it
  * would reappear on the next sync — so the way to remove it is to disconnect
@@ -81,7 +81,6 @@ export default function TransactionDetailScreen() {
   const remove = useDeleteTransaction();
   const categories = useCategories();
   const [linkTo, setLinkTo] = useState('');
-  const patchOther = usePatchTransaction(linkTo);
   const needsCandidates = data !== undefined && data.transferGroupId === null;
   const candidateQuery = useTransactions(
     data === undefined || !needsCandidates
@@ -89,7 +88,7 @@ export default function TransactionDetailScreen() {
       : {
           from: shiftDate(data.date, -TRANSFER_WINDOW_DAYS),
           to: shiftDate(data.date, TRANSFER_WINDOW_DAYS),
-          limit: 100,
+          limit: TRANSFER_CANDIDATE_LIMIT,
           sort: 'date,desc',
         },
     needsCandidates
@@ -102,6 +101,7 @@ export default function TransactionDetailScreen() {
           .filter(
             (c) =>
               c.id !== data.id &&
+              c.transferGroupId === null &&
               c.accountId !== data.accountId &&
               c.date >= shiftDate(data.date, -TRANSFER_WINDOW_DAYS) &&
               c.date <= shiftDate(data.date, TRANSFER_WINDOW_DAYS) &&
@@ -112,14 +112,11 @@ export default function TransactionDetailScreen() {
 
   async function linkTransfer() {
     if (data === undefined || other === undefined) return;
-    const groupId = other.transferGroupId ?? newTransferGroupId();
     try {
-      // Awaited and ordered: this row first, so a refusal never leaves the
-      // partner marked as half a transfer.
-      await patch.mutateAsync({ transferGroupId: groupId });
-      if (other.transferGroupId === null) {
-        await patchOther.mutateAsync({ transferGroupId: groupId });
-      }
+      // One request for both legs: the server links them atomically, so there
+      // is no second write that could fail on its own and leave this row half
+      // a transfer.
+      await patch.mutateAsync({ transferPartnerId: other.id });
       setLinkTo('');
     } catch {
       // The mutation's own error state is rendered above.
@@ -307,7 +304,8 @@ export default function TransactionDetailScreen() {
               {data.transferGroupId === null ? (
                 <>
                   <Text style={[styles.meta, { color: theme.ink3 }]}>
-                    Pick the matching transaction on another account, within a week of this one.
+                    Pick the matching transaction on another account, within a week of this one. One
+                    that is already part of a transfer is not listed.
                   </Text>
                   {candidates.length === 0 ? (
                     <Text
@@ -346,7 +344,7 @@ export default function TransactionDetailScreen() {
                     label="Link transfer"
                     variant="secondary"
                     fullWidth
-                    loading={patch.isPending || patchOther.isPending}
+                    loading={patch.isPending}
                     disabled={other === undefined}
                     onPress={() => void linkTransfer()}
                     testID="transaction-link-transfer"

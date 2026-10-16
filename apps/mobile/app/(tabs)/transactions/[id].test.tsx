@@ -12,6 +12,7 @@ import {
   patchTransaction,
 } from '@api/transactions';
 import { useAuthStore } from '@stores/authStore';
+import { transactionKeys } from '@hooks/useTransactions';
 import type { MeResponse, TransactionPatchRequest, TransactionResponse } from '@api/types';
 
 jest.mock('@api/categories', () => ({
@@ -270,8 +271,10 @@ describe('transfers — pick the other leg', () => {
         leg({ id: '44444444-4444-4444-8444-444444444444', amount: '9.00' }),
         leg({ id: '55555555-5555-4555-8555-555555555555', accountId: 'a1' }),
         leg({ id: '66666666-6666-4666-8666-666666666666', date: '2026-08-01' }),
+        // Already one leg of a pair: linking to it would be refused (409), so it is not offered.
+        leg({ id: '77777777-7777-4777-8777-777777777777', transferGroupId: 'g9' }),
       ],
-      meta: { total: 5, page: 0, limit: 100 },
+      meta: { total: 6, page: 0, limit: 500 },
     });
     await renderScreen();
     expect(await screen.findByTestId(`transfer-candidate-${OTHER}`)).toBeTruthy();
@@ -279,28 +282,88 @@ describe('transfers — pick the other leg', () => {
     expect(mockList.mock.calls[0][0]).toMatchObject({ from: '2026-08-28', to: '2026-09-11' });
   });
 
-  it('marking a candidate links both legs under one new group id', async () => {
-    mockList.mockResolvedValue({
-      data: [leg({})],
-      meta: { total: 1, page: 0, limit: 100 },
-    });
-    mockPatch.mockResolvedValue(transaction({ transferGroupId: 'g' }));
+  it('searches up to the contract maximum of 500 rows in the window', async () => {
     await renderScreen();
-    expect(screen.getByTestId('transaction-link-transfer').props.accessibilityState.disabled).toBe(
-      true
-    );
+    await waitFor(() => expect(mockList).toHaveBeenCalled());
+    expect(mockList.mock.calls[0][0]).toMatchObject({ limit: 500 });
+  });
+
+  async function pickAndLink() {
     await act(async () => {
       await fireEvent.press(await screen.findByTestId(`transfer-candidate-${OTHER}`));
     });
     await act(async () => {
       await fireEvent.press(screen.getByTestId('transaction-link-transfer'));
     });
-    await waitFor(() => expect(mockPatch).toHaveBeenCalledTimes(2));
-    const first = patchBody(0).transferGroupId;
-    expect(first).toMatch(/^[0-9a-f-]{36}$/);
+  }
+
+  it('links both legs with ONE patch naming the partner; the server writes both', async () => {
+    mockList.mockResolvedValue({
+      data: [leg({})],
+      meta: { total: 1, page: 0, limit: 500 },
+    });
+    mockPatch.mockResolvedValue(transaction({ transferGroupId: 'g' }));
+    await renderScreen();
+    expect(screen.getByTestId('transaction-link-transfer').props.accessibilityState.disabled).toBe(
+      true
+    );
+    await pickAndLink();
+    await waitFor(() => expect(mockPatch).toHaveBeenCalledTimes(1));
     expect(mockPatch.mock.calls[0][0]).toBe('11111111-1111-4111-8111-111111111111');
-    expect(mockPatch.mock.calls[1][0]).toBe(OTHER);
-    expect(patchBody(1)).toEqual({ transferGroupId: first });
+    expect(patchBody(0)).toEqual({ transferPartnerId: OTHER });
+  });
+
+  it('shows a refused link and sends no second request', async () => {
+    const { AxiosError } = jest.requireActual('axios') as typeof import('axios');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const config = { headers: {} } as any;
+    mockList.mockResolvedValue({
+      data: [leg({})],
+      meta: { total: 1, page: 0, limit: 500 },
+    });
+    mockPatch.mockRejectedValue(
+      new AxiosError('Request failed', AxiosError.ERR_BAD_RESPONSE, config, {}, {
+        status: 409,
+        statusText: '',
+        headers: {},
+        config,
+        data: {
+          success: false,
+          error: {
+            type: 'https://trove.finance/errors/conflict',
+            title: 'conflict',
+            status: 409,
+            detail: 'One of these transactions is already part of a transfer.',
+          },
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any)
+    );
+    await renderScreen();
+    await pickAndLink();
+    await waitFor(() => expect(screen.getByTestId('transaction-patch-error')).toBeTruthy());
+    expect(screen.getByTestId('transaction-patch-error').props.children).toContain(
+      'already part of a transfer'
+    );
+    expect(mockPatch).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('transaction-unlink-transfer')).toBeNull();
+  });
+
+  it("marks the partner's cached detail stale, since the server changed it too", async () => {
+    mockList.mockResolvedValue({
+      data: [leg({})],
+      meta: { total: 1, page: 0, limit: 500 },
+    });
+    mockPatch.mockResolvedValue(transaction({ transferGroupId: 'g' }));
+    await renderScreen();
+    // The test client collects an unobserved query at once (`gcTime: 0`), so
+    // the request to refresh it is what is asserted, not a cache entry.
+    const invalidate = jest.spyOn(clients[clients.length - 1], 'invalidateQueries');
+    await pickAndLink();
+    await waitFor(() => expect(mockPatch).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: transactionKeys.detail(OTHER) })
+    );
   });
 
   it('says so when there is no candidate', async () => {

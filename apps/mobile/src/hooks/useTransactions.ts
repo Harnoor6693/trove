@@ -120,6 +120,10 @@ export function useCreateManualTransaction(): UseMutationResult<
  * a field the caller left out, and nothing here strips a deliberate `null`:
  * `{transferGroupId: null}` unlinks a transfer leg and `{}` is a valid no-op,
  * and neither must be turned into the other.
+ *
+ * `{transferPartnerId}` writes the named partner as well as this row, so the
+ * partner's detail entry is invalidated: it would otherwise show the partner
+ * unlinked, with a picker, for as long as it stays fresh.
  */
 export function usePatchTransaction(
   id: string
@@ -127,10 +131,15 @@ export function usePatchTransaction(
   const client = useQueryClient();
   return useMutation({
     mutationFn: (patch: TransactionPatchRequest) => patchTransaction(id, patch),
-    onSuccess: (updated) => {
+    onSuccess: (updated, patch) => {
       // The response *is* the new state of this row, so the detail cache is
       // written rather than invalidated — no refetch to see your own edit.
       client.setQueryData(transactionKeys.detail(id), updated);
+      if (patch.transferPartnerId !== undefined) {
+        void client.invalidateQueries({
+          queryKey: transactionKeys.detail(patch.transferPartnerId),
+        });
+      }
       // `['transactions', 'list', {}]` is a prefix, and React Query matches an
       // object in a key partially, so this reaches every filtered list without
       // also invalidating the detail entry just written above.

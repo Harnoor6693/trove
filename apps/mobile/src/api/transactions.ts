@@ -128,16 +128,6 @@ export async function deleteTransaction(id: string): Promise<void> {
 }
 
 /**
- * Mark this row as one leg of a transfer.
- *
- * There is no transfer route in the contract; this patch is the entire
- * affordance, alongside the server's own automatic pairing job.
- */
-export function linkTransfer(id: string, transferGroupId: string): Promise<TransactionResponse> {
-  return patchTransaction(id, { transferGroupId });
-}
-
-/**
  * Unlink a transfer leg.
  *
  * `{"transferGroupId": null}` — the explicit null is the request. A body that
