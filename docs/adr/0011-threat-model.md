@@ -13,6 +13,8 @@ Supersedes: —
 
 > Update 2026-10-16: (a) refresh tokens are signed JWTs hashed at rest in `finance.trove.auth.session`; rotation marks the row replaced and allows a short reuse grace window, and reuse beyond it revokes the whole token family. They are not deleted on rotation. (b) Both images run as a non-root user: `core/Dockerfile` as before, and the `apps/web` image is now `nginxinc/nginx-unprivileged` (`USER 101`, listening on 8080; `scripts/web-healthcheck-probe.sh` asserts uid is not 0). (c) CI gates npm dependencies with `scripts/npm-audit-gate.mjs` (high and critical, with an expiring allowlist), not a bare `npm audit --audit-level=high`. (d) Trove signs outbound webhooks (`webhook-signature`, HMAC-SHA256); it does not verify inbound webhooks, and signature rejection happens in the receiver.
 
+> Update 2026-10-16: the SSRF row reads as if `TROVE_EGRESS_ALLOW_PRIVATE` lifts the link-local and metadata refusals. It does not. That flag together with a user's own `allowPrivateEndpoint` opt-in, on the per-user AI endpoint only, lifts the private ranges (RFC 1918, carrier-grade NAT, IPv6 unique-local and site-local, loopback) and allows plain http, and nothing else. Link-local, the cloud metadata addresses, the unspecified, multicast and reserved ranges, and every IPv4 or IPv6 range IANA marks not globally reachable are always refused. SimpleFIN and webhooks always use the default policy (https, public addresses only) whatever the flag says. See `finance.trove.common.net.OutboundUrlPolicy`.
+
 ## Context
 
 OWASP Top 10 A04 (Insecure Design) requires that an application has been
