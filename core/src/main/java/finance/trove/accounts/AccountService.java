@@ -75,10 +75,12 @@ public class AccountService {
      *
      * <p>That also means this method has no conflict to report: a synthetic id unique to the row
      * cannot collide with anything, so there is no "this household already has an account of that
-     * kind" case, and a {@link DataIntegrityViolationException} here (a vanished household or
-     * user, say) is not that. It is left to the global handler rather than given a cause it has
-     * not established. Provider accounts go through {@code upsertProviderAccount}, which inserts
-     * only if absent.
+     * kind" case. A {@link DataIntegrityViolationException} here would mean the database refused
+     * the write with an integrity or data error that request validation did not catch: no
+     * expected path produces one, and it is not a duplicate-account signal. It is left to the
+     * global handler, whose generic answer is 409 {@code conflict}, rather than given a cause it
+     * has not established. Provider accounts go through {@code upsertProviderAccount}, which
+     * inserts only if absent.
      */
     @Transactional
     public ConnectedAccount create(UUID householdId, UUID userId, AccountRequest request) {
