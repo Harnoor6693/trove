@@ -14,10 +14,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * constructor is where a bad value fails the context refresh instead of surfacing at 08:00 on a
  * Monday nobody is watching.
  *
- * @param smtpEnabled       whether the {@code EMAIL} channel bean exists at all. False on every
- *                          shipped configuration: without {@code spring.mail.host} there is no
- *                          {@code JavaMailSender} to inject, and a channel that silently drops
- *                          everything is exactly the defect D3 is about
+ * @param smtpEnabled       whether the {@code EMAIL} channel bean exists at all. False unless
+ *                          {@code SMTP_ENABLED=true}: {@code application.yml} always sets
+ *                          {@code spring.mail.host} (blank by default), so an idle
+ *                          {@code JavaMailSender} exists either way, and a channel that silently
+ *                          drops everything is exactly the defect D3 is about
  * @param fromAddress       the envelope sender for notification email
  * @param fromName          the display name shown beside it
  * @param digestPageSize    how many digest recipients are read per page. The job holds a page in

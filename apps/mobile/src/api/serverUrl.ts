@@ -66,9 +66,9 @@ const MESSAGES: Record<ServerUrlErrorCode, string> = {
 };
 
 const ANDROID_BLOCKED_MESSAGE =
-  'Android only allows http for localhost and .local names. Use https, or a name ending in .local.';
+  'Android only allows http for localhost, 127.0.0.1, 10.0.2.2 and .local names. Use https, or one of those.';
 const IOS_BLOCKED_MESSAGE =
-  'iOS only allows http for IP addresses and .local names. Use https, or one of those.';
+  'iOS only allows http for localhost, IP addresses and .local names. Use https, or one of those.';
 
 function err(code: ServerUrlErrorCode): ServerUrlErr {
   return { ok: false, code, message: MESSAGES[code] };

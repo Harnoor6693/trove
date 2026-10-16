@@ -25,11 +25,12 @@ import org.springframework.stereotype.Component;
  * {@code onboarding_completed} on {@code users}. The merged schema is the fact.)
  *
  * <p><strong>The result stays on the receipt.</strong> It is a convenience for the member reading
- * this one screen and is never exported — the tax-time export carries the member's own amounts and
- * labels with no rate and no computed figure of any kind (§2.9, §4.12), and step 15's
- * {@code TaxExportIT} greps the generated files for {@code gst}, {@code tax_owing} and {@code rate}
- * to hold that. If this stage ever makes that test go red, a computed number has reached an export
- * and the answer is to stop, not to change the test.
+ * this one screen and is never part of the tax export — the tax-time export carries the member's
+ * own amounts and labels with no rate and no computed figure of any kind (§2.9, §4.12), and step
+ * 15's {@code TaxExportIT} greps the generated files for {@code gst}, {@code tax_owing} and {@code
+ * rate} to hold that. If this stage ever makes that test go red, a computed number has reached an
+ * export and the answer is to stop, not to change the test. The full data export does carry the
+ * stored split in {@code receipts.json}.
  */
 @Component
 public class TaxSplitStage implements PipelineStage {

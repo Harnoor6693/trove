@@ -28,7 +28,7 @@ uses the local tag `trove-core:local`): `./trove up` and `./trove update` run
 | CPU | 2 cores (x86-64 or arm64) | 4 cores |
 | RAM | 2 GB | **4 GB** |
 | Disk | 20 GB free | 60 GB+ (receipts grow) |
-| Software | Docker Engine 24+ with the Compose v2 plugin, `openssl`, `git` | same |
+| Software | Docker Engine 25+ with the Compose v2 plugin, `openssl`, `git` | same |
 | JDK | not required — see below | JDK 21 makes the first build faster |
 | Network | a hostname pointing at the box, and inbound TCP 80+443 | same |
 
@@ -139,7 +139,8 @@ TROVE_ACME_CA_SERVER=https://acme-staging-v02.api.letsencrypt.org/directory
 ```
 
 Your browser will warn about the staging certificate — that is the point. Switch
-back to the production URL and run `./trove up` again when the flow works.
+back to the production URL, then run `./trove down && ./trove up` (`down` never deletes data) so
+Traefik restarts with the re-rendered static config.
 
 ### `acme-dns` (Cloudflare)
 
@@ -198,7 +199,9 @@ CLI and env are mutually exclusive sources). `./trove up` therefore renders
 is off. **Edit `traefik.yml`, never `traefik.runtime.yml`** — the latter is
 overwritten on every `up`, `update` and `restore`. If you drive `docker compose`
 by hand, run `./trove up` once first: it renders `traefik.runtime.yml`
-(`./trove doctor` only reports whether it exists).
+(`./trove doctor` only reports whether it exists). Traefik reads its static config only at
+start. After changing `TROVE_TLS_MODE`, `ACME_EMAIL` or `TROVE_ACME_CA_SERVER`, run
+`./trove down && ./trove up` (not just `./trove up`).
 
 ---
 
@@ -310,8 +313,9 @@ onto the machine. Most of the wall clock is `pg_restore` and the JVM start.
 
 ### Background jobs and retention
 
-The server runs these on its own. Clock-time triggers are UTC, and each job holds a
-lock so two instances never run one twice.
+The server runs these on its own. Clock-time triggers are UTC. Every job except the
+rate-limit reload holds a lock so two instances never run one twice (the reload refreshes
+each instance's own in-memory rules, so it runs on all of them).
 
 | Job | When (UTC) | What |
 |---|---|---|
@@ -334,8 +338,10 @@ lock so two instances never run one twice.
 | Webhook retry | every 30 s | up to 5 attempts, backoff of 2^n seconds |
 | Rate-limit rule reload | every 5 minutes | picks up rule changes |
 
-Retention periods are fixed in code, except the import preview retention and the
-SimpleFIN cron, which the shipped compose file does not forward to `trove-core`.
+The audit-log (365 days) and login-attempt (30 days) retention are fixed in code. The import
+preview retention, the account-deletion grace, the export link lifetime and the SimpleFIN cron
+are settings (see Environment Variables in the docs site), but the shipped compose file forwards
+none of them to `trove-core`; add them to its `environment:` block to change them.
 
 ---
 
@@ -371,9 +377,9 @@ for the admin, run
 next entry). For the Traefik limit, raise `ratelimit-auth` in
 `traefik/dynamic/middlewares.yml` (hot-reloaded, no restart).
 
-**Locked out of the only admin account.** A forgotten password or a lost
-authenticator on the only admin cannot be fixed from the app. Run one of these
-on the server:
+**Locked out of the only admin account.** A forgotten password, or a lost
+authenticator with no recovery codes left, on the only admin cannot be fixed from the app.
+From the `deploy/` directory on the server, run one of these:
 
 ```bash
 docker compose run --rm trove-core --trove.cli.command="reset-password <email>"
@@ -481,9 +487,10 @@ There is no telemetry, no analytics, no crash reporting, and no phone-home
 version check. Trove has no server of its own to talk to.
 
 Every outbound target above except the CA and the image registries goes through
-one policy: HTTPS required (plain http only for a private target that both
-`TROVE_EGRESS_ALLOW_PRIVATE=true` and the individual user have opted in), DNS pinned
-at connect time, and private/loopback/link-local addresses refused otherwise.
+one policy: HTTPS required, DNS pinned at connect time, and private and loopback
+addresses refused. Link-local addresses (including the cloud metadata address) are always
+refused. Only when `TROVE_EGRESS_ALLOW_PRIVATE=true` AND the individual user has opted their
+endpoint in are private and loopback targets allowed, and only then is plain http accepted.
 Refused targets show an `outbound-url-rejected` error next to the setting; there is
 no outbound-call log screen.
 

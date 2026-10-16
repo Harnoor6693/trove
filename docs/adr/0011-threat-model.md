@@ -42,7 +42,7 @@ that mitigate it. CI gates referenced are wired up in `.github/workflows/securit
 | Online password brute force | Per-IP and per-user rate limiting; account lockout on repeated failures | `finance.trove.app.ratelimit` (`RateLimitFilter`, `RateLimitService`), `finance.trove.auth.local` |
 | JWT theft via XSS / log scraping / cache | Short-lived access tokens; signed refresh tokens hashed at rest server-side, rotated on use with reuse detection | `finance.trove.auth.session` |
 | Credential stuffing | Rate limiter operates per `/api/v1/auth/*` route; Argon2id password hashing makes offline cracking of a leaked hash expensive | `finance.trove.auth.local`, `finance.trove.app.ratelimit` |
-| JWT alg=none / alg confusion | Allowlisted symmetric HS256 with a 32+ character shared secret; secret presence and length enforced at startup, refuses the literal `change-me-...` placeholder | `finance.trove.auth.jwt` (`JwtProperties#validate`) |
+| JWT alg=none / alg confusion | Allowlisted symmetric HS256 with a shared secret of at least 32 bytes; secret presence and length enforced at startup, refuses the literal `change-me-...` placeholder | `finance.trove.auth.jwt` (`JwtProperties` constructor checks) |
 | Refresh token replay | Refresh tokens rotate on use; reuse outside a short grace window revokes the whole token family | `finance.trove.auth.session` |
 | Optional SSO misconfiguration | OIDC is all-or-nothing: issuer, client id, and client secret must all be set or the feature stays off; local accounts keep working either way | `finance.trove.auth.oidc` |
 

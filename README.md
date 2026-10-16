@@ -69,7 +69,8 @@ git clone https://github.com/Harnoor6693/trove && cd trove/deploy
 
 `./trove bootstrap` asks for your domain, a Let's Encrypt email, the first admin address
 and country (CA or US, fixed after first boot), and prints the admin password it
-generated. Full install steps, sizing, backup/restore, and troubleshooting
+generated. The TLS mode is not prompted for: it comes from `TROVE_TLS_MODE` in `deploy/.env`
+(default `acme-http`). Full install steps, sizing, backup/restore, and troubleshooting
 are in [`deploy/README.md`](deploy/README.md) — that document, not this one, is the
 source of truth for running Trove in production.
 

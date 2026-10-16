@@ -39,11 +39,11 @@ import org.springframework.stereotype.Service;
  * A full data export is not a tax year, so there is nothing to choose and nothing to stamp. The
  * read goes through {@link TransactionQueryService#findAllInRange}, the whole ledger with
  * transfer legs and pending rows included: a user leaving with their data needs every row, not the
- * spending view (B2-03). Only the tax export uses {@code findSpendableInRange}. The bounds are
- * fixed dates well outside any real ledger, because "everything" has no clock question in it; the
- * one place this step does ask a clock is the per-day cap ({@code trove.data-export.runs-per-day}),
- * which {@link DataExportRunStarter} computes (under the household-row lock) over the member's OWN
- * local day (gap row 15).
+ * spending view (B2-03). The tax export, unlike this one, reads through
+ * {@code findSpendableInRange}. The bounds are fixed dates well outside any real ledger, because
+ * "everything" has no clock question in it; the one place this step does ask a clock is the
+ * per-day cap ({@code trove.data-export.runs-per-day}), which {@link DataExportRunStarter}
+ * computes (under the household-row lock) over the member's OWN local day (gap row 15).
  *
  * <h2>Failure is recorded, not swallowed</h2>
  * Every status write goes through {@link DataExportStatusUpdater}, whose transitions are

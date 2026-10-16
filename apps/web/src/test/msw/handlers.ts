@@ -1697,7 +1697,7 @@ function makeSubscriptionAlerts(): SubscriptionAlertResponse[] {
       createdBy: MEMBER,
       subscriptionId: 'sub-spotify',
       alertType: 'PRICE_INCREASE',
-      alertMessage: 'SPOTIFY went up from 9.99 CAD to 11.99 CAD a month.',
+      alertMessage: 'SPOTIFY went up from 9.99 CAD to 11.99 CAD.',
       isRead: false,
       createdAt: `${daysAgo(1)}T02:00:00Z`,
     },

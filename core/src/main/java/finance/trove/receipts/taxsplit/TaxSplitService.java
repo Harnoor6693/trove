@@ -19,7 +19,8 @@ import org.springframework.stereotype.Service;
  * to get the second component, so the two always add back to the total tax exactly — no rounding
  * residue appears or disappears.
  *
- * <p>This is a display convenience on the receipt and nothing more. It is never exported (§2.9).
+ * <p>This is a display convenience on the receipt and nothing more. It is never part of the tax
+ * export (§2.9); the full data export carries it as stored metadata.
  */
 @Service
 public class TaxSplitService {

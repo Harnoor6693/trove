@@ -20,7 +20,8 @@ decimals) are rejected individually as bad rows. Import history for an account i
 `GET /v1/accounts/{id}/sync-logs`. Default limits: 10 MiB per file, 50,000 rows, 1,000
 characters per field (`TROVE_IMPORT_MAX_FILE_BYTES`, `TROVE_IMPORT_MAX_ROWS`,
 `TROVE_IMPORT_MAX_FIELD_CHARS`). The shipped compose file does not forward these
-variables; only installs run from source can change them.
+variables; to change them in a Docker install, add them to the `trove-core` `environment:`
+block of `deploy/docker-compose.yml` (or run from source).
 
 Related account routes, all in the `Accounts` tag:
 

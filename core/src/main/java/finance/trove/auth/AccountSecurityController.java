@@ -41,11 +41,12 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * The credential-management half of {@code /v1/auth} (§4.1; readiness gaps P2-6 and P2-8).
  *
- * <p>Every route here except the two reset endpoints requires a session <em>and</em> a re-proof of
- * the password. A session token is what an attacker who borrowed an unlocked laptop already has;
- * it is not evidence of who is at the keyboard, and every action on this controller changes how
- * the account is secured. That is why each body carries a password rather than relying on the
- * bearer token alone (§1.5, gap P2-6), and why a wrong one answers
+ * <p>Every route here except the two reset endpoints and {@code POST /v1/auth/totp/confirm}
+ * requires a session <em>and</em> a re-proof of the password (confirm takes only the code from the
+ * secret just issued). A session token is what an attacker who borrowed an unlocked laptop
+ * already has; it is not evidence of who is at the keyboard, and every action on this controller
+ * changes how the account is secured. That is why each body carries a password rather than
+ * relying on the bearer token alone (§1.5, gap P2-6), and why a wrong one answers
  * {@link StepUpRequiredException} (403) rather than 401 — 401 would send every client interceptor
  * off to refresh a session that is perfectly valid.
  */

@@ -58,7 +58,8 @@ spring:
 
   datasource:
     # The postgres container is configured with POSTGRES_USER/POSTGRES_DB/POSTGRES_PASSWORD;
-    # compose passes the same values to the app as TROVE_DB_* (see core/.env.example).
+    # compose passes the same values to the app as SPRING_DATASOURCE_URL/USERNAME/PASSWORD, which
+    # override these placeholders (see core/.env.example).
     url: ${TROVE_DB_URL}
     username: ${TROVE_DB_USER:trove}
     password: ${TROVE_DB_PASSWORD}
@@ -255,7 +256,8 @@ trove:
     # is CLOSED — an empty configured secret must never mean "everybody matches".
     token: ${TROVE_METRICS_TOKEN:}
 
-  # Whether ANY private/loopback/link-local outbound target may be opted into on this install
+  # Whether ANY private or loopback outbound target may be opted into on this install (link-local
+  # is always refused)
   # (§1.6, gap P2-10). False by default. Even when true, an individual member must additionally
   # opt their own endpoint in — both keys are required, because a LAN Ollama is the primary AI
   # story but the AI endpoint is per-user (owner decision 9).

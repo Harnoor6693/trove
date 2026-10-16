@@ -27,7 +27,7 @@ const ALERT: SubscriptionAlertResponse = {
   createdBy: 'u1',
   subscriptionId: 's1',
   alertType: 'PRICE_INCREASE',
-  alertMessage: 'SPOTIFY went up from 9.99 CAD to 11.99 CAD a month.',
+  alertMessage: 'SPOTIFY went up from 9.99 CAD to 11.99 CAD.',
   isRead: false,
   createdAt: '2026-09-05T02:00:00Z',
 };

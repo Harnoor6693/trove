@@ -101,8 +101,9 @@ public class ImportService {
      * declared size, so an upload that cannot be kept is never read. Then the format, the account
      * and the parse, all of which can refuse the request; only a file that has survived every one
      * of those reaches {@code storage.put}, so a file that cannot be read leaves nothing behind on
-     * the volume. Classification comes last because it is the only read-only database work, and
-     * {@link ImportPreviewBuilder} runs it in one short transaction after the batch row is saved.
+     * the volume. Classification comes last because it needs the resolved account and the saved
+     * batch row; {@link ImportPreviewBuilder} runs it in one short read-only transaction around
+     * the classification alone.
      *
      * @param declaredKind what the caller says the file is, or {@code null} to let the bytes decide
      * @param accountId    required for CSV, which carries no account identity; optional for OFX,

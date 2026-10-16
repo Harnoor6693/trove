@@ -22,8 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
  * the real proxy and {@code REQUIRES_NEW} genuinely opens a second, independent transaction.
  *
  * <p>The AI categorisation tier ({@code DefaultAiCategorisationTier}) calls it through the
- * injected bean. {@code MerchantMappingWriterIT} proves the write survives an outer
- * transaction's rollback.
+ * injected bean. {@code MerchantMappingIT#writeSurvivesOuterRollback} proves the write survives
+ * an outer transaction's rollback.
  */
 @Service
 public class MerchantMappingWriter {

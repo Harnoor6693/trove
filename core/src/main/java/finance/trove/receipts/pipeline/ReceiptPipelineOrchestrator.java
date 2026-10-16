@@ -250,9 +250,10 @@ public class ReceiptPipelineOrchestrator {
      * uploader already produced — the stages read the three fields and each already handles them
      * being absent — rather than throwing a 500 out of a scheduled job.
      *
-     * <p>This also covers an uploader whose account was deleted between the upload and the run:
-     * the lookup finds nobody, so the context carries no country, region or currency, which every
-     * stage that needs one declines on rather than guessing.
+     * <p>An uploader whose account is inside the deletion grace still resolves and gives their
+     * normal context. If the purge lands between reading the receipt and the lookup, the lookup
+     * finds nobody, so the context carries no country, region or currency, which every stage that
+     * needs one declines on rather than guessing.
      */
     private ReceiptProcessingContext contextFor(UUID uploaderId) {
         if (uploaderId == null) {

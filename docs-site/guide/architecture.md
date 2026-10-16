@@ -29,9 +29,9 @@ why an earlier ten-service design was collapsed into this one.
                             │  networth · ingestion · receipts     │
                             │  categorisation · subscriptions      │
                             │  taxexport · dataexport · ai         │
-                            │  notifications · app                 │
-                            │  common (shared plumbing,            │
-                            │  not a domain)                       │
+                            │  notifications                       │
+                            │  common · app (shared plumbing and   │
+                            │  wiring, not domains)                │
                             └──────────────────────────────────────┘
                                                  │
                                                  ▼
@@ -44,8 +44,9 @@ why an earlier ten-service design was collapsed into this one.
 In the Docker Compose deployment, Traefik sends `/api` to the `trove-core` container and
 everything else to a `web` container (nginx serving the React app).
 
-`core` is 17 packages under `finance.trove`; all but `common` own a domain. They are Java
-packages, not deployable units — there is one build, one JAR, one running process.
+`core` is 17 packages under `finance.trove`; all but `common` and `app` (shared plumbing and
+application wiring) own a domain. They are Java packages, not deployable units — there is one build,
+one JAR, one running process.
 
 ## Request flow: importing a transaction
 
@@ -87,9 +88,10 @@ AI is per-user and off by default. `finance.trove.ai.AiGateway` calls whatever
 OpenAI-compatible endpoint a user points their own account at from Settings — a local
 Ollama, a LAN model server, or a cloud provider. A fresh install calls no AI endpoint at
 all: there is no bundled model runtime and no default endpoint. Outbound calls go
-through `finance.trove.common.net.OutboundUrlPolicy`, which blocks private/link-local/
-metadata addresses unless the operator sets `TROVE_EGRESS_ALLOW_PRIVATE=true` (for a
-LAN model server) and the member also opts their own endpoint in (`allowPrivateEndpoint`).
+through `finance.trove.common.net.OutboundUrlPolicy`, which blocks private and loopback
+addresses unless the operator sets `TROVE_EGRESS_ALLOW_PRIVATE=true` (for a LAN model server)
+and the member also opts their own endpoint in (`allowPrivateEndpoint`). Link-local and
+cloud-metadata addresses are always blocked.
 
 ## Storage
 

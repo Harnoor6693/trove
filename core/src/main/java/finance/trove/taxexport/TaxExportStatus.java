@@ -1,7 +1,8 @@
 package finance.trove.taxexport;
 
 /**
- * Where one {@link TaxExportRun} is ({@code docs/recovery/06-COLLAPSE-PLAN.md} §2.9, §3 V41-row).
+ * Where one {@link TaxExportRun} is ({@code docs/recovery/06-COLLAPSE-PLAN.md} §2.9,
+ * §3 V41-row (plan numbering; shipped as V35__tax_export_run.sql)).
  *
  * <p>The transitions are {@code PENDING -> GENERATING -> COMPLETE} and, from either of the first
  * two, {@code -> FAILED}. Every one of them is written by {@link TaxExportStatusUpdater} in its
