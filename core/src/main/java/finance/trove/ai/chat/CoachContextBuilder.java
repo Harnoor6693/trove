@@ -1,5 +1,6 @@
 package finance.trove.ai.chat;
 
+import finance.trove.ai.PromptData;
 import finance.trove.app.AsyncConfig;
 import finance.trove.budgets.envelope.EnvelopeService;
 import finance.trove.budgets.envelope.dto.EnvelopeResponse;
@@ -147,7 +148,7 @@ public class CoachContextBuilder {
         awaitAll(monthSummary, budgetSummary, subscriptionSummary, netWorthSummary);
 
         Map<String, String> values = Map.of(
-            "display_name", audience.salutation(),
+            "display_name", PromptData.name(audience.salutation()),
             "date", today.toString(),
             "timezone", audience.zone().getId(),
             "jurisdiction", audience.country().name(),
@@ -156,7 +157,7 @@ public class CoachContextBuilder {
             "budget_summary", resolved(budgetSummary),
             "subscription_summary", resolved(subscriptionSummary),
             "net_worth_summary", resolved(netWorthSummary));
-        return fill(prompts.contextTemplate(), values);
+        return PromptData.fence(fill(prompts.contextTemplate(), values));
     }
 
     /**
@@ -286,7 +287,7 @@ public class CoachContextBuilder {
             return text.toString();
         }
         for (EnvelopeResponse line : lines) {
-            text.append(INDENT).append(INDENT).append(line.categoryName())
+            text.append(INDENT).append(INDENT).append(PromptData.name(line.categoryName()))
                 .append(": allocated ").append(amount(line.allocated()))
                 .append(", spent ").append(amount(line.spent()))
                 .append(", rollover ").append(amount(line.rolloverAmount()))
