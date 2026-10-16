@@ -2,9 +2,12 @@ package finance.trove.notifications.preference;
 
 import finance.trove.auth.jwt.TroveUserDetails;
 import finance.trove.common.dto.ApiResponse;
+import finance.trove.notifications.NotificationChannel;
+import finance.trove.notifications.send.DeliveryChannel;
 import finance.trove.notifications.preference.dto.NotificationPreferencesResponse;
 import finance.trove.notifications.preference.dto.NotificationPreferencesUpdateRequest;
 import jakarta.validation.Valid;
+import java.util.List;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -27,9 +30,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class PreferenceController {
 
     private final NotificationPreferenceService preferences;
+    private final boolean emailAvailable;
 
-    public PreferenceController(NotificationPreferenceService preferences) {
+    /**
+     * {@code channels} decides {@code emailAvailable}: the EMAIL channel bean exists only when an
+     * operator turns SMTP on, so its presence is exactly "this server can send email".
+     */
+    public PreferenceController(NotificationPreferenceService preferences,
+                                List<DeliveryChannel> channels) {
         this.preferences = preferences;
+        this.emailAvailable = channels.stream()
+            .anyMatch(channel -> channel.channel() == NotificationChannel.EMAIL);
     }
 
     /** {@code GET} — the caller's settings, created with the shipped defaults on first access. */
@@ -38,7 +49,8 @@ public class PreferenceController {
         @AuthenticationPrincipal TroveUserDetails principal) {
 
         return ApiResponse.ok(
-            NotificationPreferencesResponse.of(preferences.getOrCreate(principal.getUserId())));
+            NotificationPreferencesResponse.of(preferences.getOrCreate(principal.getUserId()),
+                emailAvailable));
     }
 
     /** {@code PUT} — a partial update; returns the whole resource for the client's query cache. */
@@ -48,6 +60,6 @@ public class PreferenceController {
         @Valid @RequestBody NotificationPreferencesUpdateRequest request) {
 
         return ApiResponse.ok(NotificationPreferencesResponse.of(
-            preferences.update(principal.getUserId(), request)));
+            preferences.update(principal.getUserId(), request), emailAvailable));
     }
 }

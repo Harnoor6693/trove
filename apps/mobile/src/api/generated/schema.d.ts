@@ -8073,6 +8073,21 @@ export interface components {
              */
             emailAddress: string | null;
             /**
+             * @description Whether this server can send email at all: true only when an
+             *     operator has configured and enabled the email channel
+             *     (`SMTP_ENABLED=true`). Read-only, and not part of the update body.
+             *     While it is false, clients hide the email toggle and address,
+             *     because nothing would ever be mailed; `emailEnabled` and
+             *     `emailAddress` are still stored and returned as written.
+             *
+             *     This server always sends it. It is left out of `required` on
+             *     purpose: a mobile build talks to whatever server version its
+             *     household runs, and a server older than this field does not send
+             *     it. A client treats an absent value as false.
+             * @example false
+             */
+            readonly emailAvailable?: boolean;
+            /**
              * @description Whether this member is in the Monday digest. The job triggers at
              *     08:00 UTC; the week it reports is the last complete Monday-to-Sunday
              *     week in **this member's own timezone**, and the figures are in this

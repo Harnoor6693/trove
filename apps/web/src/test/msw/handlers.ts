@@ -560,6 +560,8 @@ const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferencesResponse = {
   inAppEnabled: true,
   emailEnabled: false,
   emailAddress: null,
+  // What every shipped configuration answers: SMTP is off, so there is no email channel.
+  emailAvailable: false,
   weeklyDigestEnabled: true,
   subscriptionAlertEnabled: true,
   syncFailureAlertEnabled: true,
