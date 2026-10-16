@@ -2,6 +2,7 @@ package finance.trove.users;
 
 import finance.trove.auth.dto.PreferencesUpdateRequest;
 import finance.trove.auth.dto.UpdateMeRequest;
+import finance.trove.common.exception.FieldValidationException;
 import finance.trove.common.exception.UnauthorizedException;
 import finance.trove.common.exception.ValidationException;
 import finance.trove.common.time.UserTimeZoneProvider;
@@ -127,7 +128,7 @@ public class UserProfileService {
         try {
             return ZoneId.of(candidate.strip()).getId();
         } catch (DateTimeException e) {
-            throw new ValidationException(
+            throw new FieldValidationException("timezone",
                 "'" + candidate + "' is not a recognised IANA time zone.");
         }
     }
