@@ -94,7 +94,6 @@ class AccountServiceTest {
         DataIntegrityViolationException violation = new DataIntegrityViolationException(
             "insert or update on table \"connected_account\" violates foreign key constraint");
         when(accounts.save(any(ConnectedAccount.class))).thenThrow(violation);
-        when(accounts.saveAndFlush(any(ConnectedAccount.class))).thenThrow(violation);
 
         AccountService service = service();
         AccountRequest request = request();
