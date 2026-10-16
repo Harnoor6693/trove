@@ -181,7 +181,7 @@ export function NotificationsCard() {
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="email-address"
-              placeholder="Where alerts go, if different from your sign-in address"
+              placeholder="Your sign-in address (others are saved but not mailed)"
               placeholderTextColor={theme.ink3}
               accessibilityLabel="Notification email address"
               style={[styles.input, { borderColor: theme.line, color: theme.ink }]}

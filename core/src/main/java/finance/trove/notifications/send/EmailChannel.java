@@ -4,6 +4,8 @@ import finance.trove.notifications.NotificationChannel;
 import finance.trove.notifications.NotificationProperties;
 import finance.trove.notifications.NotificationType;
 import finance.trove.notifications.preference.NotificationPreference;
+import finance.trove.users.User;
+import finance.trove.users.UserRepository;
 import jakarta.mail.internet.MimeMessage;
 import java.util.Locale;
 import java.util.Set;
@@ -66,12 +68,14 @@ public class EmailChannel implements DeliveryChannel {
     private final JavaMailSender mailSender;
     private final TemplateEngine templates;
     private final NotificationProperties properties;
+    private final UserRepository users;
 
     public EmailChannel(JavaMailSender mailSender, TemplateEngine templates,
-                        NotificationProperties properties) {
+                        NotificationProperties properties, UserRepository users) {
         this.mailSender = mailSender;
         this.templates = templates;
         this.properties = properties;
+        this.users = users;
     }
 
     @Override
@@ -85,11 +89,21 @@ public class EmailChannel implements DeliveryChannel {
      * <p>Both halves matter: a member may enable the channel in a settings form before typing an
      * address, and refusing that write would make the two fields order-dependent. The channel
      * simply does not run until there is somewhere to send to.
+     *
+     * <p>B3-07: and only to the member's own sign-in address. Nothing proves a member owns any
+     * other address (there is no verification link, because email is off by default), so mailing
+     * whatever was typed into preferences would let a member point alerts and digests at a third
+     * party. Any other address is kept and skipped until a verification flow exists.
      */
     @Override
     public boolean enabledFor(NotificationPreference preference) {
-        return preference.isEmailEnabled() && preference.getEmailAddress() != null
-            && !preference.getEmailAddress().isBlank();
+        String address = preference.getEmailAddress();
+        return preference.isEmailEnabled() && address != null && !address.isBlank()
+            && users.findAccount(preference.getUserId())
+                .filter(User::isActive)
+                .map(User::getEmail)
+                .filter(address.trim()::equalsIgnoreCase)
+                .isPresent();
     }
 
     @Override
@@ -111,7 +125,9 @@ public class EmailChannel implements DeliveryChannel {
             // SMTP refusal is an ordinary outcome rather than a programming error, and the caller
             // writes it into notification_log.error_message. Rethrowing would abort the whole
             // notification and lose the inbox row that is meant to survive a channel failure.
-            LOG.warn("email delivery to user {} failed for {}: {}", userId, type, e.toString());
+            // The exception's type only: a mail exception's message can carry the recipient.
+            LOG.warn("email delivery to user {} failed for {}: {}", userId, type,
+                e.getClass().getSimpleName());
             return DeliveryResult.failed(e);
         }
     }
