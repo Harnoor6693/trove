@@ -55,6 +55,15 @@ import org.springframework.stereotype.Service;
 @Service
 public class TaxExportGenerationService {
 
+    /**
+     * What the member is told when generation fails. A fixed sentence on purpose: an exception
+     * message can carry a storage path or an SQL fragment, and this text is served to the member.
+     * The full cause is logged with its stack trace (CI-50).
+     */
+    static final String FAILURE_REASON =
+        "The export could not be generated. Try again; if it keeps failing, ask your "
+            + "administrator to check the server log.";
+
     private static final Logger LOG = LoggerFactory.getLogger(TaxExportGenerationService.class);
 
     private final TaxExportRunRepository runs;
@@ -145,10 +154,7 @@ public class TaxExportGenerationService {
 
     private void recordFailure(UUID runId, UUID userId, RuntimeException cause) {
         try {
-            String reason = cause.getMessage() == null || cause.getMessage().isBlank()
-                ? cause.getClass().getSimpleName()
-                : cause.getMessage();
-            status.transition(runId, userId, TaxExportStatus.FAILED, reason);
+            status.transition(runId, userId, TaxExportStatus.FAILED, FAILURE_REASON);
         } catch (RuntimeException secondary) {
             // swallow-ok: the primary failure is already logged above with its stack trace, and
             // there is nothing further this thread can do. Rethrowing would only reach the

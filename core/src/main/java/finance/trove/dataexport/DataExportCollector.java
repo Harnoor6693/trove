@@ -79,8 +79,10 @@ import org.springframework.transaction.annotation.Transactional;
  * {@code Receipt} owns its images and line items as EAGER collections, and the coach page decrypts
  * inside its own read. Collecting the JSON datasets inside one read-only transaction makes them a
  * consistent picture of one moment rather than fourteen pictures of fourteen different ones.
- * {@code transactions.csv} is read separately by {@code DataExportGenerationService} and is not
- * part of that snapshot.
+ * {@code DataExportGenerationService} calls this inside its own REPEATABLE_READ read-only
+ * transaction, which this one joins, and reads {@code transactions.csv} in the same transaction,
+ * so the CSV and the JSON datasets are one snapshot. Called outside such a transaction it is a
+ * snapshot of the JSON datasets only (the default isolation level reads each statement afresh).
  */
 @Component
 public class DataExportCollector {

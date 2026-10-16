@@ -72,4 +72,31 @@ class TaxExportGenerationServiceTest {
         String text = new String(content.getValue(), StandardCharsets.UTF_8);
         assertThat(text).contains("Épicerie").doesNotContain("Still Pending");
     }
+
+    @Test
+    @DisplayName("A failure records a fixed sentence, not the raw exception message (CI-50)")
+    void aFailureRecordsAFixedSentence() {
+        TransactionQueryService transactions = mock(TransactionQueryService.class);
+        TaxLineMappingService lines = mock(TaxLineMappingService.class);
+        TaxExportRunRepository runs = mock(TaxExportRunRepository.class);
+        TaxExportStatusUpdater status = mock(TaxExportStatusUpdater.class);
+        TaxExportRun run = new TaxExportRun(userId, 2025, Jurisdiction.CA, TaxExportFormat.CSV);
+        when(runs.findByIdAndUserId(runId, userId)).thenReturn(Optional.of(run));
+        when(status.transition(any(), any(), eq(TaxExportStatus.GENERATING), any()))
+            .thenReturn(true);
+        when(lines.resolve(userId, Jurisdiction.CA)).thenReturn(Map.of());
+        when(transactions.findSpendableInRange(eq(householdId), any(), any()))
+            .thenReturn(List.of());
+        when(storage.put(eq(StorageArea.EXPORTS), eq(householdId), any(byte[].class), eq("csv")))
+            .thenThrow(new IllegalStateException("Could not store /data/exports/k.csv"));
+
+        new TaxExportGenerationService(runs, transactions, mock(CategoryRepository.class), lines,
+            new CsvExportBuilder(), mock(PdfExportBuilder.class), storage, status)
+            .generateAsync(runId, userId, householdId);
+
+        ArgumentCaptor<String> reason = ArgumentCaptor.forClass(String.class);
+        verify(status).transition(eq(runId), eq(userId), eq(TaxExportStatus.FAILED),
+            reason.capture());
+        assertThat(reason.getValue()).isNotBlank().doesNotContain("/").doesNotContain("exports");
+    }
 }
