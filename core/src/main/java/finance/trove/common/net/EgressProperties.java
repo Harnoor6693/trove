@@ -9,18 +9,20 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * <p>{@code TROVE_EGRESS_ALLOW_PRIVATE} is the household admin's "may a member point their AI
  * endpoint at a LAN target on this install at all" switch; the member still has to opt their own
  * endpoint in on top of it (§6, owner decision 9), and a private target is reachable only when
- * both are true. It widens nothing else. SimpleFIN and webhook URLs always go through the
+ * both are true, and the same two keys let that endpoint use plain http. It widens nothing
+ * else. SimpleFIN and webhook URLs always go through the
  * default policy ({@link OutboundUrlPolicy#check(String)}, which never passes an opt-in), so
  * they are refused a private target whatever this is set to.
  *
  * <p>"Private" means RFC 1918, loopback, carrier-grade NAT ({@code 100.64.0.0/10}), IPv6
  * unique-local ({@code fc00::/7}) and the deprecated IPv6 site-local ({@code fec0::/10}).
  * Link-local, the cloud metadata addresses, the unspecified, multicast and reserved ranges, every
- * other IPv6 range IANA marks not globally reachable, and the IPv6 space outside
+ * other IPv4 or IPv6 range IANA marks not globally reachable, and the IPv6 space outside
  * {@code 2000::/3} that the IETF reserves are refused whatever this is set to; see
  * {@link OutboundUrlPolicy}.
  *
- * @param allowPrivate whether a private or loopback target may be opted into
+ * @param allowPrivate whether a private or loopback target, over https or plain http, may be
+ *                     opted into
  */
 @ConfigurationProperties(prefix = "trove.egress")
 public record EgressProperties(boolean allowPrivate) {
