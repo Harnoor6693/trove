@@ -1746,6 +1746,11 @@ export interface paths {
          *     `currency` defaults to the caller's own `users.currency` when omitted.
          *     There is no server-side default currency literal anywhere — an account
          *     always carries the one it was created with.
+         *
+         *     409 `conflict` is the generic answer to a database integrity violation
+         *     (for example the household or the caller being deleted before this
+         *     request commits). Creating an account no longer treats a duplicate
+         *     provider account as a conflict; it is not a duplicate-account signal.
          */
         post: operations["createAccount"];
         delete?: never;
@@ -13234,6 +13239,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["InternalServerError"];
         };
