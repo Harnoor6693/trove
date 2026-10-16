@@ -520,8 +520,9 @@ version check. Trove has no server of its own to talk to.
 Every outbound target above except the CA and the image registries goes through
 one policy: HTTPS required, DNS pinned at connect time, and private and loopback
 addresses refused. Link-local addresses, the cloud metadata addresses, the unspecified address and
-0.0.0.0/8, multicast and reserved (240.0.0.0/4) ranges are always refused, even with the
-opt-in. Only when `TROVE_EGRESS_ALLOW_PRIVATE=true` AND the individual user has opted their
+0.0.0.0/8, multicast, reserved (240.0.0.0/4) ranges and the local-use NAT64 prefix
+64:ff9b:1::/48 are always refused, even with the opt-in. An IPv6 address that carries an IPv4
+one (IPv4-mapped or -compatible, NAT64, 6to4, Teredo, SIIT, ISATAP) is judged by that IPv4 address. Only when `TROVE_EGRESS_ALLOW_PRIVATE=true` AND the individual user has opted their
 endpoint in are RFC 1918, loopback, CGNAT and IPv6 ULA targets allowed, and only then is plain http accepted.
 Refused targets show an `outbound-url-rejected` error next to the setting; there is
 no outbound-call log screen.
