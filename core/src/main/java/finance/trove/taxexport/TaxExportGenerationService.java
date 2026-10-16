@@ -48,9 +48,9 @@ import org.springframework.stereotype.Service;
  * <h2>Failure is recorded, not swallowed</h2>
  * Every status write goes through {@link TaxExportStatusUpdater}, whose transitions are
  * {@code REQUIRES_NEW}, so a failure inside the generation still records {@code FAILED} instead of
- * being rolled back with the work that failed. The recorded reason is truncated and is never a
- * stack trace and never the endpoint of anything — this step opens no socket, so there is no
- * endpoint to leak, and keeping the rule explicit is what stops one appearing later.
+ * being rolled back with the work that failed. The recorded reason is a fixed sentence,
+ * {@link #FAILURE_REASON}: never the exception's own message, a stack trace, a file path or the
+ * name of anything on disk. The full cause is in the server log.
  */
 @Service
 public class TaxExportGenerationService {
