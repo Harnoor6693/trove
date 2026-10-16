@@ -17,7 +17,7 @@ export function aiSettingsErrorCopy(error: ApiError): string {
     case 'outbound-url-rejected':
       return (
         error.detail ??
-        'That address was refused. It must be an absolute https URL with no credentials before the host — and a private, loopback or link-local address needs both this install’s permission and your own.'
+        'That address was refused. It must be an absolute https URL with no credentials before the host — and a private or loopback address needs both this install’s permission and your own.'
       )
     case 'validation-error':
       return (

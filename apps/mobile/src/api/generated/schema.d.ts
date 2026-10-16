@@ -1367,10 +1367,14 @@ export interface paths {
          *     **`endpointUrl` is checked by the egress policy on the way in and again
          *     on every call.** `https` is required unless *both* the install-wide
          *     `TROVE_EGRESS_ALLOW_PRIVATE` and this user's own `allowPrivateEndpoint`
-         *     are set, which is also the only way to reach a private, loopback or
-         *     link-local target — a LAN Ollama is the primary AI story, so a blanket
-         *     block would be wrong, and an instance-wide switch alone would be too
-         *     coarse for a per-user endpoint. A refusal is 400 `outbound-url-rejected`
+         *     are set, which is also the only way to reach a private (RFC 1918,
+         *     carrier-grade NAT, IPv6 unique-local, IPv6 site-local) or loopback
+         *     target — a LAN Ollama is the primary AI story, so a blanket block would
+         *     be wrong, and an instance-wide switch alone would be too coarse for a
+         *     per-user endpoint. The two keys lift nothing else: link-local, the cloud
+         *     metadata addresses, and the other always-refused ranges (unspecified,
+         *     multicast, reserved, and the IANA special-purpose ranges that are not
+         *     globally reachable) stay refused whatever they say. A refusal is 400 `outbound-url-rejected`
          *     with a sentence naming the rule for the URL's shape (scheme, credentials,
          *     port); every refusal by address, including a name that does not resolve,
          *     reads the same and never names the address or its range. Passing
@@ -5253,10 +5257,12 @@ export interface components {
              */
             visionModel: string | null;
             /**
-             * @description This member's own opt-in to a private, loopback or link-local target.
-             *     It is one of two keys: the install must also set
+             * @description This member's own opt-in to a private (RFC 1918, carrier-grade NAT,
+             *     IPv6 unique-local, IPv6 site-local) or loopback target, and to plain
+             *     http. It is one of two keys: the install must also set
              *     `TROVE_EGRESS_ALLOW_PRIVATE`, and a private target is reachable only
-             *     when both are true.
+             *     when both are true. Link-local, the cloud metadata addresses and the
+             *     other always-refused ranges stay refused even with both keys set.
              * @example false
              */
             allowPrivateEndpoint: boolean;
