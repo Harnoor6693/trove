@@ -3648,13 +3648,6 @@ paths:
         `currency` defaults to the caller's own `users.currency` when omitted.
         There is no server-side default currency literal anywhere — an account
         always carries the one it was created with.
-
-        409 `conflict` means an account of this `sourceKind` already occupies
-        this household's slot for the provider account being described: the
-        unique key is `(household_id, source_kind, external_account_id)` with
-        nulls compared equal, which is what lets a later re-exchange or repeat
-        upload reuse the account instead of duplicating it and every transaction
-        on it.
       parameters:
         - $ref: '#/components/parameters/RequestedWithHeader'
         - $ref: '#/components/parameters/XsrfTokenHeader'
@@ -3689,8 +3682,6 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/Conflict'
         '429':
           $ref: '#/components/responses/RateLimited'
         '500':
