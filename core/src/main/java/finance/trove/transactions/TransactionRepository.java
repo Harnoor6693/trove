@@ -114,6 +114,21 @@ public interface TransactionRepository extends UserScopedRepository<Transaction,
     List<Transaction> findAllByHouseholdIdAndTransferGroupId(UUID householdId, UUID transferGroupId);
 
     /**
+     * Links two rows as the legs of one transfer, but only while BOTH are still ungrouped (G6).
+     *
+     * <p>Answers how many rows it wrote, and the caller treats anything but two as a refusal and
+     * rolls back. The {@code is null} guard is evaluated by the {@code UPDATE} itself, under the
+     * row locks it takes, so two concurrent requests that both checked the same partner cannot
+     * both win and leave a three-leg group; the loser writes one row or none and is refused.
+     * Household-scoped, so a row of another household is never written.
+     */
+    @Modifying(flushAutomatically = true)
+    @Query("update Transaction t set t.transferGroupId = :group where t.householdId = :householdId "
+        + "and t.id in :ids and t.transferGroupId is null")
+    int linkUngrouped(@Param("householdId") UUID householdId, @Param("ids") Collection<UUID> ids,
+                      @Param("group") UUID group);
+
+    /**
      * Frees every row of these transfer groups (B1-08). A group of one leg is a lie that hides
      * the survivor from spending and income, so whoever removes or unlinks a leg frees the rest.
      */

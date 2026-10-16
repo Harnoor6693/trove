@@ -44,12 +44,13 @@ public final class TransactionPatch {
     private final List<String> tags;
     private final boolean transferGroupIdPresent;
     private final UUID transferGroupId;
+    private final UUID transferPartnerId;
 
     private TransactionPatch(boolean categoryIdPresent, UUID categoryId,
                              boolean merchantNamePresent, String merchantName,
                              boolean notesPresent, String notes, boolean tagsPresent,
                              List<String> tags, boolean transferGroupIdPresent,
-                             UUID transferGroupId) {
+                             UUID transferGroupId, UUID transferPartnerId) {
         this.categoryIdPresent = categoryIdPresent;
         this.categoryId = categoryId;
         this.merchantNamePresent = merchantNamePresent;
@@ -60,30 +61,47 @@ public final class TransactionPatch {
         this.tags = tags == null ? null : List.copyOf(tags);
         this.transferGroupIdPresent = transferGroupIdPresent;
         this.transferGroupId = transferGroupId;
+        this.transferPartnerId = transferPartnerId;
     }
 
     /**
      * Reads the request body.
      *
-     * @throws ValidationException if the body is not a JSON object, or a present field is of the
-     *                             wrong type or outside its bounds
+     * @throws ValidationException if the body is not a JSON object, a present field is of the
+     *                             wrong type or outside its bounds, or {@code transferPartnerId}
+     *                             is null or sent together with {@code transferGroupId}
      */
     public static TransactionPatch from(JsonNode body) {
         if (body == null || !body.isObject()) {
             throw new ValidationException("The request body must be a JSON object.");
+        }
+        UUID transferPartnerId = null;
+        if (body.has("transferPartnerId")) {
+            // Not nullable: there is nothing to "clear" — unlinking is transferGroupId: null.
+            if (body.path("transferPartnerId").isNull()) {
+                throw new ValidationException("transferPartnerId must be a UUID string; to unlink "
+                    + "a transfer send transferGroupId: null");
+            }
+            // The server mints the group id of a pair it links, so a caller-chosen one alongside
+            // would be either redundant or contradictory.
+            if (body.has("transferGroupId")) {
+                throw new ValidationException(
+                    "Send transferPartnerId or transferGroupId, not both");
+            }
+            transferPartnerId = uuid(body, "transferPartnerId");
         }
         return new TransactionPatch(
             body.has("categoryId"), uuid(body, "categoryId"),
             body.has("merchantName"), text(body, "merchantName", MAX_MERCHANT),
             body.has("notes"), text(body, "notes", MAX_NOTES),
             body.has("tags"), tags(body),
-            body.has("transferGroupId"), uuid(body, "transferGroupId"));
+            body.has("transferGroupId"), uuid(body, "transferGroupId"), transferPartnerId);
     }
 
     /** Whether the body asked for nothing at all. {@code {}} is a valid no-op, not an error. */
     public boolean isEmpty() {
         return !categoryIdPresent && !merchantNamePresent && !notesPresent && !tagsPresent
-            && !transferGroupIdPresent;
+            && !transferGroupIdPresent && transferPartnerId == null;
     }
 
     public boolean hasCategoryId() {
@@ -125,6 +143,19 @@ public final class TransactionPatch {
 
     public UUID transferGroupId() {
         return transferGroupId;
+    }
+
+    /**
+     * Whether the body asked to link this row and another as the two legs of one transfer. Never
+     * true together with {@link #hasTransferGroupId()}; parsing refuses that body.
+     */
+    public boolean hasTransferPartnerId() {
+        return transferPartnerId != null;
+    }
+
+    /** The other leg to link this row with; set exactly when {@link #hasTransferPartnerId()}. */
+    public UUID transferPartnerId() {
+        return transferPartnerId;
     }
 
     private static UUID uuid(JsonNode body, String field) {
