@@ -44,10 +44,11 @@ import org.springframework.stereotype.Component;
  *       mid-pipeline, or {@code receiptExecutor} refused the work under {@code AbortPolicy} and the
  *       upload left the row {@code UPLOADED} on purpose. Without this the member would poll a
  *       status that never moves, for ever.</li>
- *   <li><strong>Files with no row are deleted.</strong> A receipt file that no {@code receipt_image}
- *       row names is unreachable from every route and invisible to the quota's accounting only in
- *       the sense that it still consumes it. Gap row 30 is unbounded disk growth, and this is the
- *       half of the answer that the re-encode and the quota do not cover.</li>
+ *   <li><strong>Files with no row are deleted.</strong> A receipt file that no
+ *       {@code receipt_image} row names is unreachable from every route and invisible to the
+ *       quota's accounting only in the sense that it still consumes it. Gap row 30 is unbounded
+ *       disk growth, and this is the half of the answer that the re-encode and the quota do not
+ *       cover.</li>
  * </ol>
  *
  * <h2>Interruption is checked between rows</h2>
@@ -125,12 +126,11 @@ public class ReceiptOrphanSweep {
      * of 30000, also the ceiling, because {@code AiTimeouts} caps a member's value at four times
      * that setting). So 20 x 125 s = 41.7 minutes, if every one of them hangs until the timeout.
      * A normal pass is seconds. Fifty minutes is above that worst case with 8.3 minutes to spare
-     * and below the hourly cadence, so
-     * a lock cannot expire under a running pass and two passes cannot overlap. That margin is
-     * only as good as the arithmetic: raising {@code MAX_REQUEUED_PER_PASS}, the AI read timeout
-     * ({@code TROVE_HTTP_READ_TIMEOUT_MS} moves its ceiling) or the connect timeout
-     * ({@code TROVE_HTTP_CONNECT_TIMEOUT_MS} moves its ceiling) means revisiting
-     * {@code lockAtMostFor}.
+     * and below the hourly cadence, so a lock cannot expire under a running pass and two passes
+     * cannot overlap. That margin is only as good as the arithmetic: raising
+     * {@code MAX_REQUEUED_PER_PASS}, the AI read timeout ({@code TROVE_HTTP_READ_TIMEOUT_MS} moves
+     * its ceiling) or the connect timeout ({@code TROVE_HTTP_CONNECT_TIMEOUT_MS} moves its
+     * ceiling) means revisiting {@code lockAtMostFor}.
      */
     @Scheduled(cron = "0 20 * * * *", zone = "UTC")
     @SchedulerLock(name = LOCK_NAME, lockAtMostFor = "PT50M")

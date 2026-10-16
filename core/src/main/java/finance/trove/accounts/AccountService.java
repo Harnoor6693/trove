@@ -116,10 +116,10 @@ public class AccountService {
      * written in it).
      *
      * <p><strong>The currency of a NEW row comes from the provider, then from the creating
-     * member's own {@code users.currency}. Never a literal</strong> — §9 risk 5, and finding F4's
-     * exact shape: an account created in the wrong denomination mis-states every amount ever
-     * stored against it, and no later edit can repair it because the amounts were never wrong,
-     * only their unit.
+     * member's own {@code users.currency}. Never a literal</strong> — §9 risk 5, and finding
+     * F4's exact shape: an account created in the wrong denomination mis-states every amount
+     * ever stored against it, and no later edit can repair it because the amounts were never
+     * wrong, only their unit.
      *
      * @param externalAccountId the provider's own id — a SimpleFIN account id, an OFX
      *                          {@code ACCTID}. Never null here: the caller has one or it does not
