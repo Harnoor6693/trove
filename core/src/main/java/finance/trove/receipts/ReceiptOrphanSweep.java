@@ -118,12 +118,15 @@ public class ReceiptOrphanSweep {
      * back to {@code receiptExecutor} — a pool whose {@code AbortPolicy} is exactly what left some
      * of these rows stuck in the first place, so bouncing them off it again would be a loop that
      * makes no progress. The longest a pass can therefore take is
-     * {@link #MAX_REQUEUED_PER_PASS} (20) times one vision call's 120 second read timeout: 40
+     * {@link #MAX_REQUEUED_PER_PASS} (20) times one vision call's read timeout: 120 seconds is
+     * the per-user default ({@code ai_settings.read_timeout_ms}) and, at the default
+     * {@code TROVE_HTTP_READ_TIMEOUT_MS} of 30000, also the ceiling, because
+     * {@code AiTimeouts} caps a member's value at four times that setting. So 40
      * minutes, if every one of them hangs until the timeout. A normal pass is seconds. Fifty
      * minutes is above that worst case with ten minutes to spare and below the hourly cadence, so
      * a lock cannot expire under a running pass and two passes cannot overlap. That margin is
      * only as good as the arithmetic: raising {@code MAX_REQUEUED_PER_PASS} or the AI read
-     * timeout means revisiting {@code lockAtMostFor}.
+     * timeout ({@code TROVE_HTTP_READ_TIMEOUT_MS} moves the ceiling) means revisiting {@code lockAtMostFor}.
      */
     @Scheduled(cron = "0 20 * * * *", zone = "UTC")
     @SchedulerLock(name = LOCK_NAME, lockAtMostFor = "PT50M")
