@@ -9,8 +9,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * <p>{@code TROVE_EGRESS_ALLOW_PRIVATE} is the household admin's "may a member point their AI
  * endpoint at a LAN target on this install at all" switch; the member still has to opt their own
  * endpoint in on top of it (§6, owner decision 9), and a private target is reachable only when
- * both are true, and the same two keys let that endpoint use plain http. It widens nothing
- * else. SimpleFIN and webhook URLs always go through the
+ * both are true. The same two keys let that endpoint use plain http and an IPv6 address in the
+ * deprecated IPv4-compatible ({@code ::/96}) or the IPv4-mapped ({@code ::ffff:0:0/96}) form
+ * (its IPv4 address is still judged). It widens nothing else. SimpleFIN and webhook URLs always
+ * go through the
  * default policy ({@link OutboundUrlPolicy#check(String)}, which never passes an opt-in), so
  * they are refused a private target whatever this is set to.
  *

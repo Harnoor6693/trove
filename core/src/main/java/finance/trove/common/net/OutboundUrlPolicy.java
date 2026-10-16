@@ -45,9 +45,11 @@ import org.springframework.stereotype.Component;
  *       configures their own endpoint (so an instance-wide switch is too coarse) — §1.6, §6,
  *       owner decision 9. Only the per-user AI endpoint passes an opt-in; SimpleFIN and webhooks
  *       call {@link #check(String)}, so the flag never opens a private target to them. With both
- *       keys set the policy lifts two things only: the private-network blocks (RFC 1918,
- *       loopback, CGNAT, ULA and the deprecated IPv6 site-local {@code fec0::/10}), and the
- *       https-only rule, so plain http is allowed on that call. Link-local (including
+ *       keys set the policy lifts three things only: the private-network blocks (RFC 1918,
+ *       loopback, CGNAT, ULA and the deprecated IPv6 site-local {@code fec0::/10}); the
+ *       https-only rule, so plain http is allowed on that call; and the refusal of an IPv6
+ *       address in the deprecated IPv4-compatible ({@code ::/96}) or the IPv4-mapped
+ *       ({@code ::ffff:0:0/96}) form (its IPv4 address is still judged). Link-local (including
  *       {@code 169.254.169.254}), the cloud metadata addresses that sit inside those ranges
  *       (Alibaba's in CGNAT; AWS's, Google's, Oracle's, Akamai's and Scaleway's IPv6 ones in
  *       ULA), the unspecified, multicast and reserved ranges, every other IPv4 or IPv6

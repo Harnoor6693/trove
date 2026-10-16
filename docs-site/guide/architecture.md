@@ -93,8 +93,10 @@ the operator sets `TROVE_EGRESS_ALLOW_PRIVATE=true` (for a LAN model server) and
 opts their own endpoint in (`allowPrivateEndpoint`). Webhooks and bank sync go through the same
 policy without the opt-in, so they never reach a private address whatever the flag says. With
 both keys set, only the private ranges open up (RFC 1918, loopback, carrier-grade NAT, IPv6
-unique-local and the deprecated IPv6 site-local `fec0::/10`), and plain http is accepted for
-that endpoint; nothing else is lifted. Link-local, cloud-metadata
+unique-local and the deprecated IPv6 site-local `fec0::/10`), plain http is accepted for that
+endpoint, and so is an IPv6 address in the deprecated IPv4-compatible (`::/96`) or the
+IPv4-mapped (`::ffff:0:0/96`) form (its IPv4 address is still judged); nothing else is lifted.
+Link-local, cloud-metadata
 (including `100.100.100.200` and the IPv6 metadata addresses of AWS, Google Cloud, Oracle Cloud,
 Akamai and Scaleway: `fd00:ec2::254`, `fd00:ec2::23`, `fd20:ce::254`, `fd00:c1::a9fe:a9fe`,
 `fd00:a9fe:a9fe::1` and `fd00:42::42`), unspecified, multicast and reserved addresses are always

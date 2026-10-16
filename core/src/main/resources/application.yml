@@ -260,7 +260,9 @@ trove:
   # loopback, CGNAT, IPv6 ULA, the deprecated IPv6 site-local fec0::/10), and over plain http, on
   # this install. Even when true, the member must additionally opt their own endpoint in — both
   # keys are required, because a LAN Ollama is the primary AI story but the AI endpoint is
-  # per-user (owner decision 9). The two keys lift nothing else. SimpleFIN and webhooks never use
+  # per-user (owner decision 9). The two keys also accept an IPv6 address in the deprecated
+  # IPv4-compatible (::/96) or the IPv4-mapped (::ffff:0:0/96) form (its IPv4 address is still
+  # judged), and lift nothing else. SimpleFIN and webhooks never use
   # the opt-in, so this does not open a private target to them. Link-local, the cloud metadata
   # addresses, the unspecified, multicast and reserved ranges, every other IPv4 or IPv6 range IANA
   # marks not globally reachable, and the IPv6 space outside 2000::/3 that the IETF reserves are
