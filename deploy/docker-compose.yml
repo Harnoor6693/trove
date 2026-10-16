@@ -152,6 +152,7 @@ services:
       # First-run bootstrap (consumed only while the users table is empty)
       TROVE_ADMIN_EMAIL: ${TROVE_ADMIN_EMAIL:?set TROVE_ADMIN_EMAIL in deploy/.env - the first admin account}
       TROVE_ADMIN_PASSWORD: ${TROVE_ADMIN_PASSWORD:?set TROVE_ADMIN_PASSWORD in deploy/.env - run ./trove bootstrap to generate it}
+      TROVE_ADMIN_COUNTRY: ${TROVE_ADMIN_COUNTRY:-CA}
       # Storage and policy
       TROVE_DATA_DIR: ${TROVE_DATA_DIR:-/data}
       TROVE_REGISTRATION_OPEN: ${TROVE_REGISTRATION_OPEN:-false}

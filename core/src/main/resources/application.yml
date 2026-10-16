@@ -353,6 +353,9 @@ trove:
     email: ${TROVE_ADMIN_EMAIL:}
     password: ${TROVE_ADMIN_PASSWORD:}
     household-name: ${TROVE_HOUSEHOLD_NAME:Household}
+    # CA or US. Sets the first admin's country AND currency (CAD or USD); neither can be changed
+    # afterwards, so set it before the first boot. Anything else creates no admin and logs why.
+    country: ${TROVE_ADMIN_COUNTRY:CA}
 
 management:
   server:

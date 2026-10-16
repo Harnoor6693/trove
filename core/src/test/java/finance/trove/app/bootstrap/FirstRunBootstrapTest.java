@@ -61,7 +61,7 @@ class FirstRunBootstrapTest {
 
     private static BootstrapProperties complete() {
         return new BootstrapProperties("Owner@Trove.Test", "a-perfectly-fine-passphrase",
-            "The Household");
+            "The Household", null);
     }
 
     @Test
@@ -128,9 +128,10 @@ class FirstRunBootstrapTest {
     void incompleteCredentialsDoNotFailTheBoot() {
         when(users.countAllUsers()).thenReturn(0L);
 
-        bootstrap(new BootstrapProperties(null, null, null)).bootstrapIfEmpty(NOW);
-        bootstrap(new BootstrapProperties("owner@trove.test", null, null)).bootstrapIfEmpty(NOW);
-        bootstrap(new BootstrapProperties(null, "a-passphrase", null)).bootstrapIfEmpty(NOW);
+        bootstrap(new BootstrapProperties(null, null, null, null)).bootstrapIfEmpty(NOW);
+        bootstrap(new BootstrapProperties("owner@trove.test", null, null, null))
+            .bootstrapIfEmpty(NOW);
+        bootstrap(new BootstrapProperties(null, "a-passphrase", null, null)).bootstrapIfEmpty(NOW);
 
         verify(households, never()).save(any());
     }
@@ -174,7 +175,7 @@ class FirstRunBootstrapTest {
             .thenAnswer(invocation -> invocation.getArgument(0));
         when(users.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        bootstrap(new BootstrapProperties("first.last@trove.test", "a-fine-passphrase", null))
+        bootstrap(new BootstrapProperties("first.last@trove.test", "a-fine-passphrase", null, null))
             .bootstrapIfEmpty(NOW);
 
         ArgumentCaptor<User> admin = ArgumentCaptor.forClass(User.class);
@@ -188,15 +189,59 @@ class FirstRunBootstrapTest {
     @Test
     @DisplayName("Blank properties bind as absent and the household name defaults")
     void propertiesNormalise() {
-        BootstrapProperties properties = new BootstrapProperties("  ", "  ", "  ");
+        BootstrapProperties properties = new BootstrapProperties("  ", "  ", "  ", null);
         assertThat(properties.email()).isNull();
         assertThat(properties.password()).isNull();
         assertThat(properties.householdName()).isEqualTo("Household");
         assertThat(properties.isComplete()).isFalse();
 
-        assertThat(new BootstrapProperties(" a@b.test ", "pw", " Home ").isComplete()).isTrue();
-        assertThat(new BootstrapProperties(" a@b.test ", "pw", " Home ").email())
+        assertThat(new BootstrapProperties(" a@b.test ", "pw", " Home ", null).isComplete())
+            .isTrue();
+        assertThat(new BootstrapProperties(" a@b.test ", "pw", " Home ", null).email())
             .isEqualTo("a@b.test");
+    }
+
+    @Test
+    @DisplayName("The country defaults to CA and is normalised to upper case")
+    void countryNormalises() {
+        assertThat(new BootstrapProperties("a@b.test", "pw", null, null).country())
+            .isEqualTo("CA");
+        assertThat(new BootstrapProperties("a@b.test", "pw", null, "  ").country())
+            .isEqualTo("CA");
+        assertThat(new BootstrapProperties("a@b.test", "pw", null, " us ").country())
+            .isEqualTo("US");
+    }
+
+    @Test
+    @DisplayName("TROVE_ADMIN_COUNTRY=US makes the first admin American, in US dollars")
+    void usCountryMakesAUsAdmin() {
+        when(users.countAllUsers()).thenReturn(0L);
+        when(households.save(any(Household.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(users.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        bootstrap(new BootstrapProperties("owner@trove.test", "a-fine-passphrase", null, "US"))
+            .bootstrapIfEmpty(NOW);
+
+        ArgumentCaptor<User> admin = ArgumentCaptor.forClass(User.class);
+        verify(users).save(admin.capture());
+        assertThat(admin.getValue().getCountry()).isEqualTo(Jurisdiction.US);
+        assertThat(admin.getValue().getCurrency())
+            .as("the currency follows the country; nothing can change either afterwards")
+            .isEqualTo(CurrencyCode.USD);
+    }
+
+    @Test
+    @DisplayName("An unsupported country creates nobody, and the boot still succeeds")
+    void unsupportedCountryCreatesNobody() {
+        when(users.countAllUsers()).thenReturn(0L);
+
+        bootstrap(new BootstrapProperties("owner@trove.test", "a-fine-passphrase", null, "UK"))
+            .bootstrapIfEmpty(NOW);
+
+        verify(households, never()).save(any());
+        verify(users, never()).save(any());
+        verify(accounts, never()).createCredential(any(), anyString(), anyString(), any());
     }
 
     @Test

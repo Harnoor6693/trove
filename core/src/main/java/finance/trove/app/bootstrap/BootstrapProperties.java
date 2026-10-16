@@ -1,5 +1,6 @@
 package finance.trove.app.bootstrap;
 
+import java.util.Locale;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -18,9 +19,15 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param email         the first ADMIN's address
  * @param password      the first ADMIN's password; subject to the same policy as any other
  * @param householdName the name of the install's one household
+ * @param country the first ADMIN's country, {@code CA} or {@code US} ({@code TROVE_ADMIN_COUNTRY},
+ *     default {@code CA}). It decides the currency too, and neither can be changed afterwards, so
+ *     an operator outside Canada has to set it before the first boot. Normalised here but not
+ *     validated, for the reason above: {@link FirstRunBootstrap} refuses an unsupported value, and
+ *     only on the boot that would use it.
  */
 @ConfigurationProperties(prefix = "trove.bootstrap")
-public record BootstrapProperties(String email, String password, String householdName) {
+public record BootstrapProperties(String email, String password, String householdName,
+                                  String country) {
 
     public BootstrapProperties {
         email = email == null || email.isBlank() ? null : email.strip();
@@ -28,6 +35,9 @@ public record BootstrapProperties(String email, String password, String househol
         householdName = householdName == null || householdName.isBlank()
             ? "Household"
             : householdName.strip();
+        country = country == null || country.isBlank()
+            ? "CA"
+            : country.strip().toUpperCase(Locale.ROOT);
     }
 
     /** Whether the operator supplied both halves of a usable first-run credential. */
