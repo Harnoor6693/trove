@@ -114,6 +114,22 @@ describe('what the screen says before it asks for anything', () => {
     expect(textOf('export-receipts-note')).toMatch(/photographs themselves are not in the archive/);
   });
 
+  it('names the member’s own datasets and the household’s subscription alerts', async () => {
+    await renderScreen();
+    const contents = textOf('export-contents');
+    expect(contents).toMatch(/subscription alerts/);
+    expect(contents).toMatch(
+      /your own profile, webhooks, notification inbox, coach conversations, coach insights/
+    );
+  });
+
+  it('says no secret is included and that a webhook URL can carry a token', async () => {
+    await renderScreen();
+    const secrets = textOf('export-secrets-note');
+    expect(secrets).toMatch(/No password, second-factor secret, AI key or webhook signing secret/);
+    expect(secrets).toMatch(/a token in that URL/);
+  });
+
   it('states the one-a-day cap and the 24-hour link', async () => {
     await renderScreen();
     const limits = textOf('export-limits-note');
