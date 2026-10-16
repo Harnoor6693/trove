@@ -160,7 +160,12 @@ class DataExportArchiveBuilderTest {
         assertThat(manifest.path("ledgerScope").asString())
             .as("\"my export\" containing a household mate's spending surprises anybody who was "
                 + "not told")
-            .contains("household");
+            .contains("household")
+            .as("the manifest names what is shared and what is the member's own, so its text "
+                + "cannot drift from the entry list without this failing")
+            .contains("subscription alerts")
+            .contains("profile, webhooks, notifications, coach insights")
+            .contains("userId");
     }
 
     @Test
