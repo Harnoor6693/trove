@@ -830,7 +830,8 @@ export default function Accounts() {
             </ul>
             <p className={styles.hint}>
               Undo removes the rows this import added and that nobody has edited since. A row you
-              have already changed stays where it is.
+              have already changed stays where it is. This list, and undo with it, lasts only
+              until you leave this page.
             </p>
           </div>
         </QlCard>
