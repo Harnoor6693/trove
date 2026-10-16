@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import { StorageKeys } from '@api/secureStorage';
 import {
   __resetClientForTests,
+  clearSession,
   getRefreshToken,
   refreshAccessToken,
   setSession,
@@ -186,6 +187,61 @@ describe('lock and unlock', () => {
     await useAuthStore.getState().signOut();
     useAuthStore.getState().lock();
     expect(useAuthStore.getState().status).toBe('anonymous');
+  });
+
+  describe('unlock result', () => {
+    // These drive the real refresh path with a stubbed fetch, so the result
+    // reflects what the client actually did to the session.
+    let fetchSpy: { mockRestore: () => void } | null = null;
+    afterEach(() => {
+      fetchSpy?.mockRestore();
+      fetchSpy = null;
+    });
+
+    beforeEach(() => {
+      useAuthStore.getState().lock();
+    });
+
+    it("is 'ok' and authenticates when the refresh succeeds", async () => {
+      fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue(
+        new Response(JSON.stringify({ success: true, data: PAIR }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+      await expect(useAuthStore.getState().unlock()).resolves.toBe('ok');
+      expect(useAuthStore.getState().status).toBe('authenticated');
+    });
+
+    it("is 'ended' when the server refuses the token, and the store is anonymous", async () => {
+      fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue(new Response(null, { status: 401 }));
+      await expect(useAuthStore.getState().unlock()).resolves.toBe('ended');
+      expect(useAuthStore.getState().status).toBe('anonymous');
+    });
+
+    it("is 'retryable' on a 5xx, keeping the session and the lock", async () => {
+      fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue(new Response(null, { status: 503 }));
+      await expect(useAuthStore.getState().unlock()).resolves.toBe('retryable');
+      expect(useAuthStore.getState().status).toBe('locked');
+      expect(getRefreshToken()).not.toBeNull();
+    });
+
+    it("is 'retryable' on a network error", async () => {
+      fetchSpy = jest
+        .spyOn(global, 'fetch')
+        .mockRejectedValue(new TypeError('Network request failed'));
+      await expect(useAuthStore.getState().unlock()).resolves.toBe('retryable');
+      expect(useAuthStore.getState().status).toBe('locked');
+    });
+
+    it("is 'no-token' when no refresh token is stored, without calling the server", async () => {
+      const spy = jest.spyOn(global, 'fetch');
+      fetchSpy = spy;
+      await clearSession();
+      await expect(useAuthStore.getState().unlock()).resolves.toBe('no-token');
+      expect(spy).not.toHaveBeenCalled();
+      expect(useAuthStore.getState().status).toBe('locked');
+    });
   });
 });
 

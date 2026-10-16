@@ -5,7 +5,6 @@ import { FontFamily, FontSize, Space } from '@design/tokens';
 import { useTheme } from '@design/useTheme';
 import { authenticateWithBiometrics } from '@hooks/useBiometric';
 import { logError } from '@lib/logError';
-import { getRefreshToken } from '@api/client';
 import { fetchMe } from '@api/me';
 import { fetchPreferences } from '@api/preferences';
 import { isLockSuppressed } from './lockSuppression';
@@ -84,19 +83,21 @@ export function AppLock({ children }: { children: React.ReactNode }) {
           return;
         }
       }
-      const ok = await unlock();
-      if (!ok) {
-        // `unlock` returns false for several reasons. A definitive refusal
-        // ends the session and the store goes `anonymous`, which replaces this
-        // screen with the sign-in flow, so no message is needed. A network
-        // error, timeout or 5xx keeps the session and the store stays
-        // `locked`: say so, because "sign in again" would be wrong advice. With
-        // no stored refresh token nothing can be retried.
-        setError(
-          useAuthStore.getState().status === 'locked' && getRefreshToken() !== null
-            ? 'Could not reach Trove. Check your connection and try again.'
-            : 'Your session expired. Sign in again.'
-        );
+      const outcome = await unlock();
+      if (outcome === 'ended') {
+        // The server refused the refresh and the session is over: the store
+        // is `anonymous`, which replaces this screen with the sign-in flow, so
+        // there is nothing to say here.
+        return;
+      }
+      if (outcome === 'retryable') {
+        // The session is kept and the store stays `locked`: say so, because
+        // "sign in again" would be wrong advice.
+        setError('Could not reach Trove. Check your connection and try again.');
+        return;
+      }
+      if (outcome === 'no-token') {
+        setError('Your session expired. Sign in again.');
         return;
       }
       await revalidate();
@@ -114,8 +115,8 @@ export function AppLock({ children }: { children: React.ReactNode }) {
     if (status !== 'locked' || !settingsHydrated || appLockEnabled) return;
     let cancelled = false;
     void (async () => {
-      const ok = await unlock();
-      if (ok && !cancelled) await revalidate();
+      const outcome = await unlock();
+      if (outcome === 'ok' && !cancelled) await revalidate();
     })();
     return () => {
       cancelled = true;

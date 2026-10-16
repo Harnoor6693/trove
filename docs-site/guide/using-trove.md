@@ -146,4 +146,9 @@ Under Security, **Require unlock** makes Trove lock when it opens and after it h
 the background for the time you pick (immediately, or a number of minutes). Unlocking uses
 Face ID, Touch ID or fingerprint, and falls back to the device passcode. A phone with
 neither stays locked and shows "Set a device passcode or biometrics to use the app lock."
+If Trove cannot be reached while unlocking (no connection, a timeout or a server error), it
+stays locked and shows "Could not reach Trove. Check your connection and try again." Try
+again once you are back online. If the server no longer accepts your session, Trove takes you
+to the sign-in screen. If the phone holds no saved session, the lock screen shows "Your
+session expired. Sign in again."
 While Trove is in the app switcher, its content is hidden.
