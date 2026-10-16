@@ -172,6 +172,56 @@ describe('Admin console', () => {
     await waitFor(() => expect(toggle).toBeChecked())
   })
 
+  it('makes a member an administrator through PUT /v1/admin/users/{id}/role (F1-B2)', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<AdminSection />)
+
+    const table = await screen.findByTestId('members-table')
+    const memberRow = within(table).getAllByRole('row')[2]
+    await user.click(within(memberRow).getByRole('button', { name: /make administrator/i }))
+    const dialog = await screen.findByTestId('member-action-dialog')
+    expect(dialog).toHaveTextContent(/invite and remove members/i)
+    await user.click(within(dialog).getByRole('button', { name: /make administrator/i }))
+
+    await waitFor(() => expect(mswState.lastMemberRoleBody).toEqual({ role: 'ADMIN' }))
+    await waitFor(() =>
+      expect(
+        within(within(screen.getByTestId('members-table')).getAllByRole('row')[2]).getByRole(
+          'button',
+          { name: /remove administrator role/i }
+        )
+      ).toBeInTheDocument()
+    )
+  })
+
+  it('does not offer a role change on the admin’s own row (F1-B2)', async () => {
+    renderWithProviders(<AdminSection />)
+
+    const table = await screen.findByTestId('members-table')
+    const ownRow = within(table).getAllByRole('row')[1]
+    expect(within(ownRow).queryByRole('button', { name: /administrator/i })).not.toBeInTheDocument()
+  })
+
+  it('renders the last-admin 409 on a demotion as an explanation (F1-B2)', async () => {
+    resetMswState({ me: { ...DEFAULT_ME, role: 'ADMIN' }, lastAdminConflict: true })
+    mswState.members = mswState.members.map((m) =>
+      m.id === 'member-2' ? { ...m, role: 'ADMIN' } : m
+    )
+    const user = userEvent.setup()
+    renderWithProviders(<AdminSection />)
+
+    const table = await screen.findByTestId('members-table')
+    const otherAdmin = within(table).getAllByRole('row')[2]
+    await user.click(within(otherAdmin).getByRole('button', { name: /remove administrator role/i }))
+    const dialog = await screen.findByTestId('member-action-dialog')
+    expect(dialog).toHaveTextContent(/signs them out/i)
+    await user.click(within(dialog).getByRole('button', { name: /remove administrator role/i }))
+
+    const message = await screen.findByTestId('member-action-error')
+    expect(message).toHaveAttribute('role', 'status')
+    expect(message).toHaveTextContent(/without an administrator/i)
+  })
+
   it('turns the scheduled bank sync on through PUT /v1/admin/settings, off by default', async () => {
     const user = userEvent.setup()
     renderWithProviders(<AdminSection />)

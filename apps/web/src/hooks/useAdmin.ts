@@ -10,6 +10,7 @@
  */
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  changeHouseholdMemberRole,
   clearHouseholdMemberTotp,
   deleteHouseholdMember,
   getAdminSettings,
@@ -44,11 +45,13 @@ export function useHouseholdMembers(enabled: boolean) {
   })
 }
 
-/** One factory for the four member actions — they differ only in the call they make. */
-function useMemberAction(action: (id: string) => Promise<void>) {
+/** One factory for the member actions — they differ only in the call they make. */
+function useMemberAction(action: (id: string) => Promise<unknown>) {
   const qc = useQueryClient()
   return useMutation<void, ApiError, string>({
-    mutationFn: action,
+    mutationFn: async (id) => {
+      await action(id)
+    },
     onSuccess: () => void qc.invalidateQueries({ queryKey: householdMembersKey }),
   })
 }
@@ -64,6 +67,14 @@ export const useUnlockMemberMutation = () => useMemberAction(unlockHouseholdMemb
 
 /** `DELETE /v1/admin/users/{id}/totp` — 403 `step-up-required` on a self-target. */
 export const useClearMemberTotpMutation = () => useMemberAction(clearHouseholdMemberTotp)
+
+/** `PUT /v1/admin/users/{id}/role` with ADMIN. */
+export const usePromoteMemberMutation = () =>
+  useMemberAction((id) => changeHouseholdMemberRole(id, 'ADMIN'))
+
+/** `PUT /v1/admin/users/{id}/role` with MEMBER — 409 on the household's last active admin. */
+export const useDemoteMemberMutation = () =>
+  useMemberAction((id) => changeHouseholdMemberRole(id, 'MEMBER'))
 
 /** `GET /v1/admin/settings`. */
 export function useAdminSettings(enabled: boolean) {

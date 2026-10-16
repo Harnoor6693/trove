@@ -976,6 +976,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/users/{id}/role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Make a member an administrator, or a member again
+         * @description **Requires the `ADMIN` role.**
+         *
+         *     Sets a member's role to `ADMIN` or `MEMBER`. This is how the last
+         *     administrator hands the household over before deleting their account
+         *     or leaving: `DELETE /v1/me` refuses the last `ADMIN` with 409.
+         *
+         *     **The household always keeps at least one active `ADMIN`.** Demoting
+         *     the household's last active administrator — another member or the
+         *     caller themselves — is **409 `conflict`**. The count is taken inside
+         *     one transaction behind a lock on the household row, the same lock
+         *     `DELETE /v1/admin/users/{id}` takes, so two administrators demoting
+         *     each other at the same instant cannot both succeed.
+         *
+         *     **A demotion revokes every session of the demoted member**, so the
+         *     `ADMIN` claim in their current access token stops working at once
+         *     rather than when it expires; they sign in again as a `MEMBER`. A
+         *     promotion revokes nothing: the new role reaches the member's token at
+         *     their next refresh or sign-in. Setting the role a member already has
+         *     changes nothing and answers 200.
+         *
+         *     A member of another household, or an unknown id, is **404**. A member
+         *     inside the deletion grace is **409**: restore them first.
+         */
+        put: operations["changeHouseholdMemberRole"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/invites": {
         parameters: {
             query?: never;
@@ -4862,6 +4903,15 @@ export interface components {
             registrationOpen?: boolean | null;
             /** @example true */
             scheduledSyncEnabled?: boolean | null;
+        };
+        /**
+         * @description The role to give the member.
+         * @example {
+         *       "role": "ADMIN"
+         *     }
+         */
+        AdminRoleRequest: {
+            role: components["schemas"]["UserRole"];
         };
         /**
          * @description A category, whether system-seeded or the household's own — one shape
@@ -11334,6 +11384,81 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["AdminSelfTargetRefused"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    changeHouseholdMemberRole: {
+        parameters: {
+            query?: never;
+            header?: {
+                /**
+                 * @description Must be exactly `XMLHttpRequest` on a mutating request that was
+                 *     authenticated by cookie. Missing it is 403 `csrf-header-missing`. Bearer
+                 *     callers are not checked (the mobile client sends it anyway).
+                 */
+                "X-Requested-With"?: components["parameters"]["RequestedWithHeader"];
+                /**
+                 * @description The CSRF double-submit token, echoing the value of the non-HttpOnly
+                 *     `XSRF-TOKEN` cookie the server plants on the first request. Required on
+                 *     any mutating request that carries a session cookie or declares
+                 *     `X-Trove-Auth-Mode: cookie`; a missing or stale token is 403 `forbidden`.
+                 *     Bearer callers omit it.
+                 */
+                "X-XSRF-TOKEN"?: components["parameters"]["XsrfTokenHeader"];
+                /**
+                 * @description An optional caller-supplied correlation id. It is honoured **only if it
+                 *     parses as a UUID**, otherwise the server generates one; either way the id
+                 *     in force comes back in the `X-Request-Id` response header and in
+                 *     `error.requestId`.
+                 */
+                "X-Request-Id"?: components["parameters"]["RequestIdHeader"];
+            };
+            path: {
+                /**
+                 * @description The target member's id. Resolved inside the caller's own household, so an
+                 *     id from another household is 404 rather than 403.
+                 */
+                id: components["parameters"]["UserIdPath"];
+            };
+            cookie?: {
+                /**
+                 * @description The readable half of the CSRF double-submit pair (not HttpOnly, Secure,
+                 *     Path=/). The browser sends it automatically; the client's job is to copy
+                 *     it into `X-XSRF-TOKEN`.
+                 */
+                "XSRF-TOKEN"?: components["parameters"]["XsrfCookie"];
+                /**
+                 * @description The cookie-mode access token (HttpOnly, Secure, SameSite=Lax, Path=/,
+                 *     Max-Age tied to the refresh token's remaining life). Present instead of
+                 *     `Authorization: Bearer` for browser callers.
+                 */
+                "__Host-trove_access"?: components["parameters"]["AccessCookie"];
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminRoleRequest"];
+            };
+        };
+        responses: {
+            /** @description The member, with their role after the write. */
+            200: {
+                headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data: components["schemas"]["AdminUserResponse"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["InternalServerError"];
         };

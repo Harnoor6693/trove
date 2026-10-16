@@ -53,7 +53,9 @@ import {
   useAuditLog,
   useClearMemberTotpMutation,
   useDeleteMemberMutation,
+  useDemoteMemberMutation,
   useHouseholdMembers,
+  usePromoteMemberMutation,
   useRestoreMemberMutation,
   useUnlockMemberMutation,
   useUpdateAdminSettingsMutation,
@@ -63,8 +65,9 @@ import { adminErrorCopy } from './accountErrorCopy'
 import type { AdminUserResponse, AuditLogEntry } from '@api/types'
 import styles from './Settings.module.css'
 
-/** The four member actions, with the copy each confirmation needs. */
-type MemberAction = 'delete' | 'restore' | 'unlock' | 'clearTotp' | 'resetLink'
+/** The member actions, with the copy each confirmation needs. */
+type MemberAction =
+  'delete' | 'restore' | 'unlock' | 'clearTotp' | 'promote' | 'demote' | 'resetLink'
 
 const ACTION_COPY: Record<
   Exclude<MemberAction, 'resetLink'>,
@@ -90,6 +93,16 @@ const ACTION_COPY: Record<
     confirm: 'Remove second factor',
     body: 'Use this when somebody has lost the phone their authenticator app was on. Their account will be protected by its password alone until they set two-factor up again. Trove records that YOU removed it, not that they did.',
   },
+  promote: {
+    title: 'Make this member an administrator?',
+    confirm: 'Make administrator',
+    body: 'Administrators can invite and remove members, open or close registration, change these settings and read the audit log. The new role reaches their session the next time it refreshes, within about fifteen minutes, or when they next sign in.',
+  },
+  demote: {
+    title: 'Remove this member’s administrator role?',
+    confirm: 'Remove administrator role',
+    body: 'They become an ordinary member. Trove signs them out everywhere at once, so the old role cannot linger in a live session, and they sign in again as a member. Trove will not demote the household’s last administrator.',
+  },
 }
 
 /* ---------------------------------------------------------------- members */
@@ -108,11 +121,14 @@ function MemberActionDialog({
   const restore = useRestoreMemberMutation()
   const unlock = useUnlockMemberMutation()
   const clearTotp = useClearMemberTotpMutation()
-  const mutation = { delete: remove, restore, unlock, clearTotp }[action]
+  const promote = usePromoteMemberMutation()
+  const demote = useDemoteMemberMutation()
+  const mutation = { delete: remove, restore, unlock, clearTotp, promote, demote }[action]
   const copy = ACTION_COPY[action]
-  const destructive = action === 'delete' || action === 'clearTotp'
+  const destructive = action === 'delete' || action === 'clearTotp' || action === 'demote'
 
-  // A 409 here is an explanation, not a failure: the last admin, or a member
+  // A 409 here is an explanation, not a failure: the last admin (delete or
+  // demote), or a member
   // whose grace has already passed.
   const explanatory = mutation.isError && mutation.error.code === 'conflict'
 
@@ -273,6 +289,20 @@ function MembersPanel() {
             {/* Unlock and clear-TOTP refuse a self-target with 403
                 `step-up-required`, so they are not offered on the admin's own
                 row at all — offering them would be inviting a refusal. */}
+            {/* No role change on the admin's own row: handing over is "make
+                somebody else an administrator", and the server keeps the last
+                one regardless. */}
+            {!isSelf && row.active && (
+              <QlButton
+                size="sm"
+                variant="ghost"
+                onClick={() =>
+                  setTarget({ member: row, action: row.role === 'ADMIN' ? 'demote' : 'promote' })
+                }
+              >
+                {row.role === 'ADMIN' ? 'Remove administrator role' : 'Make administrator'}
+              </QlButton>
+            )}
             {!isSelf && (
               <>
                 <QlButton
@@ -310,10 +340,11 @@ function MembersPanel() {
     <div className={styles.stack}>
       <h3 className={styles.sectionTitle}>Household members</h3>
       <p className={styles.note}>
-        Trove will not let you remove the household&apos;s last administrator, and it will not let
-        you clear your own sign-in lock or your own second factor from here — an administrator whose
-        session has been stolen must not be able to undo their own protections with it. Use your own
-        Account security section, or the server console.
+        Trove will not let you remove or demote the household&apos;s last administrator — make
+        another member an administrator first — and it will not let you clear your own sign-in lock
+        or your own second factor from here — an administrator whose session has been stolen must
+        not be able to undo their own protections with it. Use your own Account security section, or
+        the server console.
       </p>
       {members.isPending && <QlSkeleton data-testid="members-skeleton" />}
       {members.isError && (
