@@ -525,7 +525,9 @@ and Docker, not by Trove): HTTPS required, DNS pinned at connect time, and priva
 addresses refused. SimpleFIN and webhooks always use that default policy. Only a user's AI
 endpoint can be relaxed: when `TROVE_EGRESS_ALLOW_PRIVATE=true` AND that user has opted their
 endpoint in, RFC 1918, loopback, CGNAT, IPv6 ULA and the deprecated IPv6 site-local
-`fec0::/10` targets are allowed, and only then is plain http accepted; nothing else is lifted.
+`fec0::/10` targets are allowed, plain http is accepted, and so is an IPv6 address in the
+deprecated IPv4-compatible (`::/96`) or the IPv4-mapped (`::ffff:0:0/96`) form (its IPv4
+address is still judged); nothing else is lifted.
 Always refused, even with the opt-in: link-local addresses; the cloud metadata addresses
 (`169.254.169.254`, `100.100.100.200` and the IPv6 ones inside unique-local space: `fd00:ec2::254`,
 `fd00:ec2::23`, `fd20:ce::254`, `fd00:c1::a9fe:a9fe`, `fd00:a9fe:a9fe::1`, `fd00:42::42`);

@@ -503,6 +503,32 @@ class OutboundUrlPolicyTest {
         }
 
         @Test
+        @DisplayName("both keys accept IPv4-compatible and IPv4-mapped forms; the IPv4 is judged")
+        void theOptInAcceptsIpv4CompatibleAndMappedForms() throws UnknownHostException {
+            // What the docs list as the third thing the opt-in lifts: the default policy refuses
+            // these two forms outright, while the always-refused check judges the IPv4 inside.
+            byte[] mappedBytes = new byte[16];
+            mappedBytes[10] = (byte) 0xFF;
+            mappedBytes[11] = (byte) 0xFF;
+            mappedBytes[12] = 8;
+            mappedBytes[13] = 8;
+            mappedBytes[14] = 8;
+            mappedBytes[15] = 8;
+            InetAddress mapped = Inet6Address.getByAddress("mapped.example", mappedBytes, 0);
+            InetAddress compatible = InetAddress.getByName("::808:808");
+
+            for (InetAddress address : List.of(compatible, mapped)) {
+                assertThat(OutboundUrlPolicy.blockReason(address))
+                    .as("the default policy refuses %s for its form", address)
+                    .isNotNull();
+                OutboundUrlPolicy policy = new OutboundUrlPolicy(new EgressProperties(true),
+                    host -> new InetAddress[] {address});
+                assertThat(policy.check("http://ollama.lan:11434/v1", true).ip())
+                    .isEqualTo(address);
+            }
+        }
+
+        @Test
         @DisplayName("::ffff:169.254.169.254 is the same destination written differently")
         void anIpv4MappedMetadataAddressIsBlockedTooWithBothKeys() throws UnknownHostException {
             byte[] mapped = new byte[16];

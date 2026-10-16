@@ -3003,10 +3003,10 @@ paths:
         carrier-grade NAT, IPv6 unique-local, IPv6 site-local) or loopback
         target — a LAN Ollama is the primary AI story, so a blanket block would
         be wrong, and an instance-wide switch alone would be too coarse for a
-        per-user endpoint. The two keys lift nothing else: link-local, the cloud
-        metadata addresses, and the other always-refused ranges (unspecified,
-        multicast, reserved, and the IANA special-purpose ranges that are not
-        globally reachable) stay refused whatever they say. A refusal is 400 `outbound-url-rejected`
+        per-user endpoint. Link-local, the cloud metadata addresses and the
+        other always-refused ranges (unspecified, multicast, reserved, and the
+        IANA special-purpose ranges that are not globally reachable) stay
+        refused whatever the keys say. A refusal is 400 `outbound-url-rejected`
         with a sentence naming the rule for the URL's shape (scheme, credentials,
         port); every refusal by address, including a name that does not resolve,
         reads the same and never names the address or its range. Passing
