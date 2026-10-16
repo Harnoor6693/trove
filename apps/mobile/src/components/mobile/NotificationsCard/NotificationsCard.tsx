@@ -47,6 +47,8 @@ export function NotificationsCard() {
   const [saveError, setSaveError] = useState<unknown>(null);
 
   const loaded = preferences.data !== undefined;
+  // Absent (an older server) reads as false: offering email nothing will send is the bug (F1-B8).
+  const emailAvailable = preferences.data?.emailAvailable === true;
 
   // Seed the form during render, the same pattern `AiSettingsCard` uses: an
   // effect that ran six setters would flash the defaults for one render pass
@@ -81,9 +83,14 @@ export function NotificationsCard() {
     const percent = rawPercent === '' ? Number.NaN : Number(rawPercent);
     const body: NotificationPreferencesUpdateRequest = {
       inAppEnabled,
-      emailEnabled,
-      // An explicit null clears the stored address — the only way to unset it.
-      emailAddress: emailAddress.trim() === '' ? null : emailAddress.trim(),
+      // Hidden fields are not sent, so the partial update leaves them alone.
+      ...(emailAvailable
+        ? {
+            emailEnabled,
+            // An explicit null clears the stored address — the only way to unset it.
+            emailAddress: emailAddress.trim() === '' ? null : emailAddress.trim(),
+          }
+        : {}),
       weeklyDigestEnabled,
       subscriptionAlertEnabled,
       syncFailureAlertEnabled,
@@ -168,28 +175,36 @@ export function NotificationsCard() {
               testID="settings-notifications-sync-alerts"
             />
 
-            <MnToggle
-              label="Email notifications"
-              value={emailEnabled}
-              onToggle={setEmailEnabled}
-              testID="settings-notifications-email-enabled"
-            />
-            <Text style={[styles.note, { color: theme.ink3 }]}>
-              The email channel is off on this install until an operator turns it on; enabling it
-              here does nothing until then.
-            </Text>
-            <TextInput
-              value={emailAddress}
-              onChangeText={setEmailAddress}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="email-address"
-              placeholder="Your sign-in address (others are saved but not mailed)"
-              placeholderTextColor={theme.ink3}
-              accessibilityLabel="Notification email address"
-              style={[styles.input, { borderColor: theme.line, color: theme.ink }]}
-              testID="settings-notifications-email-address"
-            />
+            {emailAvailable ? (
+              <>
+                <MnToggle
+                  label="Email notifications"
+                  value={emailEnabled}
+                  onToggle={setEmailEnabled}
+                  testID="settings-notifications-email-enabled"
+                />
+                <TextInput
+                  value={emailAddress}
+                  onChangeText={setEmailAddress}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  placeholder="Your sign-in address (others are saved but not mailed)"
+                  placeholderTextColor={theme.ink3}
+                  accessibilityLabel="Notification email address"
+                  style={[styles.input, { borderColor: theme.line, color: theme.ink }]}
+                  testID="settings-notifications-email-address"
+                />
+              </>
+            ) : (
+              <Text
+                style={[styles.note, { color: theme.ink3 }]}
+                testID="settings-notifications-email-unavailable"
+              >
+                Email is off on this server, so Trove cannot email you. Your administrator can turn
+                it on.
+              </Text>
+            )}
 
             <Text style={[styles.label, { color: theme.ink2 }]}>Budget alert threshold (%)</Text>
             <Text style={[styles.note, { color: theme.ink3 }]}>

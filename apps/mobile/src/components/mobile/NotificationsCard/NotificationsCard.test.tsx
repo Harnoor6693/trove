@@ -74,9 +74,31 @@ it('opens the inbox', async () => {
   expect(router.push).toHaveBeenCalledWith('/(tabs)/net-worth/notifications');
 });
 
+it.each([[false], [undefined]])(
+  'hides the email controls, says email is off, and sends no email fields (emailAvailable=%s)',
+  async (emailAvailable) => {
+    mockUnread.mockResolvedValue({ unread: 0 });
+    mockPreferences.mockResolvedValue({ ...PREFERENCES, emailAvailable });
+    mockUpdate.mockResolvedValue(PREFERENCES);
+    await renderCard();
+    expect(await screen.findByTestId('settings-notifications-email-unavailable')).toBeTruthy();
+    expect(screen.queryByTestId('settings-notifications-email-enabled')).toBeNull();
+    expect(screen.queryByTestId('settings-notifications-email-address')).toBeNull();
+
+    await fireEvent.press(screen.getByTestId('settings-notifications-save'));
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
+    expect(mockUpdate.mock.calls[0][0]).not.toHaveProperty('emailEnabled');
+    expect(mockUpdate.mock.calls[0][0]).not.toHaveProperty('emailAddress');
+  }
+);
+
 it('saves preferences, clearing the email address with an explicit null when left blank', async () => {
   mockUnread.mockResolvedValue({ unread: 0 });
-  mockPreferences.mockResolvedValue({ ...PREFERENCES, emailAddress: 'old@example.test' });
+  mockPreferences.mockResolvedValue({
+    ...PREFERENCES,
+    emailAvailable: true,
+    emailAddress: 'old@example.test',
+  });
   mockUpdate.mockResolvedValue(PREFERENCES);
   await renderCard();
   await waitFor(() => expect(screen.getByTestId('settings-notifications-save')).toBeTruthy());
