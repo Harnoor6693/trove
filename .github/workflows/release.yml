@@ -104,6 +104,10 @@ jobs:
         with:
           node-version: '22'
           package-manager-cache: false
+      # Pinned so a release never builds with a surprise major. The only
+      # constraint is eas.json's cli.version (>= 13.0.0). Raise the pin when a
+      # newer eas-cli is needed; apps/mobile/e2e/eas-config.test.ts fails if it
+      # stops satisfying eas.json.
       - name: Install EAS CLI
         run: npm install -g eas-cli@24.12.1
       - name: Install mobile dependencies
