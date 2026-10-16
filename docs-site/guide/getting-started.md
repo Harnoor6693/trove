@@ -19,8 +19,9 @@ git clone https://github.com/Harnoor6693/trove && cd trove/deploy
 
 `./trove bootstrap` writes `deploy/.env` with generated secrets, asks for your domain,
 Let's Encrypt email, first admin email and country (CA or US), and prints the admin
-password once. Do not copy `.env.example` first: bootstrap does nothing if `deploy/.env`
-already exists. The TLS mode is set by `TROVE_TLS_MODE` in `deploy/.env` (default
+password once. You do not need to copy `.env.example` first. If a `deploy/.env` already
+exists, `./trove bootstrap` completes it instead: it fills in only the placeholder settings
+and empty secrets and never overwrites a value you set. The TLS mode is set by `TROVE_TLS_MODE` in `deploy/.env` (default
 `acme-http`), not prompted for. `./trove up` then builds and starts the stack: the web UI
 container, `core` (the one Spring Boot module) and PostgreSQL, behind Traefik. Full
 detail — sizing, TLS modes, backup/restore, troubleshooting — is in
