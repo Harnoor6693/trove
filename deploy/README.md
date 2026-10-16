@@ -523,14 +523,16 @@ and Docker, not by Trove): HTTPS required, DNS pinned at connect time, and priva
 addresses refused. SimpleFIN and webhooks always use that default policy. Only a user's AI
 endpoint can be relaxed: when `TROVE_EGRESS_ALLOW_PRIVATE=true` AND that user has opted their
 endpoint in, RFC 1918, loopback, CGNAT, IPv6 ULA and the deprecated IPv6 site-local
-`fec0::/10` targets are allowed, and only then is plain http accepted. Always refused, even
-with the opt-in: link-local addresses; the cloud metadata addresses (`169.254.169.254`,
-`100.100.100.200` and the IPv6 ones inside unique-local space: `fd00:ec2::254`,
+`fec0::/10` targets are allowed, and only then is plain http accepted; nothing else is lifted.
+Always refused, even with the opt-in: link-local addresses; the cloud metadata addresses
+(`169.254.169.254`, `100.100.100.200` and the IPv6 ones inside unique-local space: `fd00:ec2::254`,
 `fd00:ec2::23`, `fd20:ce::254`, `fd00:c1::a9fe:a9fe`, `fd00:a9fe:a9fe::1`, `fd00:42::42`);
 the unspecified address and 0.0.0.0/8, multicast and reserved (240.0.0.0/4) ranges; every
-other IPv6 range the IANA special-purpose registry marks not globally reachable (such as
-`100::/64`, `2001:2::/48`, `2001:10::/28`, `2001:db8::/32` and `3fff::/20`); and the IPv6
-space outside `2000::/3` that the IETF reserves. An IPv6 address is first checked as IPv6
+other IPv4 or IPv6 range the IANA special-purpose registries mark not globally reachable (such
+as `192.0.0.0/24` apart from `192.0.0.9` and `192.0.0.10`, `192.0.2.0/24`, `192.88.99.0/24`,
+`198.18.0.0/15`, `198.51.100.0/24`, `203.0.113.0/24`, `100::/64`, `2001:2::/48`,
+`2001:10::/28`, `2001:db8::/32` and `3fff::/20`); and the IPv6 space outside `2000::/3` that
+the IETF reserves. An IPv6 address is first checked as IPv6
 (link-local, multicast, unspecified, the metadata addresses, the IANA and IETF-reserved
 ranges above and the local-use NAT64 prefix `64:ff9b:1::/48` are always refused), then by
 every IPv4 address it could carry (IPv4-mapped, IPv4-compatible, SIIT, 6to4, Teredo, ISATAP,

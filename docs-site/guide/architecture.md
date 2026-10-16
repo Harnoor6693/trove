@@ -93,12 +93,16 @@ the operator sets `TROVE_EGRESS_ALLOW_PRIVATE=true` (for a LAN model server) and
 opts their own endpoint in (`allowPrivateEndpoint`). Webhooks and bank sync go through the same
 policy without the opt-in, so they never reach a private address whatever the flag says. With
 both keys set, only the private ranges open up (RFC 1918, loopback, carrier-grade NAT, IPv6
-unique-local and the deprecated IPv6 site-local `fec0::/10`). Link-local, cloud-metadata
+unique-local and the deprecated IPv6 site-local `fec0::/10`), and plain http is accepted for
+that endpoint; nothing else is lifted. Link-local, cloud-metadata
 (including `100.100.100.200` and the IPv6 metadata addresses of AWS, Google Cloud, Oracle Cloud,
 Akamai and Scaleway: `fd00:ec2::254`, `fd00:ec2::23`, `fd20:ce::254`, `fd00:c1::a9fe:a9fe`,
 `fd00:a9fe:a9fe::1` and `fd00:42::42`), unspecified, multicast and reserved addresses are always
-blocked, and so is every other IPv6 range the IANA special-purpose registry marks not globally
-reachable (among them discard-only `100::/64`, benchmarking `2001:2::/48`, the retired ORCHID
+blocked, and so is every other IPv4 or IPv6 range the IANA special-purpose registries mark not
+globally reachable (among them the IETF protocol assignments `192.0.0.0/24` apart from the PCP
+and TURN anycast addresses `192.0.0.9` and `192.0.0.10`, documentation `192.0.2.0/24`,
+`198.51.100.0/24` and `203.0.113.0/24`, benchmarking `198.18.0.0/15`, the deprecated 6to4 relay
+anycast `192.88.99.0/24`, discard-only `100::/64`, benchmarking `2001:2::/48`, the retired ORCHID
 `2001:10::/28` and documentation `2001:db8::/32` and `3fff::/20`) and the IPv6 space outside
 `2000::/3` that the IETF reserves. An IPv6 address is first checked as IPv6 (link-local,
 multicast, the metadata addresses and those ranges are refused before anything else), then by
