@@ -1747,10 +1747,11 @@ export interface paths {
          *     There is no server-side default currency literal anywhere — an account
          *     always carries the one it was created with.
          *
-         *     409 `conflict` is the generic answer to a database integrity violation
-         *     (for example the household or the caller being deleted before this
-         *     request commits). Creating an account no longer treats a duplicate
-         *     provider account as a conflict; it is not a duplicate-account signal.
+         *     409 `conflict` is the generic answer to a database integrity violation,
+         *     for example the caller's own user being deleted (`DELETE
+         *     /v1/admin/users/{id}`) before this request commits. It is not a
+         *     duplicate-account signal: a duplicate provider account is never a
+         *     conflict here.
          */
         post: operations["createAccount"];
         delete?: never;
