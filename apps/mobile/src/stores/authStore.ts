@@ -46,6 +46,9 @@ import type { AuthUser, MeResponse, UserPreferences } from '@api/types';
 
 export type AuthStatus = 'disconnected' | 'anonymous' | 'authenticated' | 'locked';
 
+/** Why `unlock` did or did not open the session; see the action for each case. */
+export type UnlockResult = 'ok' | 'ended' | 'retryable' | 'no-token';
+
 interface AuthState {
   status: AuthStatus;
   /** False until the persisted server and session have been read. */
@@ -61,7 +64,7 @@ interface AuthState {
   onAuthenticated: (user: AuthUser) => void;
   signOut: () => Promise<void>;
   lock: () => void;
-  unlock: () => Promise<boolean>;
+  unlock: () => Promise<UnlockResult>;
   setMe: (me: MeResponse) => void;
   setPreferences: (preferences: UserPreferences) => void;
   setUser: (user: AuthUser) => Promise<void>;
@@ -162,24 +165,27 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   /**
-   * Exchange the stored refresh token for a live access token. Returns false
-   * when the exchange failed. If the server definitively refused the token
-   * (400/401/403) the client has already ended the session and the store is
-   * `anonymous`. After a network error, timeout or 5xx the session is kept and
-   * the store stays `locked`, so the caller can retry. With no stored refresh
-   * token it also returns false and the store stays `locked`. A caller that
-   * needs to tell the cases apart reads `status` (and `getRefreshToken()`)
-   * after the call, as `AppLock` does for its message.
+   * Exchange the stored refresh token for a live access token. The result says
+   * why it failed, so the caller does not have to read the store afterwards:
+   *  - `ok`: the session is live (also returned when the store is not locked).
+   *  - `ended`: the server definitively refused the token (400/401/403); the
+   *    client has already ended the session and the store is `anonymous`.
+   *  - `retryable`: the exchange failed but the session is kept and the store
+   *    stays `locked`, so the member can try again. Mostly a network error,
+   *    timeout or 5xx; a malformed refresh response lands here too.
+   *  - `no-token`: no refresh token is stored, so nothing can be retried; the
+   *    store stays `locked`.
    */
   unlock: async () => {
-    if (get().status !== 'locked') return true;
+    if (get().status !== 'locked') return 'ok';
+    if (getRefreshToken() === null) return 'no-token';
     try {
       await refreshAccessToken();
       set({ status: 'authenticated' });
-      return true;
+      return 'ok';
     } catch (err) {
       logError('AUTH_UNLOCK_REFRESH_FAILED', err);
-      return false;
+      return get().status === 'locked' ? 'retryable' : 'ended';
     }
   },
 
