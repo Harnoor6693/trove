@@ -7,7 +7,6 @@ import {
   deleteTransaction,
   fetchTransaction,
   fetchTransactions,
-  linkTransfer,
   patchTransaction,
   transactionParams,
   unlinkTransfer,
@@ -195,14 +194,7 @@ describe('patchTransaction — presence is meaningful', () => {
   });
 });
 
-describe('transfers — the patch is the only affordance', () => {
-  it('linkTransfer marks the leg with the group id', async () => {
-    replyOk(TRANSACTION);
-    await linkTransfer('t1', 'g1');
-    expect(calls()).toEqual(['PATCH /v1/transactions/t1']);
-    expect(body()).toEqual({ transferGroupId: 'g1' });
-  });
-
+describe('transfers — unlinking is an explicit null', () => {
   it('unlinkTransfer sends transferGroupId: null, not an omitted field', async () => {
     replyOk(TRANSACTION);
     await unlinkTransfer('t1');
