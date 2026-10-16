@@ -3,14 +3,21 @@ package finance.trove.notifications.webhook;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import finance.trove.app.HttpClientConfig;
 import finance.trove.common.crypto.FieldEncryptionService;
 import finance.trove.common.net.OutboundUrlPolicy;
+import finance.trove.common.net.ResolvedTarget;
 import finance.trove.notifications.NotificationProperties;
+import java.net.InetAddress;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
@@ -18,6 +25,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,7 +35,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
 /**
@@ -56,13 +67,15 @@ class WebhookDeliveryServiceTest {
     @Mock
     private HttpClientConfig.PinnedRestClientFactory clients;
 
+    private final FieldEncryptionService encryption = new FieldEncryptionService(
+        "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f");
+
     private WebhookDeliveryService service;
 
     @BeforeEach
     void setUp() {
         service = new WebhookDeliveryService(subscriptions, deliveries, policy, clients,
-            new FieldEncryptionService(
-                "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"),
+            encryption,
             new NotificationProperties(null, null, null, null, 20, null),
             Clock.fixed(NOW, ZoneOffset.UTC));
     }
@@ -240,5 +253,55 @@ class WebhookDeliveryServiceTest {
         assertThat(WebhookDeliveryService.READ_TIMEOUT)
             .isEqualTo(java.time.Duration.ofSeconds(10));
         assertThat(SECRET).isNotBlank();
+    }
+    @Test
+    @DisplayName("B3-03: a delivery is signed Standard Webhooks style, over its id and a timestamp")
+    void aDeliveryIsSignedOverItsIdAndATimestamp() throws Exception {
+        UUID subscriptionId = UUID.randomUUID();
+        WebhookSubscription subscription = new WebhookSubscription(UUID.randomUUID(),
+            "https://hooks.example.test/hook", encryption.encrypt(SECRET), List.of());
+        ReflectionTestUtils.setField(subscription, "id", subscriptionId);
+        when(subscriptions.findSubscription(subscriptionId)).thenReturn(Optional.of(subscription));
+        ResolvedTarget target = new ResolvedTarget("hooks.example.test",
+            InetAddress.getByName("192.0.2.1"), 443, URI.create("https://hooks.example.test/hook"),
+            List.of(InetAddress.getByName("192.0.2.1")));
+        when(policy.check("https://hooks.example.test/hook")).thenReturn(target);
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer receiver = MockRestServiceServer.bindTo(builder).build();
+        when(clients.builderFor(eq(target), any(), any())).thenReturn(builder);
+        AtomicReference<HttpHeaders> sent = new AtomicReference<>();
+        receiver.expect(requestTo("https://hooks.example.test/hook"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(request -> sent.set(request.getHeaders()))
+            .andRespond(withSuccess());
+        String payload = "{\"event\":\"budget.threshold_crossed\"}";
+        WebhookDeliveryLog row = new WebhookDeliveryLog(subscriptionId, "budget.threshold_crossed",
+            payload, NOW);
+        ReflectionTestUtils.setField(row, "id", UUID.randomUUID());
+        byte[] body = payload.getBytes(StandardCharsets.UTF_8);
+
+        service.attempt(row);
+
+        receiver.verify();
+        HttpHeaders headers = sent.get();
+        String id = headers.getFirst("webhook-id");
+        String timestamp = headers.getFirst("webhook-timestamp");
+        String signature = headers.getFirst("webhook-signature");
+        assertThat(id).as("the delivery id, stable across retries").isEqualTo(row.getId().toString());
+        assertThat(timestamp).isEqualTo(Long.toString(NOW.getEpochSecond()));
+        assertThat(headers.getFirst("X-Trove-Event")).isEqualTo("budget.threshold_crossed");
+        assertThat(StandardWebhooksReceiver.accepts(SECRET, id, timestamp, signature, body,
+            NOW.plusSeconds(30)))
+            .as("a receiver following the published scheme accepts a fresh delivery")
+            .isTrue();
+        assertThat(StandardWebhooksReceiver.accepts(SECRET, id, timestamp, signature, body,
+            NOW.plus(StandardWebhooksReceiver.TOLERANCE).plusSeconds(1)))
+            .as("and refuses the same captured request replayed after the five-minute window")
+            .isFalse();
+        assertThat(StandardWebhooksReceiver.accepts(SECRET, UUID.randomUUID().toString(),
+            timestamp, signature, body, NOW))
+            .as("the id is signed, so it cannot be swapped to slip a replay past dedup")
+            .isFalse();
+        assertThat(row.getStatus()).isEqualTo(WebhookDeliveryLog.Status.DELIVERED);
     }
 }

@@ -293,12 +293,18 @@ class WebhookDeliveryIT extends NotificationSupport {
             "SELECT secret_encrypted FROM webhook_subscription WHERE id = ?", String.class,
             subscriptionId);
 
-        String fromStore = WebhookSignature.sign(encryption.decrypt(storedCipher),
-            payload.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        byte[] body = payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        String deliveryId = UUID.randomUUID().toString();
+        long timestamp = Instant.now().getEpochSecond();
 
-        assertThat(fromStore).isEqualTo(WebhookSignature.sign(SECRET,
-            payload.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
-        assertThat(fromStore).startsWith("sha256=");
+        String fromStore = WebhookSignature.sign(encryption.decrypt(storedCipher), deliveryId,
+            timestamp, body);
+
+        assertThat(StandardWebhooksReceiver.accepts(SECRET, deliveryId,
+            Long.toString(timestamp), fromStore, body, Instant.now()))
+            .as("a receiver holding the secret the member typed verifies what the stored, "
+                + "encrypted copy signs")
+            .isTrue();
     }
 
     @Test
