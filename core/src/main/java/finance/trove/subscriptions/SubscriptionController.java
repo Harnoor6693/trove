@@ -63,7 +63,8 @@ public class SubscriptionController {
     }
 
     /**
-     * {@code GET /v1/subscriptions/summary} — run-rate per currency and the next fourteen days.
+     * {@code GET /v1/subscriptions/summary} — run-rate per currency and the upcoming-charge window
+     * (14 days by default, {@code trove.subscriptions.upcoming-days}).
      *
      * <p>{@code currency} on the body is the CALLING member's own {@code users.currency}, never a
      * literal and never derived from the rows (finding F1 / inventory SD-3).
@@ -137,7 +138,8 @@ public class SubscriptionController {
     }
 
     private List<SubscriptionResponse> active(TroveUserDetails principal) {
-        return subscriptions.listActive(principal.getHouseholdId()).stream()
+        return subscriptions.listActive(principal.getHouseholdId(), principal.getUserId())
+            .stream()
             .map(SubscriptionResponse::of).toList();
     }
 }

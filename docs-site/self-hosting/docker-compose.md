@@ -1,6 +1,7 @@
 # Docker Compose (the only supported self-hosting path)
 
-Trove ships one deployment: `core` + PostgreSQL behind Traefik, defined in
+Trove ships one deployment: `trove-core` (the monolith), the `web` SPA container and
+PostgreSQL behind Traefik (which reaches Docker through a read-only socket proxy), defined in
 [`deploy/docker-compose.yml`](https://github.com/Harnoor6693/trove/blob/canary/deploy/docker-compose.yml),
 driven by the `./trove` wrapper script. There is no Kubernetes manifest and no
 supported bare-metal install — see [ADR-0020](https://github.com/Harnoor6693/trove/blob/canary/docs/adr/0020-monolith-collapse.md)
@@ -17,12 +18,15 @@ shipped system before the 2026-09 collapse (see [ADR-0020](https://github.com/Ha
 
 ```bash
 git clone https://github.com/Harnoor6693/trove && cd trove/deploy
-cp .env.example .env
-./trove bootstrap
+./trove bootstrap   # writes .env (0600) from .env.example, asks for domain, ACME email, admin email and country, generates the secrets
+./trove up          # preflight, build from source, start, wait for readiness
 ```
 
-`./trove bootstrap` generates every secret, asks for your domain and TLS mode, and
-brings the stack up. `./trove status`, `./trove logs`, `./trove backup`, and
+`./trove bootstrap` asks for your domain, an email for certificate notices, the first
+admin address and country, generates every secret, and prints the admin password and
+backup passphrase once. If a `deploy/.env` already exists it only fills in the placeholder
+settings and empty secrets, and never overwrites a value you set. TLS mode is set in `deploy/.env` (`TROVE_TLS_MODE`). `./trove up`
+then builds and starts the stack. `./trove status`, `./trove logs`, `./trove backup`, and
 `./trove doctor` cover day-to-day operation. Full detail, including the three TLS
 modes (`acme-http`, `acme-dns`, `off`/Tailscale) and the backup/restore mechanics, is in
 `deploy/README.md`.
@@ -32,9 +36,13 @@ modes (`acme-http`, `acme-dns`, `off`/Tailscale) and the backup/restore mechanic
 `COMPOSE_PROFILES` in `deploy/.env` turns on:
 
 - `ai` — a local Ollama container on an internal network. Nothing calls it until a user
-  points their own account at `http://ollama:11434/v1` from Settings → AI.
+  points their own account at `http://ollama:11434/v1` from Settings → AI. Also set
+  `TROVE_EGRESS_ALLOW_PRIVATE=true` in `deploy/.env` (the server otherwise refuses plain-http
+  and private targets) and enable the allow-private-endpoint option on the user's AI endpoint
+  in Settings → AI.
 - `monitoring` — Prometheus and Grafana, bound to `127.0.0.1` only (reach them over an
-  SSH tunnel; they are never routed through Traefik).
+  SSH tunnel; they are never routed through Traefik). Set `GRAFANA_ADMIN_PASSWORD` in
+  `deploy/.env` first; `./trove up` refuses to start with this profile and no password.
 
 Neither is required. See `deploy/.env.example` for every variable both profiles read.
 

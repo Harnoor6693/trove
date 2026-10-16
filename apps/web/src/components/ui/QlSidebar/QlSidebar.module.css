@@ -24,7 +24,7 @@
 .active { background: var(--sage-soft, #dfe7dc); color: var(--ink); font-weight: 500; }
 .itemIcon { display: inline-flex; font-size: 16px; flex-shrink: 0; }
 .itemLabel { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.badge { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: var(--ink-3, #8c8578); flex-shrink: 0; }
+.badge { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: var(--ink-3, #6b6558); flex-shrink: 0; }
 .serverCard {
   margin-top: auto; padding: var(--space-3, 12px);
   background: var(--card, #fffdf7); border: 1px solid var(--line);
@@ -34,4 +34,4 @@
 .serverDot { width: 6px; height: 6px; border-radius: 50%; background: var(--sage); flex-shrink: 0; }
 .serverLabel { color: var(--ink); font-weight: 500; }
 .serverHost { color: var(--ink-2, #4a453d); }
-.serverModel { color: var(--ink-3, #8c8578); }
+.serverModel { color: var(--ink-3, #6b6558); }

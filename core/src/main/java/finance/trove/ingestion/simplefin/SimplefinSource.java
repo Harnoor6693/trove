@@ -7,7 +7,10 @@ import finance.trove.common.plugin.SourceKind;
 import finance.trove.ingestion.simplefin.dto.SimplefinAccount;
 import finance.trove.ingestion.simplefin.dto.SimplefinAccountSet;
 import finance.trove.ingestion.simplefin.dto.SimplefinTransaction;
+import java.time.DateTimeException;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -67,14 +70,23 @@ public class SimplefinSource implements BankSource {
                 + "account. Exchange a setup token again to relink it.");
         }
 
+        ZoneId zone = zoneOf(config.get(MEMBER_ZONE));
         SimplefinAccountSet set = bridge.fetchAccounts(accessUrl, from);
+        if (set.errors() != null && !set.errors().isEmpty()) {
+            // A soft error (e.g. an institution that needs re-authentication) arrives with an
+            // empty or stale account list. Treating that as an empty success hid a broken
+            // connection (RD2), so it fails the run and the member sees why.
+            throw new BankSourceConnectionException("SimpleFIN reported a problem with this "
+                + "connection: " + describe(set.errors()) + " Check the connection at your "
+                + "SimpleFIN bridge, then sync again.");
+        }
         List<RawTransaction> rows = new ArrayList<>();
         for (SimplefinAccount account : set.accountsOrEmpty()) {
             if (!externalAccountId.equals(account.id()) || account.transactions() == null) {
                 continue;
             }
             for (SimplefinTransaction transaction : account.transactions()) {
-                RawTransaction row = normalizer.normalize(account, transaction);
+                RawTransaction row = normalizer.normalize(account, transaction, zone);
                 if (row.date() == null) {
                     // Kept rather than dropped: the pipeline refuses it with "the source reported
                     // no date", which is counted and summarised into the run's log. Dropping it
@@ -87,5 +99,25 @@ public class SimplefinSource implements BankSource {
             }
         }
         return List.copyOf(rows);
+    }
+
+    /** The member's zone from {@code config}, or UTC when the caller sent none (B1-22). */
+    private static ZoneId zoneOf(String id) {
+        if (id == null) {
+            return ZoneOffset.UTC;
+        }
+        try {
+            return ZoneId.of(id);
+        } catch (DateTimeException e) {
+            // swallow-ok: UserClock already resolved this id; UTC is what dating was before.
+            return ZoneOffset.UTC;
+        }
+    }
+
+    /** The bridge's own wording, with links removed and the length bounded: it may quote secrets. */
+    private static String describe(List<String> errors) {
+        String text = String.join("; ", errors).replaceAll("https?://\\S*", "").trim();
+        text = text.replaceAll("\\s+", " ").replaceAll("[\\s,;:]+$", "");
+        return (text.length() > 200 ? text.substring(0, 200) : text) + ".";
     }
 }

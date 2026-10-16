@@ -79,6 +79,7 @@ import type {
   ReorderRulesRequest,
 } from '@api/types'
 import type {
+  AdminRoleRequest,
   AdminSettingsRequest,
   CookieSession,
   PasswordResetLinkResponse,
@@ -388,6 +389,8 @@ export interface MswState {
   adminSettings: AdminSettingsResponse
   /** The exact body `PUT /v1/admin/settings` was last called with. */
   lastAdminSettingsBody: AdminSettingsRequest | null
+  /** The exact body `PUT /v1/admin/users/{id}/role` was last called with. */
+  lastMemberRoleBody: AdminRoleRequest | null
   /** `GET /v1/audit` — every row; the handler pages over this. */
   auditEntries: AuditLogEntry[]
 
@@ -557,6 +560,8 @@ const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferencesResponse = {
   inAppEnabled: true,
   emailEnabled: false,
   emailAddress: null,
+  // What every shipped configuration answers: SMTP is off, so there is no email channel.
+  emailAvailable: false,
   weeklyDigestEnabled: true,
   subscriptionAlertEnabled: true,
   syncFailureAlertEnabled: true,
@@ -706,8 +711,9 @@ export const mswState: MswState = {
   dataExportDownloadNotReady: false,
   members: makeMembers(),
   restoreOutsideGrace: false,
-  adminSettings: { registrationOpen: false },
+  adminSettings: { registrationOpen: false, scheduledSyncEnabled: false },
   lastAdminSettingsBody: null,
+  lastMemberRoleBody: null,
   auditEntries: makeAuditEntries(),
   lastResetLinkRequest: null,
   validResetToken: 'good-reset-token',
@@ -819,8 +825,9 @@ export function resetMswState(overrides: Partial<MswState> = {}): void {
     dataExportDownloadNotReady: false,
     members: makeMembers(),
     restoreOutsideGrace: false,
-    adminSettings: { registrationOpen: false },
+    adminSettings: { registrationOpen: false, scheduledSyncEnabled: false },
     lastAdminSettingsBody: null,
+    lastMemberRoleBody: null,
     auditEntries: makeAuditEntries(),
     lastResetLinkRequest: null,
     validResetToken: 'good-reset-token',
@@ -1690,7 +1697,7 @@ function makeSubscriptionAlerts(): SubscriptionAlertResponse[] {
       createdBy: MEMBER,
       subscriptionId: 'sub-spotify',
       alertType: 'PRICE_INCREASE',
-      alertMessage: 'SPOTIFY went up from 9.99 CAD to 11.99 CAD a month.',
+      alertMessage: 'SPOTIFY went up from 9.99 CAD to 11.99 CAD.',
       isRead: false,
       createdAt: `${daysAgo(1)}T02:00:00Z`,
     },
@@ -3942,6 +3949,26 @@ export const handlers = [
     return okEmpty()
   }),
 
+  /** The household always keeps one active ADMIN: demoting the last one is 409. */
+  http.put('*/v1/admin/users/:id/role', async ({ params, request }) => {
+    if (mswState.me.role !== 'ADMIN') return fail(403, 'forbidden', 'Forbidden')
+    const target = mswState.members.find((m) => m.id === params.id)
+    if (!target) return fail(404, 'not-found', 'Not Found')
+    const body = (await request.json()) as AdminRoleRequest
+    mswState.lastMemberRoleBody = body
+    const activeAdmins = mswState.members.filter((m) => m.role === 'ADMIN' && m.active).length
+    const demotingLast =
+      body.role === 'MEMBER' && target.role === 'ADMIN' && target.active && activeAdmins <= 1
+    if (mswState.lastAdminConflict || demotingLast) {
+      return fail(409, 'conflict', 'Conflict', {
+        detail: 'This household would be left without an administrator.',
+      })
+    }
+    const updated = { ...target, role: body.role }
+    mswState.members = mswState.members.map((m) => (m.id === params.id ? updated : m))
+    return ok<AdminUserResponse>(updated)
+  }),
+
   http.get('*/v1/admin/settings', () => {
     if (mswState.me.role !== 'ADMIN') return fail(403, 'forbidden', 'Forbidden')
     return ok<AdminSettingsResponse>(mswState.adminSettings)
@@ -3953,7 +3980,13 @@ export const handlers = [
     mswState.lastAdminSettingsBody = body
     // A partial update: an absent or null field leaves the flag alone.
     if (body.registrationOpen != null) {
-      mswState.adminSettings = { registrationOpen: body.registrationOpen }
+      mswState.adminSettings = { ...mswState.adminSettings, registrationOpen: body.registrationOpen }
+    }
+    if (body.scheduledSyncEnabled != null) {
+      mswState.adminSettings = {
+        ...mswState.adminSettings,
+        scheduledSyncEnabled: body.scheduledSyncEnabled,
+      }
     }
     return ok<AdminSettingsResponse>(mswState.adminSettings)
   }),

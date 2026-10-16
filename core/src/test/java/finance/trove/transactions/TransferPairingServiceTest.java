@@ -160,12 +160,50 @@ class TransferPairingServiceTest {
     void anUnmatchedLegIsLeftAlone() {
         Transaction out = stored(HOUSEHOLD, CHEQUING, "100.00", DAY, TransactionType.DEBIT);
         Transaction in = stored(HOUSEHOLD, CREDIT_CARD, "100.00", DAY, TransactionType.CREDIT);
-        Transaction lonely = stored(HOUSEHOLD, CHEQUING, "100.00", DAY, TransactionType.DEBIT);
+        Transaction lonely = stored(HOUSEHOLD, CHEQUING, "100.00", DAY.plusDays(2),
+            TransactionType.DEBIT);
 
         List<Transaction> changed = TransferPairingService.pair(List.of(out, in, lonely));
 
         assertThat(changed).containsExactly(out, in);
         assertThat(lonely.getTransferGroupId()).isNull();
+    }
+
+    @Test
+    @DisplayName("B1-09: an ambiguous match is never auto-paired — two equally close candidates")
+    void ambiguousMatchesAreLeftForTheMember() {
+        Transaction out = stored(HOUSEHOLD, CHEQUING, "100.00", DAY, TransactionType.DEBIT);
+        Transaction in = stored(HOUSEHOLD, CREDIT_CARD, "100.00", DAY, TransactionType.CREDIT);
+        Transaction twin = stored(HOUSEHOLD, CHEQUING, "100.00", DAY, TransactionType.DEBIT);
+
+        assertThat(TransferPairingService.pair(List.of(out, in, twin)))
+            .as("two debits could each be the other half of the one credit; guessing hides one "
+                + "real purchase from every budget")
+            .isEmpty();
+    }
+
+    @Test
+    @DisplayName("B1-09: a paycheque and the rent of the same amount are not a transfer")
+    void aPaychequeAndTheRentAreNotPaired() {
+        Transaction rent = stored(HOUSEHOLD, CHEQUING, "2000.00", DAY, TransactionType.DEBIT,
+            CurrencyCode.CAD, "LANDLORD RENT");
+        Transaction pay = stored(HOUSEHOLD, CREDIT_CARD, "2000.00", DAY.plusDays(2),
+            TransactionType.CREDIT, CurrencyCode.CAD, "ACME PAYROLL");
+
+        assertThat(TransferPairingService.pair(List.of(rent, pay)))
+            .as("nothing on either leg says it is a transfer")
+            .isEmpty();
+    }
+
+    @Test
+    @DisplayName("B1-09: a rent payment is not a transfer just because it says PAYMENT")
+    void oneMarkerIsNotEnough() {
+        Transaction rent = stored(HOUSEHOLD, CHEQUING, "2000.00", DAY, TransactionType.DEBIT,
+            CurrencyCode.CAD, "RENT PAYMENT");
+        Transaction pay = stored(HOUSEHOLD, CREDIT_CARD, "2000.00", DAY, TransactionType.CREDIT,
+            CurrencyCode.CAD, "ACME PAYROLL");
+
+        assertThat(TransferPairingService.pair(List.of(rent, pay))).isEmpty();
     }
 
     @Test

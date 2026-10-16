@@ -47,6 +47,9 @@ import org.hibernate.type.SqlTypes;
  * <p>Tenancy is {@link #getHouseholdId()}; {@link #getUserId()} means created-by, for audit.
  */
 @Entity
+// Only changed columns are written, so a background write of one column (transfer pairing,
+// category write-back) cannot overwrite a concurrent edit of another (B1-21).
+@org.hibernate.annotations.DynamicUpdate
 @Table(name = "transaction")
 public class Transaction {
 
@@ -67,7 +70,8 @@ public class Transaction {
     @Column(name = "provider_transaction_id", length = 255, updatable = false)
     private String providerTransactionId;
 
-    @Column(name = "amount", nullable = false, precision = 19, scale = 4, updatable = false)
+    /** Updatable for {@link #markPosted} alone: a pre-authorisation posts at what was charged. */
+    @Column(name = "amount", nullable = false, precision = 19, scale = 4)
     private BigDecimal amount;
 
     @Enumerated(EnumType.STRING)
@@ -244,10 +248,15 @@ public class Transaction {
         return pending;
     }
 
-    /** Promotes a pending row to posted — the one in-place change a re-sync ever makes. */
-    public void markPosted(Instant when) {
+    /**
+     * Promotes a pending row to posted — the one in-place change a re-sync ever makes. It takes the
+     * posted {@code amount} too (B1-07): a 40.00 restaurant pre-authorisation posts at 48.00 with
+     * the tip, and keeping 40.00 left every balance and budget short of the bank's.
+     */
+    public void markPosted(Instant when, BigDecimal postedAmount) {
         this.pending = false;
         this.postedAt = when;
+        this.amount = currency.normalise(postedAmount);
     }
 
     public boolean isManual() {

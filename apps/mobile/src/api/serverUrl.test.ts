@@ -122,3 +122,58 @@ describe('isPrivateHost', () => {
     expect(isPrivateHost(host)).toBe(false);
   });
 });
+
+describe('hosts the platform will actually let through over http (B5-03, B5-13)', () => {
+  const setOs = (os: 'ios' | 'android') => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    Object.defineProperty(require('react-native').Platform, 'OS', {
+      value: os,
+      configurable: true,
+    });
+  };
+  afterEach(() => setOs('ios'));
+
+  it.each(['http://nas.home.arpa', 'http://box.internal', 'http://x.localhost'])(
+    'iOS: refuses %s, which NSAllowsLocalNetworking does not cover',
+    (url) => {
+      setOs('ios');
+      const result = normaliseServerUrl(url, true);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.code).toBe('INSECURE_HOST_BLOCKED');
+    }
+  );
+
+  it.each(['http://192.168.1.9:8080', 'http://nas.local:8080', 'http://localhost:8080'])(
+    'iOS: still accepts %s',
+    (url) => {
+      setOs('ios');
+      expect(normaliseServerUrl(url, true).ok).toBe(true);
+    }
+  );
+
+  it.each(['http://192.168.1.9:8080', 'http://10.0.0.5', 'http://nas.home.arpa'])(
+    'Android: refuses %s with a message that says why',
+    (url) => {
+      setOs('android');
+      const result = normaliseServerUrl(url, true);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.code).toBe('INSECURE_HOST_BLOCKED');
+        expect(result.message).toMatch(/Android/);
+      }
+    }
+  );
+
+  it.each(['http://nas.local:8080', 'http://localhost:8080', 'http://10.0.2.2:8080'])(
+    'Android: accepts %s, which the network security config allows',
+    (url) => {
+      setOs('android');
+      expect(normaliseServerUrl(url, true).ok).toBe(true);
+    }
+  );
+
+  it('https is unaffected on both platforms', () => {
+    setOs('android');
+    expect(normaliseServerUrl('https://192.168.1.9', false).ok).toBe(true);
+  });
+});

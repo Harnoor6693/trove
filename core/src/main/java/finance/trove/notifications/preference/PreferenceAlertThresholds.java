@@ -2,7 +2,6 @@ package finance.trove.notifications.preference;
 
 import finance.trove.budgets.envelope.HouseholdAlertThresholds;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -40,8 +39,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 public class PreferenceAlertThresholds implements HouseholdAlertThresholds {
 
-    private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
-
     private final NotificationPreferenceRepository preferences;
 
     public PreferenceAlertThresholds(NotificationPreferenceRepository preferences) {
@@ -64,8 +61,7 @@ public class PreferenceAlertThresholds implements HouseholdAlertThresholds {
         fractions.add(HouseholdAlertThresholds.DEFAULT_FRACTION);
         for (Short percent : percents) {
             if (percent != null) {
-                fractions.add(BigDecimal.valueOf(percent)
-                    .divide(ONE_HUNDRED, 2, RoundingMode.UNNECESSARY));
+                fractions.add(NotificationPreference.fractionOf(percent));
             }
         }
         return Set.copyOf(fractions);

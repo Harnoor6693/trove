@@ -2,6 +2,7 @@ package finance.trove.auth.local;
 
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Locale;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -41,6 +42,17 @@ public class LoginAttemptRepository {
         WHERE email_hash = ? AND success = false AND at >= ?
         """;
 
+    private static final String FAILURES_FROM_SINCE = """
+        SELECT at FROM login_attempt
+        WHERE email_hash = ? AND ip = CAST(? AS inet) AND success = false AND at >= ?
+        ORDER BY at
+        """;
+
+    private static final String HAS_SUCCEEDED_FROM = """
+        SELECT EXISTS (SELECT 1 FROM login_attempt
+                        WHERE email_hash = ? AND ip = CAST(? AS inet) AND success)
+        """;
+
     private static final String COUNT_IP_FAILURES_SINCE = """
         SELECT count(*) FROM login_attempt
         WHERE ip = CAST(? AS inet) AND success = false AND at >= ?
@@ -56,7 +68,7 @@ public class LoginAttemptRepository {
         jdbc.update(INSERT, hashEmail(email), ip, success, Timestamp.from(at));
     }
 
-    /** Failed attempts against one address since {@code since}. */
+    /** Failed attempts against one account, from every address, since {@code since}. */
     public long countFailuresSince(String email, Instant since) {
         Long count = jdbc.queryForObject(COUNT_FAILURES_SINCE, Long.class,
             hashEmail(email), Timestamp.from(since));
@@ -64,9 +76,45 @@ public class LoginAttemptRepository {
     }
 
     /**
-     * Failed attempts from one address since {@code since}. Collapse step 4's per-IP bucket is
-     * the enforcement point; this is the query it will read, and having it here means the
-     * evidence table has one owner rather than two.
+     * When each failed attempt against one account from one address since {@code since} was made,
+     * oldest first. A list rather than a count because the throttle is judged from the gaps
+     * between failures; attempts made while throttled are never recorded, so it stays short.
+     */
+    public List<Instant> failuresFromSince(String email, String ip, Instant since) {
+        if (ip == null) {
+            return List.of();
+        }
+        return jdbc.query(FAILURES_FROM_SINCE,
+            (row, n) -> row.getTimestamp(1).toInstant(), hashEmail(email), ip,
+            Timestamp.from(since));
+    }
+
+    /**
+     * Whether this account has ever been signed in to from this address, as far back as the
+     * table goes ({@code PurgeJobs}' retention).
+     */
+    public boolean hasSucceededFrom(String email, String ip) {
+        if (ip == null) {
+            return false;
+        }
+        return Boolean.TRUE.equals(
+            jdbc.queryForObject(HAS_SUCCEEDED_FROM, Boolean.class, hashEmail(email), ip));
+    }
+
+    /**
+     * Forgets every failed attempt against one account — an administrator's unlock, or a password
+     * reset. The successes stay, so the addresses the owner signs in from are still recognised.
+     */
+    public int forgetFailures(String email) {
+        return jdbc.update("DELETE FROM login_attempt WHERE email_hash = ? AND success = false",
+            hashEmail(email));
+    }
+
+    /**
+     * Failed attempts from one address since {@code since}. {@code
+     * LockoutService#assertAddressNotThrottled}
+     * reads it for the per-address gate; having it here means the evidence table has one owner
+     * rather than two.
      */
     public long countIpFailuresSince(String ip, Instant since) {
         if (ip == null) {

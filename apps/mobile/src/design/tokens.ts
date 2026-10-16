@@ -10,8 +10,8 @@ export const Colors = {
   sageSoft: '#dfe7dc',
   amber: '#a06a1e',
   amberSoft: '#f3e6cc',
-  // TODO(theme): ember tokens are exported but consumers reach into Colors.* directly
-  // instead of routing through useTheme(); wire the dark-mode swap in a dedicated PR.
+  // ember tokens exist in both palettes (Colors, DarkColors) but no component uses them yet;
+  // components read colours through useTheme().
   ember: '#c4622d',
   emberSoft: '#f6dccc',
   red: '#9b3a2a',
@@ -34,7 +34,7 @@ export const DarkColors = {
   amberSoft: '#2c200a',
   ember: '#e07a3a',
   emberSoft: '#2e1d12',
-  red: '#e25241',
+  red: '#ec6858',
   redSoft: '#2c1210',
   blue: '#4da6e8',
   blueSoft: '#0d1e2c',

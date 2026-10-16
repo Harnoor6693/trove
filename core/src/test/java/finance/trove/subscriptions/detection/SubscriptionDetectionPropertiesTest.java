@@ -24,9 +24,10 @@ class SubscriptionDetectionPropertiesTest {
     @DisplayName("Every value has a default, so no application.yml entry is needed to work")
     void everyValueHasADefault() {
         assertThat(DEFAULTS.detectionWindow())
-            .as("thirteen months, so an ANNUAL charge is seen twice; the source read ninety days "
-                + "and could therefore never detect an annual subscription")
-            .isEqualTo(Period.ofMonths(13));
+            .as("25 months: the classifier needs three charges, which for an ANNUAL one span two "
+                + "years; the source read ninety days and could never detect an annual "
+                + "subscription, and a 13-month window still could not (CI-45)")
+            .isEqualTo(Period.ofMonths(25));
         assertThat(DEFAULTS.minimumCharges()).isEqualTo(3);
         assertThat(DEFAULTS.intervalMatchRatio()).isEqualByComparingTo("0.70");
         assertThat(DEFAULTS.levelTolerancePercent()).isEqualByComparingTo("5");

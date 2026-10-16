@@ -127,6 +127,18 @@ describe('the account header', () => {
     expect(screen.getByText('Up to date')).toBeTruthy();
   });
 
+  it('says how long ago a bank connection synced, with the exact time as its label (C-01r)', async () => {
+    jest.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-09-04T17:00:00Z'));
+    try {
+      await renderScreen(account());
+      const synced = screen.getByTestId('account-detail-synced');
+      expect(synced.props.children).toBe('Synced 3 hours ago');
+      expect(synced.props.accessibilityLabel).toMatch(/^Last synced Sep 4, 2026, 10:00/);
+    } finally {
+      jest.restoreAllMocks();
+    }
+  });
+
   it('renders the last failure’s reason', async () => {
     await renderScreen(
       account({ syncStatus: 'ERROR', errorMessage: 'The bridge did not answer.' })

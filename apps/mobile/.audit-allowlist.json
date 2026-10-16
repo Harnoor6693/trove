@@ -1,17 +1,5 @@
 [
   {
-    "id": "GHSA-58qx-3vcg-4xpx",
-    "package": "ws",
-    "reason": "Pinned by expo@~57.0.25 -> @expo/cli@57.0.27, which depends on ws@8.20.0 directly and through @expo/ws-tunnel@2.0.0 (hoisted to node_modules/ws), for the Expo/Metro dev server's websocket (HMR/inspector/tunnel) connection. The other copies in the tree (ws@7.5.13 under metro, @react-native/dev-middleware, react-devtools-core and react-native) are outside the advisory range. ws only runs in the local Expo/Metro dev server process, not inside the shipped mobile app bundle, so this is a local dev-server exposure. Bumps when @expo/cli moves to ws >= 8.21.0.",
-    "expires": "2026-12-31"
-  },
-  {
-    "id": "GHSA-96hv-2xvq-fx4p",
-    "package": "ws",
-    "reason": "Pinned by expo@~57.0.25 -> @expo/cli@57.0.27, which depends on ws@8.20.0 directly and through @expo/ws-tunnel@2.0.0 (hoisted to node_modules/ws), for the Expo/Metro dev server's websocket (HMR/inspector/tunnel) connection. The other copies in the tree (ws@7.5.13 under metro, @react-native/dev-middleware, react-devtools-core and react-native) are outside the advisory range. ws only runs in the local Expo/Metro dev server process, not inside the shipped mobile app bundle, so this is a local dev-server exposure. Bumps when @expo/cli moves to ws >= 8.21.0.",
-    "expires": "2026-12-31"
-  },
-  {
     "id": "GHSA-vfj7-8cjw-p6xm",
     "package": "braces",
     "reason": "No patched release exists (all versions <= 3.0.3 affected, advisory 2026-09-18). braces is reached only through jest -> @jest/core -> micromatch, i.e. the test runner on developer machines and CI; it is not in the app bundle and never parses untrusted patterns. Revisit when braces publishes a fix.",

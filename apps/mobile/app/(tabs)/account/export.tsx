@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MnBtn } from '@components/ui/MnBtn/MnBtn';
@@ -19,6 +19,7 @@ import { toApiFailure } from '@api/errors';
 import { ErrorSlug, type DataExportRunResponse, type DataExportStatus } from '@api/types';
 import { useUserFormat } from '@lib/useUserFormat';
 import { useAuthStore } from '@stores/authStore';
+import { FormScroll } from '@components/ui/FormScroll/FormScroll';
 
 /**
  * Full data export — `POST /v1/me/export`, polled through
@@ -97,7 +98,7 @@ export default function DataExportScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.paper }]} testID="export-screen">
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <FormScroll contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={[styles.title, { color: theme.ink }]}>Export your data</Text>
 
         <MnEyebrow style={styles.section}>What you get</MnEyebrow>
@@ -255,7 +256,7 @@ export default function DataExportScreen() {
           style={styles.section}
           onPress={() => router.back()}
         />
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }

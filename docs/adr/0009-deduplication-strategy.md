@@ -1,7 +1,10 @@
 # ADR-0009: Three-Step Transaction Deduplication Strategy
 
 **Date**: 2026-04-27  
-**Status**: accepted  
+**Status**: accepted (amended 2026-10-16, see note)
+
+> Update 2026-10-16: the exact key is now `providerTransactionId`, not `sourceId`. The fuzzy pass (step 2) runs only for incoming rows with no provider transaction id, against candidates not already reconciled in the batch. A row that carries an id and misses the exact lookup is inserted as NEW. A posted incoming row that meets a posted candidate is SKIPPED, so the candidate no longer has to be pending. Tolerances (+-2 days, +-$0.50) are unchanged. The "bank changes `sourceId` on posting" risk below is no longer covered by a fuzzy fallback: a bank that changes its id on posting will produce a duplicate. See `finance.trove.ingestion.dedup.DeduplicationService`. The original text below is kept unchanged.  
+
 **Deciders**: Product and backend team
 
 ## Context

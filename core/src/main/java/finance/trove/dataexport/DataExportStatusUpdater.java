@@ -53,6 +53,9 @@ public class DataExportStatusUpdater {
      * <p>{@code reason} is truncated and is expected to be a sentence. Never a stack trace, never
      * a file path and never the name of anything on disk: it is shown to the member, a member
      * cannot act on a stack trace, and a path in one tells an attacker about the volume.
+     * The generation service passes a fixed sentence for every failure rather than the
+     * exception's own message, which can carry exactly those things; truncation is the backstop,
+     * not the control.
      *
      * @return {@code true} when a row was actually moved; {@code false} when the run is gone,
      *         which happens legitimately if the member's account was deleted mid-generation

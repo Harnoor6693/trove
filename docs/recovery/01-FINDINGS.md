@@ -1,5 +1,7 @@
 # Trove — Verified Findings Dossier
 
+> **Historical record, 2026-09-03.** Findings about the pre-rebuild ten-service code at `9ad1b5f`. The system it describes no longer exists. The instruction in the note below applied on 2026-09-03; `docs-site/` is now regenerated from the code and is the maintained description. Current state: `docs-site/guide/architecture.md`.
+
 **Audit date:** 2026-09-03 · **Commit audited:** `9ad1b5f` (main)
 **Method:** 8 parallel forensic code audits + direct verification by the verifier.
 **Status of claims:** every load-bearing claim below was verified against source or by

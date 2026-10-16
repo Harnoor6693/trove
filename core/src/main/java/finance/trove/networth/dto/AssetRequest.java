@@ -3,6 +3,7 @@ package finance.trove.networth.dto;
 import finance.trove.common.domain.CurrencyCode;
 import finance.trove.networth.AssetType;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -23,6 +24,7 @@ import java.util.UUID;
  *                  or none at all, is a 400 {@code validation-error}
  */
 public record AssetRequest(@NotBlank @Size(max = 200) String name, @NotNull AssetType assetType,
-                           @NotNull @DecimalMin(value = "0.00", inclusive = true) BigDecimal value,
+                           @NotNull @DecimalMin(value = "0.00", inclusive = true)
+                           @Digits(integer = 15, fraction = 4) BigDecimal value,
                            CurrencyCode currency, UUID accountId) {
 }

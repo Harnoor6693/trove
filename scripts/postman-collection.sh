@@ -57,7 +57,7 @@ def loginTestScript:
 # One request per tag that a smoke run can call without any fixture beyond a signed-in
 # user: login (to get a token), the two unauthenticated/self reads, and one list-shaped
 # read per resource domain. Tags with no safe read (Account security: every route mutates;
-# Imports: no bare list route, every one of its routes needs a batch id) are left out.
+# Imports: the upload mutates and every other route needs an existing batch id) are left out.
 def smokeDefs:
   [
     {"tag":"Authentication","method":"POST","path":["v1","auth","login"]},

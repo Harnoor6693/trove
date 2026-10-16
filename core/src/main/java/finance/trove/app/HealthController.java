@@ -14,9 +14,9 @@ import org.springframework.web.bind.annotation.RestController;
  * The unauthenticated, detail-free status probe of readiness gap P1-1:
  * {@code GET /api/v1/status} → {@code {"status":"UP|DEGRADED","version":"…","time":"…"}}.
  *
- * <p>It exists so that the SPA's {@code /welcome} degraded state, {@code trove status} and any
- * external uptime check have one public endpoint to key off without exposing the management
- * port (9090) or any component detail. The aggregate comes from the same
+ * <p>It exists so that the mobile app's connect-time server probe, its Settings screen server
+ * version row and any external uptime check have one public endpoint to key off without
+ * exposing the management port (9090) or any component detail. The aggregate comes from the same
  * {@link HealthEndpoint} the actuator serves, so this endpoint cannot drift from
  * {@code /actuator/health}; only the aggregate status crosses the boundary, never the
  * component map.

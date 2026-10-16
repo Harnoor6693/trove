@@ -63,6 +63,6 @@ body:
     id: version
     attributes:
       label: Trove version
-      placeholder: e.g. v0.3.1
+      placeholder: e.g. v1.0.0 (or the commit SHA, or the output of ./trove status)
     validations:
       required: true

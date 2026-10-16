@@ -147,9 +147,44 @@ class TransferPairingIT extends LedgerSupport {
         assertThat(getTransaction(admin, left).path("transferGroupId").isNull())
             .as("an explicit null unlinks; a body that omits the field would have left it alone")
             .isTrue();
-        assertThat(getTransaction(admin, right).path("transferGroupId").asString())
-            .as("unlinking one leg does not touch the other")
-            .isEqualTo(group);
+        assertThat(getTransaction(admin, right).path("transferGroupId").isNull())
+            .as("B1-08: unlinking one leg frees the other, or it stays hidden from every total")
+            .isTrue();
+    }
+
+    @Test
+    @DisplayName("B1-08: deleting one leg of a pair, or its account, frees the other leg")
+    void removingALegFreesItsPartner() {
+        String today = todayForCaller(admin);
+        String bearer = "Bearer " + admin.accessToken();
+        String group = UUID.randomUUID().toString();
+        String left = createManualTransaction(admin, chequing, "7.01", today, "DEBIT",
+            "Del left " + UUID.randomUUID()).path("id").asString();
+        String right = createManualTransaction(admin, creditCard, "7.01", today, "CREDIT",
+            "Del right " + UUID.randomUUID()).path("id").asString();
+        for (String id : new String[] {left, right}) {
+            patchJson(appUrl("/v1/transactions/" + id), Json.object("transferGroupId", group),
+                "Authorization", bearer);
+        }
+
+        assertThat(exchange("DELETE", appUrl("/v1/transactions/" + left), null,
+            "Authorization", bearer).statusCode()).isEqualTo(200);
+        assertThat(getTransaction(admin, right).path("transferGroupId").isNull()).isTrue();
+
+        String again = UUID.randomUUID().toString();
+        String third = createManualTransaction(admin, chequing, "8.02", today, "DEBIT",
+            "Acct left " + UUID.randomUUID()).path("id").asString();
+        String fourth = createManualTransaction(admin, creditCard, "8.02", today, "CREDIT",
+            "Acct right " + UUID.randomUUID()).path("id").asString();
+        for (String id : new String[] {third, fourth}) {
+            patchJson(appUrl("/v1/transactions/" + id), Json.object("transferGroupId", again),
+                "Authorization", bearer);
+        }
+        assertThat(exchange("DELETE", appUrl("/v1/accounts/" + chequing), null,
+            "Authorization", bearer).statusCode()).isEqualTo(200);
+        assertThat(getTransaction(admin, fourth).path("transferGroupId").isNull())
+            .as("disconnecting an account removes its legs; their partners must not stay hidden")
+            .isTrue();
     }
 
     @Test

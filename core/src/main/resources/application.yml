@@ -8,9 +8,9 @@
 # dies further on (Postgres: "password authentication failed") rather than with a clear message.
 # The clear message therefore lives on the operator's side of the boundary: compose uses
 # ${VAR:?…} for every required row and refuses to create the container at all, and
-# core/.env.example documents each one. From collapse step 3 the values that are read by a
-# @ConfigurationProperties bean (trove.jwt.secret, trove.crypto.key) additionally get a
-# validate() that rejects a short or placeholder value at startup.
+# core/.env.example documents each one. From collapse step 3 trove.jwt.secret is additionally
+# checked in the JwtProperties constructor (rejects a short or placeholder value at startup),
+# and trove.crypto.key is checked at startup by FieldEncryptionService.
 #
 # Non-secrets may carry a default. Dev-only conveniences live in application-dev.yml.
 
@@ -58,7 +58,8 @@ spring:
 
   datasource:
     # The postgres container is configured with POSTGRES_USER/POSTGRES_DB/POSTGRES_PASSWORD;
-    # compose passes the same values to the app as TROVE_DB_* (see core/.env.example).
+    # compose passes the same values to the app as SPRING_DATASOURCE_URL/USERNAME/PASSWORD, which
+    # override these placeholders (see core/.env.example).
     url: ${TROVE_DB_URL}
     username: ${TROVE_DB_USER:trove}
     password: ${TROVE_DB_PASSWORD}
@@ -153,7 +154,7 @@ trove:
 
   # Field encryption for the columns that hold a secret: the SimpleFIN access URL, a user's AI
   # API key, TOTP secrets, the OIDC state cookie (§1.5). Secret — no default, by policy.
-  # Unlike TROVE_JWT_SECRET this one IS read at startup by FieldEncryptionService, so an unset
+  # This one is read at startup by FieldEncryptionService, so an unset
   # or malformed value fails the boot immediately with a sentence naming the two accepted forms
   # (64 hex characters, or base64 of exactly 32 bytes).
   crypto:
@@ -205,6 +206,19 @@ trove:
     connect-timeout-ms: ${TROVE_SIMPLEFIN_CONNECT_TIMEOUT_MS:5000}
     read-timeout-ms: ${TROVE_SIMPLEFIN_READ_TIMEOUT_MS:30000}
     max-response-bytes: ${TROVE_SIMPLEFIN_MAX_RESPONSE_BYTES:8388608}
+    # When ScheduledSyncJob runs (C-01r) — and it does nothing unless an admin has turned on
+    # "scheduledSyncEnabled" in Settings. Once a day, at 09:17 UTC (05:17 in Toronto, 02:17 in
+    # Vancouver), so the day's data is in before anyone looks. Not more often, because:
+    #   - SimpleFIN Bridge "is intended to provide daily updates" and asks for "24 requests or fewer
+    #     per day"; going past the warning level disables the access token
+    #     (https://beta-bridge.simplefin.org/info/developers). Its 429 says "SimpleFIN data is only
+    #     refreshed once every 24 hours" (https://github.com/orgs/firefly-iii/discussions/12222).
+    #   - Every Trove account is its own GET /accounts on the shared token, so one run costs one
+    #     request per connected account. Daily keeps a household with 20 accounts inside the quota
+    #     and leaves room for the manual Sync button.
+    #   - An odd minute, because the bridge's guide asks for one: the top of the hour is busiest.
+    # Spring cron, six fields, always UTC. "-" disables the trigger outright.
+    scheduled-sync-cron: ${TROVE_SIMPLEFIN_SCHEDULED_SYNC_CRON:0 17 9 * * *}
 
   # Request-rate ceiling (§5.8, gap P2-5). The LIMITS are not here: they live in the
   # rate_limit_config table (V12) so an admin can retune one on a running install. Only the
@@ -242,10 +256,17 @@ trove:
     # is CLOSED — an empty configured secret must never mean "everybody matches".
     token: ${TROVE_METRICS_TOKEN:}
 
-  # Whether ANY private/loopback/link-local outbound target may be opted into on this install
-  # (§1.6, gap P2-10). False by default. Even when true, an individual member must additionally
-  # opt their own endpoint in — both keys are required, because a LAN Ollama is the primary AI
-  # story but the AI endpoint is per-user (owner decision 9).
+  # Whether a member may point their own AI endpoint at a private or loopback target (RFC 1918,
+  # loopback, CGNAT, IPv6 ULA, the deprecated IPv6 site-local fec0::/10), and over plain http, on
+  # this install. Even when true, the member must additionally opt their own endpoint in — both
+  # keys are required, because a LAN Ollama is the primary AI story but the AI endpoint is
+  # per-user (owner decision 9). The two keys also accept an IPv6 address in the deprecated
+  # IPv4-compatible (::/96) or the IPv4-mapped (::ffff:0:0/96) form (its IPv4 address is still
+  # judged), and lift nothing else. SimpleFIN and webhooks never use
+  # the opt-in, so this does not open a private target to them. Link-local, the cloud metadata
+  # addresses, the unspecified, multicast and reserved ranges, every other IPv4 or IPv6 range IANA
+  # marks not globally reachable, and the IPv6 space outside 2000::/3 that the IETF reserves are
+  # always refused (§1.6, gap P2-10). False by default.
   egress:
     allow-private: ${TROVE_EGRESS_ALLOW_PRIVATE:false}
 
@@ -304,8 +325,8 @@ trove:
       window: 15m
       base-backoff: 30s
       max-backoff: 15m
-      hard-threshold: 10
-      hard-lock: 24h
+      account-threshold: 100
+      account-window: 1h
       ip-threshold: 20
       ip-window: 10m
 
@@ -340,6 +361,9 @@ trove:
     email: ${TROVE_ADMIN_EMAIL:}
     password: ${TROVE_ADMIN_PASSWORD:}
     household-name: ${TROVE_HOUSEHOLD_NAME:Household}
+    # CA or US. Sets the first admin's country AND currency (CAD or USD); neither can be changed
+    # afterwards, so set it before the first boot. Anything else creates no admin and logs why.
+    country: ${TROVE_ADMIN_COUNTRY:CA}
 
 management:
   server:

@@ -6,7 +6,7 @@
  *
  * Every operation here declares `x-trove-required-role: ADMIN`. This component
  * checks the role from the server's own `me` response purely so a MEMBER's
- * Settings page does not fire four pointless 403s — the SERVER is what refuses,
+ * Settings page does not fire three pointless 403s (members, settings, audit log) — the SERVER is what refuses,
  * always. A member who reaches this surface anyway (a stale `me`, a demotion
  * mid-session, someone poking at the store) gets a clean, explained 403 state
  * rather than a broken page: that is what `retry: false` plus the forbidden
@@ -53,7 +53,9 @@ import {
   useAuditLog,
   useClearMemberTotpMutation,
   useDeleteMemberMutation,
+  useDemoteMemberMutation,
   useHouseholdMembers,
+  usePromoteMemberMutation,
   useRestoreMemberMutation,
   useUnlockMemberMutation,
   useUpdateAdminSettingsMutation,
@@ -63,8 +65,9 @@ import { adminErrorCopy } from './accountErrorCopy'
 import type { AdminUserResponse, AuditLogEntry } from '@api/types'
 import styles from './Settings.module.css'
 
-/** The four member actions, with the copy each confirmation needs. */
-type MemberAction = 'delete' | 'restore' | 'unlock' | 'clearTotp' | 'resetLink'
+/** The member actions, with the copy each confirmation needs. */
+type MemberAction =
+  'delete' | 'restore' | 'unlock' | 'clearTotp' | 'promote' | 'demote' | 'resetLink'
 
 const ACTION_COPY: Record<
   Exclude<MemberAction, 'resetLink'>,
@@ -90,6 +93,16 @@ const ACTION_COPY: Record<
     confirm: 'Remove second factor',
     body: 'Use this when somebody has lost the phone their authenticator app was on. Their account will be protected by its password alone until they set two-factor up again. Trove records that YOU removed it, not that they did.',
   },
+  promote: {
+    title: 'Make this member an administrator?',
+    confirm: 'Make administrator',
+    body: 'Administrators can invite and remove members, open or close registration, change these settings and read the audit log. The new role reaches their session the next time it refreshes, within about fifteen minutes, or when they next sign in.',
+  },
+  demote: {
+    title: 'Remove this member’s administrator role?',
+    confirm: 'Remove administrator role',
+    body: 'They become an ordinary member. Trove signs them out everywhere at once, so the old role cannot linger in a live session, and they sign in again as a member. Trove will not demote the household’s last administrator.',
+  },
 }
 
 /* ---------------------------------------------------------------- members */
@@ -108,11 +121,14 @@ function MemberActionDialog({
   const restore = useRestoreMemberMutation()
   const unlock = useUnlockMemberMutation()
   const clearTotp = useClearMemberTotpMutation()
-  const mutation = { delete: remove, restore, unlock, clearTotp }[action]
+  const promote = usePromoteMemberMutation()
+  const demote = useDemoteMemberMutation()
+  const mutation = { delete: remove, restore, unlock, clearTotp, promote, demote }[action]
   const copy = ACTION_COPY[action]
-  const destructive = action === 'delete' || action === 'clearTotp'
+  const destructive = action === 'delete' || action === 'clearTotp' || action === 'demote'
 
-  // A 409 here is an explanation, not a failure: the last admin, or a member
+  // A 409 here is an explanation, not a failure: the last admin (delete or
+  // demote), or a member
   // whose grace has already passed.
   const explanatory = mutation.isError && mutation.error.code === 'conflict'
 
@@ -273,6 +289,20 @@ function MembersPanel() {
             {/* Unlock and clear-TOTP refuse a self-target with 403
                 `step-up-required`, so they are not offered on the admin's own
                 row at all — offering them would be inviting a refusal. */}
+            {/* No role change on the admin's own row: handing over is "make
+                somebody else an administrator", and the server keeps the last
+                one regardless. */}
+            {!isSelf && row.active && (
+              <QlButton
+                size="sm"
+                variant="ghost"
+                onClick={() =>
+                  setTarget({ member: row, action: row.role === 'ADMIN' ? 'demote' : 'promote' })
+                }
+              >
+                {row.role === 'ADMIN' ? 'Remove administrator role' : 'Make administrator'}
+              </QlButton>
+            )}
             {!isSelf && (
               <>
                 <QlButton
@@ -310,10 +340,11 @@ function MembersPanel() {
     <div className={styles.stack}>
       <h3 className={styles.sectionTitle}>Household members</h3>
       <p className={styles.note}>
-        Trove will not let you remove the household&apos;s last administrator, and it will not let
-        you clear your own sign-in lock or your own second factor from here — an administrator whose
-        session has been stolen must not be able to undo their own protections with it. Use your own
-        Account security section, or the server console.
+        Trove will not let you remove or demote the household&apos;s last administrator — make
+        another member an administrator first — and it will not let you clear your own sign-in lock
+        or your own second factor from here — an administrator whose session has been stolen must
+        not be able to undo their own protections with it. Use your own Account security section, or
+        the server console.
       </p>
       {members.isPending && <QlSkeleton data-testid="members-skeleton" />}
       {members.isError && (
@@ -345,17 +376,65 @@ function MembersPanel() {
 
 /* -------------------------------------------------------------- settings */
 
+/**
+ * Opening registration is confirmed in the page, not with `window.confirm`: the
+ * consequence needs saying in full, and a native dialog can neither be styled
+ * nor reliably read by every screen reader.
+ */
+function OpenRegistrationDialog({
+  pending,
+  onConfirm,
+  onCancel,
+}: {
+  pending: boolean
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const ref = useDialogFocus<HTMLDivElement>(true)
+  return (
+    <QlModal isOpen onClose={onCancel} title="Open registration?">
+      <div ref={ref} tabIndex={-1} className={styles.stack} data-testid="open-registration-dialog">
+        <p className={styles.warning}>
+          Anyone who can reach this server will be able to create an account, without an invite. A
+          Trove server has one household, so every new account joins yours and sees its whole shared
+          ledger: every account, transaction, budget and receipt.
+        </p>
+        <p className={styles.note}>
+          Open it only while you expect somebody to sign up, and close it again afterwards.
+        </p>
+        <div className={styles.dialogActions}>
+          <QlButton variant="primary" onClick={onCancel}>
+            Keep it closed
+          </QlButton>
+          <QlButton variant="danger" loading={pending} onClick={onConfirm}>
+            Open registration
+          </QlButton>
+        </div>
+      </div>
+    </QlModal>
+  )
+}
+
 function RegistrationPanel() {
   const settings = useAdminSettings(true)
   const update = useUpdateAdminSettingsMutation()
+  const [confirming, setConfirming] = useState(false)
 
   return (
     <div className={styles.stack}>
       <h3 className={styles.sectionTitle}>Registration</h3>
-      <p className={styles.note}>
-        With registration closed, the only way in is an invite link you create. The setting is
-        stored on the household, so it survives a restart.
+      <p className={styles.note} data-testid="registration-note">
+        With registration closed, the only way in is an invite link you create. Open it, and anyone
+        who can reach this server can create an account, and every account joins this household —
+        there is only one — so it sees the whole shared ledger. The setting is stored on the
+        household, so it survives a restart.
       </p>
+      {settings.data?.registrationOpen && (
+        <p className={styles.warning} role="status" data-testid="registration-open-notice">
+          Registration is open. Anyone who finds this server can sign up and see everything in this
+          household. Close it once the people you expect have joined.
+        </p>
+      )}
       {settings.isError && (
         <p className={styles.error} role="alert">
           {adminErrorCopy(settings.error)}
@@ -368,7 +447,56 @@ function RegistrationPanel() {
             type="checkbox"
             checked={settings.data.registrationOpen}
             disabled={update.isPending}
-            onChange={(e) => update.mutate({ registrationOpen: e.target.checked })}
+            onChange={(e) => {
+              // Closing needs no confirm; opening does, and nothing is written until it is given.
+              if (e.target.checked) setConfirming(true)
+              else update.mutate({ registrationOpen: false })
+            }}
+          />
+        </label>
+      )}
+      {update.isError && (
+        <p className={styles.error} role="alert">
+          {adminErrorCopy(update.error)}
+        </p>
+      )}
+      {confirming && (
+        <OpenRegistrationDialog
+          pending={update.isPending}
+          onCancel={() => setConfirming(false)}
+          onConfirm={() =>
+            update.mutate({ registrationOpen: true }, { onSettled: () => setConfirming(false) })
+          }
+        />
+      )}
+    </div>
+  )
+}
+
+/**
+ * The scheduled bank sync switch (C-01r). Off by default; the server reads it on
+ * every run, so turning it off stops the next one.
+ */
+function ScheduledSyncPanel() {
+  const settings = useAdminSettings(true)
+  const update = useUpdateAdminSettingsMutation()
+
+  return (
+    <div className={styles.stack}>
+      <h3 className={styles.sectionTitle}>Bank sync</h3>
+      <p className={styles.note} data-testid="scheduled-sync-note">
+        When this is on, the server syncs every SimpleFIN-connected account once a day, so nobody
+        has to press Sync. If a connection stops working, the person who connected it is told
+        only once, not every day.
+      </p>
+      {settings.data && (
+        <label className={styles.row}>
+          <span className={styles.label}>Sync connected banks every day</span>
+          <input
+            type="checkbox"
+            checked={settings.data.scheduledSyncEnabled}
+            disabled={update.isPending}
+            onChange={(e) => update.mutate({ scheduledSyncEnabled: e.target.checked })}
           />
         </label>
       )}
@@ -483,6 +611,7 @@ export function AdminSection() {
         <h2 className={styles.sectionTitle}>Administration</h2>
         <MembersPanel />
         <RegistrationPanel />
+        <ScheduledSyncPanel />
         <AuditPanel />
       </div>
     </QlCard>

@@ -37,8 +37,11 @@ import org.springframework.stereotype.Component;
  * <p><strong>How it runs.</strong> One property, checked by {@link AdminConsoleRunner}:
  *
  * <pre>{@code
- *   docker compose run --rm app --trove.cli.command="reset-password admin@example.com"
+ *   cd deploy && docker compose run --rm trove-core --trove.cli.command="reset-password admin@example.com"
  * }</pre>
+ *
+ * <p>Run it from {@code deploy/}, where {@code docker-compose.yml} lives; the compose service is
+ * {@code trove-core}.
  *
  * <p>Without {@code trove.cli.command} the bean does nothing at all and the application boots
  * normally — the runner is what is conditional, so an ordinary boot cannot be talked into

@@ -5,36 +5,37 @@ For a self-hosted install instead, see [Docker Compose](../self-hosting/docker-c
 
 ## Prerequisites
 
-- JDK 21 (`pom.xml`'s `<java.version>`/`<maven.compiler.release>`)
+- JDK 21 (`pom.xml`'s `<java.version>`; the Maven enforcer rule requires `[21,22)`)
 - Node — two different versions, one per client, because neither `apps/web/package.json`
   nor `apps/mobile/package.json` declares an `engines` field; these are the versions each
   app's own CI pins: **Node 22** for `apps/web` (`.github/workflows/web-ci.yml`
   `node-version: '22'`) and **Node 22.13.0** for `apps/mobile`
   (`.github/workflows/mobile-ci.yml` `node-version: '22.13.0'`). Not a hard local
-  requirement, though: step 27 ran both clients' full command lists (`npm ci`, generate,
-  dev/start, unit tests, Playwright, Detox) on a single global **Node 22.23.3** (no `nvm`,
-  nothing switched between clients) without hitting a version-specific failure — install
+  requirement, though: both clients' full command lists (`npm ci`, generate,
+  dev/start, unit tests, Playwright, Detox) run on a single global Node 22.x (no `nvm`,
+  nothing switched between clients) without a version-specific failure — install
   the pinned versions if you want to match CI exactly, otherwise whatever recent Node you
   have on `PATH` is a reasonable bet.
+- Node 22 or newer to build this documentation site (`cd docs-site && npm ci && npm run docs:build`;
+  `docs-site/package.json` `engines`, and `.github/workflows/docs.yml` builds it on Node 22)
 - Docker, for Postgres (see step 1)
-- A Postgres 16 with the `pgvector` extension available (the deploy stack uses
-  `pgvector/pgvector:pg16`; any Postgres 16 with `CREATE EXTENSION vector` works)
-- For iOS: Xcode. The app is on **Expo SDK 57**, which builds and runs on **Xcode 27**
-  (step 27.7 ran `expo run:ios` and iOS Detox on Xcode 27.0; see [iOS](#ios) below). CI's
-  iOS job still selects Xcode 26 (`.github/workflows/mobile-ci.yml`
-  `xcode-select -s /Applications/Xcode_26.app`). Pick a simulator
+- A Postgres 16 whose contrib modules include `pgcrypto` and `pg_trgm` (any stock
+  Postgres 16 image has them; the deploy stack uses `pgvector/pgvector:pg16`, but nothing
+  in Trove needs pgvector)
+- For iOS: Xcode. The app is on **Expo SDK 58**, which builds and runs on **Xcode 27**
+  (`expo run:ios` and iOS Detox are verified on Xcode 27.0; see [iOS](#ios) below). CI's
+  iOS job selects the newest installed Xcode 26.x (`/Applications/Xcode_26*.app`,
+  `.github/workflows/mobile-ci.yml`). Pick a simulator
   `xcrun simctl list devicetypes` actually prints — `apps/mobile/.detoxrc.js`'s `ios.sim`
   device is **iPhone 17 Pro**, not iPhone 15 (not installed on every Mac; CI's own runner
   image may differ from yours). Also install
   [`applesimutils`](https://github.com/wix/AppleSimulatorUtils) — Detox's hard requirement
-  for driving the iOS simulator (install/launch/terminate/biometrics), not listed here
-  before step 27 found it missing: `brew tap wix/brew && brew install applesimutils`.
+  for driving the iOS simulator (install/launch/terminate/biometrics): `brew tap wix/brew && brew install applesimutils`.
 - For Android: the Android SDK with `sdkmanager`/`avdmanager`/`adb` on `PATH`, and an AVD
-  named **`Pixel_5_API_36`** (API level 36 — Expo SDK 57 / React Native 0.86.3 compile and
+  named **`Pixel_5_API_36`** (API level 36 — Expo SDK 58 / React Native 0.88 compile against SDK 37 and
   target SDK 36, `react-native/gradle/libs.versions.toml`) — the exact name Detox's `android.emu` device
-  expects (`apps/mobile/.detoxrc.js`); CI's own `reactivecircus/android-emulator-runner`
-  step is still pinned to `api-level: 34` (`.github/workflows/mobile-ci.yml`), a
-  pre-existing CI/local mismatch this doc doesn't paper over — see step 27 notes.
+  expects (`apps/mobile/.detoxrc.js`). CI's `android-emulator-runner` step uses the same
+  API 36 and AVD name (`.github/workflows/mobile-ci.yml`).
 
 ## 1. Start Postgres
 
@@ -51,17 +52,44 @@ and rerun the command above.
 
 ```bash
 cd core
-cp .env.example .env   # then edit it — see below
-export $(grep -v '^#' .env | xargs)
+cp .env.example .env
+```
+
+Edit `core/.env` and fill the three empty values it needs. `.env.example` has no default for any
+secret, and the first boot needs an admin to sign in as:
+
+```bash
+TROVE_JWT_SECRET=<output of: openssl rand -hex 32>
+TROVE_ADMIN_EMAIL=you@example.com
+TROVE_ADMIN_PASSWORD=<a password>
+```
+
+Then load it and start `core`:
+
+```bash
+set -a; . ./.env; set +a
 ../mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
+Spring does not read `.env` itself, so the `set -a; . ./.env; set +a` line is what exports it. Use
+that line rather than `export $(grep -v '^#' .env | xargs)`: the file single-quotes values that
+contain spaces, `|` or `*` (the scheduled-sync cron, `JAVA_TOOL_OPTIONS`, the trusted-proxy
+regex), and `xargs` splits or mangles them. Run from `core/`; `./mvnw spring-boot:run -pl core -am`
+at the repository root fails, because `-am` also runs the plugin on the parent pom.
+
+`.env.example` sets `SPRING_PROFILES_ACTIVE=dev` and matches the Postgres container from step 1.
+Its production-only values (`TROVE_DATA_DIR=/data`, `TROVE_EGRESS_ALLOW_PRIVATE=false`,
+`TROVE_ENCRYPTION_KEY`) are commented out on purpose, so the `dev` defaults apply: data under
+`./target/trove-data` (`/data` is a folder a laptop cannot write), outbound requests to private
+addresses allowed (a LAN Ollama at http://localhost:11434 needs that), and a throwaway encryption
+key. `scripts/check-env-example.sh` checks all of this in CI.
+
 The `dev` profile (`core/src/main/resources/application-dev.yml`) points at
-`jdbc:postgresql://localhost:5432/trove` with user `trove` / password `trove` (all three
-overridable via `TROVE_DB_URL` / `TROVE_DB_USER` / `TROVE_DB_PASSWORD`) — matching the
-Postgres container started in step 1. It does **not** default `TROVE_JWT_SECRET` — export
-a real value (any random string; `openssl rand -hex 32` is fine for local use) or the app
-refuses to boot. `TROVE_ENCRYPTION_KEY` does default in `dev`, but only in `dev`.
+`jdbc:postgresql://localhost:5432/trove` with user `trove` / password `trove` (all three overridable
+via `TROVE_DB_URL` / `TROVE_DB_USER` / `TROVE_DB_PASSWORD`) — matching the Postgres container
+started in step 1. It does **not** default `TROVE_JWT_SECRET`: export a value of at least 32 bytes
+(`openssl rand -hex 32` is fine for local use) or the app refuses to boot. `TROVE_ENCRYPTION_KEY`
+has a default in `dev`, so leave it unset.
 
 ### First login
 
@@ -73,6 +101,7 @@ controlled by `trove.bootstrap.*` (`finance.trove.app.bootstrap.BootstrapPropert
 | `TROVE_ADMIN_EMAIL` | none — set it |
 | `TROVE_ADMIN_PASSWORD` | none — set it |
 | `TROVE_HOUSEHOLD_NAME` | `Household` |
+| `TROVE_ADMIN_COUNTRY` | `CA` — `CA` or `US`; also sets the currency (CAD or USD), and neither can change later |
 | `TROVE_REGISTRATION_OPEN` | `false` |
 
 Set these in `core/.env` before the first boot. Bootstrap runs exactly once (it checks
@@ -86,8 +115,7 @@ household can flip by restarting core (use `PUT /v1/admin/settings` as an existi
 that). Export `TROVE_REGISTRATION_OPEN=true` before the first boot on a fresh database if
 you plan to run `e2e/onboarding.e2e.ts` (Detox), which exercises the sign-up form and needs
 `create-account-link` to render — a fresh stack following this guide with no
-`TROVE_REGISTRATION_OPEN` set will fail that spec on a closed-registration household (step
-27, task 27.4/27.5).
+`TROVE_REGISTRATION_OPEN` set will fail that spec on a closed-registration household.
 
 ## 3. Run the web client
 
@@ -133,12 +161,11 @@ paragraph under Tests below (prefix the command with `CI=1`, at the cost of fast
 building and launching the simulator. On the iOS Simulator, `localhost` reaches the host
 Mac directly, so the dev default above works unchanged.
 
-**Xcode 27.** Two things make this work there (step 27.7): Expo SDK 57's CLI finds the
-simulator through Xcode 27's DeviceHub.app (Simulator.app is gone), and the
-`['expo-build-properties', { ios: { enableSceneSupport: true } }]` entry in `app.config.ts`
-gives the app the UIScene life cycle the iOS 27 SDK requires — without it the app crashes at
-launch with `UIScene life cycle is required for apps built with this SDK`. Scenes become the
-default in SDK 58; remove that entry then. To open a reset link by hand, use
+**Xcode 27.** Two things make this work there: the Expo CLI finds the
+simulator through Xcode 27's DeviceHub.app (Simulator.app is gone), and Expo SDK 58 gives
+the app the UIScene life cycle the iOS 27 SDK requires by default — without it the app crashes
+at launch with `UIScene life cycle is required for apps built with this SDK`. (On SDK 57 this
+took an `enableSceneSupport` entry in `app.config.ts`; SDK 58 made it unnecessary.) To open a reset link by hand, use
 `xcrun simctl openurl booted 'trove://reset-password?token=…'`; iOS 27 first asks
 "Open in "Trove"?".
 
@@ -254,8 +281,7 @@ unzip needed — it's already an extracted directory) the same way `unzip -p
 android/app/build/outputs/apk/debug/app-debug.apk assets/app.config` confirms it on
 Android: `extra.apiBaseUrl` is `""` if the env var was absent from the build command,
 which leaves `e2e/helpers.ts`'s `connectToDevServer()` dev-default pre-fill empty and every
-Detox suite timing out at `login-screen` (step 27, bug found on Android Detox, task 27.4;
-same root cause confirmed on iOS, task 27.5 — set it identically on both build commands).
+Detox suite timing out at `login-screen` (seen on both Android and iOS Detox — set it identically on both build commands).
 
 A Debug Detox build still loads its JS from the Metro bundler at runtime (there is no
 embedded-bundle hook in `.detoxrc.js` or `apps/mobile/e2e/jest.config.js`), so start it
@@ -275,8 +301,7 @@ dies with it. `CI=1` makes the Expo CLI start Metro with `watch: false`
 (`instantiateMetro.js`'s `isWatchEnabled`), which falls back to Metro's node crawler
 instead of watchman — Detox does not need hot reload, so this is a safe substitute, not a
 compromise. `npx expo run:ios` / `run:android` start their own Metro, so prefix them the same
-way (`CI=1 EXPO_PUBLIC_API_BASE_URL=… npx expo run:ios --device "iPhone 17 Pro"`, as step
-27.7 ran them). Without a watcher Metro does not see edits: restart it after changing JS or
+way (`CI=1 EXPO_PUBLIC_API_BASE_URL=… npx expo run:ios --device "iPhone 17 Pro"`). Without a watcher Metro does not see edits: restart it after changing JS or
 adding a file. The permanent, owner-side fix is granting the `watchman` binary Full Disk
 Access (System Settings → Privacy & Security → Full Disk Access). Do **not** run the
 `watchman` CLI yourself to try to clear this (`watchman shutdown-server`, `watchman
@@ -286,9 +311,12 @@ denial, these calls can hang indefinitely instead of returning an error.
 ### k6 — load testing (optional, not part of the everyday dev loop)
 
 ```bash
+./mvnw --batch-mode -pl core -am clean package -DskipTests   # load-stack.sh needs core/target/*-exec.jar
 scripts/load-stack.sh up <workdir>   # a throwaway stack, e.g. https://trove.test:18443
 scripts/load-stack.sh k6 <workdir>
 ```
+
+`load-stack.sh` also needs Docker (Compose v2), `openssl` and `awk`.
 
 `tests/performance/trove-load.js` is the k6 script (`k6 run`, run inside Docker via the
 script above — no local k6 install, no Maven module). See the script's own header comment

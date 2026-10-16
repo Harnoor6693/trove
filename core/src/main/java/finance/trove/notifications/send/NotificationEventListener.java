@@ -24,7 +24,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
- * The three domain events that produce a notification
+ * The four domain events that produce a notification
  * ({@code docs/recovery/06-COLLAPSE-PLAN.md} §6 D3).
  *
  * <h2>Why every handler is AFTER_COMMIT plus REQUIRES_NEW</h2>
@@ -34,7 +34,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * a plain {@code @Transactional} would silently not open one and every write here would fail or,
  * worse, run outside a transaction one statement at a time.
  *
- * <h2>Who is told, and why it differs between the three</h2>
+ * <h2>Who is told, and why it differs between the producers</h2>
  * <ul>
  *   <li><strong>Budget threshold — every member whose own threshold is crossed.</strong> A budget
  *       is the household's shared plan and every member spends against it, so a crossing concerns
@@ -44,16 +44,20 @@ import org.springframework.transaction.event.TransactionalEventListener;
  *       handler decides which members that ratio actually reached. V32's per-(user, type, key)
  *       unique index makes the second half idempotent: a member is told once per envelope per
  *       month however many crossings are published.</li>
- *   <li><strong>Price change and sync failure — the member the event names.</strong> Both events
- *       already carry the member they belong to: a detected subscription's alert is attributed to
- *       one member, and a connection is owned by whoever added it. Fanning those out would put one
- *       member's preference in charge of another member's notification and would put N copies of
- *       "your bank connection failed" into a household that has one bank connection.</li>
+ *   <li><strong>Price change — every active member.</strong> A detected subscription belongs to
+ *       the household, not to the member the scan happened to be attributed to, and each member
+ *       holds their own subscription-alert toggle, so the handler fans out the way the budget one
+ *       does. V32's per-(user, type, key) unique index keeps it to one alert per member per new
+ *       price.</li>
+ *   <li><strong>Sync failure — the member the event names.</strong> A connection is owned by
+ *       whoever added it. Fanning that out would put one member's preference in charge of
+ *       another member's notification and would put N copies of "your bank connection failed"
+ *       into a household that has one bank connection.</li>
  * </ul>
  *
  * <p><strong>A SUCCESSFUL sync notifies nobody</strong>, and that is a decision rather than an
  * omission. {@code SyncCompletedEvent} is published on success as well as failure, and §9 risk 13
- * asserts the failure path only. An inbox row per successful hourly sync would be several a day
+ * asserts the failure path only. An inbox row per successful sync would be one a day
  * per account saying nothing happened, which is how a notification centre becomes something people
  * stop opening — and the one thing this step exists to make worth opening is the inbox.
  *
@@ -112,7 +116,10 @@ public class NotificationEventListener {
     }
 
     /**
-     * A detected recurring charge changed price.
+     * A detected recurring charge changed price. Every active member of the household whose own
+     * subscription-alert toggle is on is told: the subscription belongs to the household, and the
+     * toggle is offered to every member, so the event's {@code userId} is not read here: only
+     * {@code householdId} decides who hears.
      *
      * <p>Dedup key: {@code subscriptionId:newAmount}. A price that changes twice is two alerts; a
      * rescan that sees the same new price is one. Keying on the new amount rather than on a date
@@ -122,10 +129,6 @@ public class NotificationEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onSubscriptionPriceChanged(SubscriptionPriceChangedEvent event) {
-        NotificationPreference preference = preferences.getOrCreate(event.userId());
-        if (!preference.isSubscriptionAlertEnabled()) {
-            return;
-        }
         Money delta = event.delta();
         String direction = delta.isNegative() ? "fell" : "rose";
         String subject = event.merchantName() + " " + direction + " to "
@@ -133,27 +136,41 @@ public class NotificationEventListener {
         String body = event.merchantName() + " changed from " + money(event.previousAmount())
             + " to " + money(event.newAmount()) + " (" + money(delta.abs()) + " "
             + (delta.isNegative() ? "less" : "more") + ").";
-        notifications.notify(event.userId(), NotificationType.SUBSCRIPTION_PRICE_CHANGE,
-            NotificationContent.of(subject, body, "/subscriptions/" + event.subscriptionId(),
-                event.subscriptionId() + ":" + event.newAmount().amount().toPlainString()));
+        NotificationContent content = NotificationContent.of(subject, body,
+            "/subscriptions/" + event.subscriptionId(),
+            event.subscriptionId() + ":" + event.newAmount().amount().toPlainString());
+        for (User member : users.findAllByHouseholdIdOrderByCreatedAtAsc(event.householdId())) {
+            if (member.isActive()
+                && preferences.getOrCreate(member.getId()).isSubscriptionAlertEnabled()) {
+                notifications.notify(member.getId(), NotificationType.SUBSCRIPTION_PRICE_CHANGE,
+                    content);
+            }
+        }
     }
 
     /**
      * A sync failed, wholly or in part.
      *
      * <p>Dedup key: {@code accountId:the recipient's own local date}. A connection whose
-     * credentials expired fails on every hourly run; the member needs to be told, once, on the day
+     * credentials expired fails on every scheduled run (daily by default); the member needs to be told, once, on the day
      * it happens. The date is the RECIPIENT'S, from {@link UserClock}, not the container's — a
-     * Vancouver member's day rolls over sixteen hours after UTC's, and using the container's would
+     * Vancouver member's day starts 7 to 8 hours after UTC's, and using the container's would
      * put two alerts in their inbox on one of their evenings and none on another.
      *
-     * <h2>Why this one handler carries {@code fallbackExecution = true} and the other two do not</h2>
+     * <p>That day key is for a MANUAL run ({@code FailureAlert.DAILY}). A scheduled run
+     * (C-01r, {@code ScheduledSyncJob}) would turn it into a daily nag for a connection nobody has
+     * fixed, so the job says before each run whether the account was healthy: {@code ONCE} keys
+     * the alert by the run itself — the move from healthy to failing is always news, even on a day
+     * that already had one — and {@code NONE} stays silent, because the member has been told.
+     *
+     * <h2>Why onSyncCompleted carries {@code fallbackExecution = true} and the budget and price handlers do not</h2>
      * The default, {@code fallbackExecution = false}, means "if no transaction is active when the
      * event is published, drop it" — and Spring drops it silently, with no log and no error.
      * {@code SyncOrchestrator} is <strong>deliberately not</strong> {@code @Transactional} (its own
      * class javadoc says so, and the reason is that a sync must not hold one connection across a
-     * bank call): every one of its short transactions — {@code SyncStateWriter.start},
-     * {@code persist}, {@code release}, {@code finish}, all {@code REQUIRES_NEW} — has already
+     * bank call): every one of its short transactions — {@code SyncStateWriter.claim},
+     * {@code start}, {@code release} and {@code finish} (all {@code REQUIRES_NEW}) and
+     * {@code IngestionBatchWriter.persist} — has already
      * committed and returned by the time it publishes. So at the publish point there is no
      * transaction synchronization active, and without this flag the handler is never invoked at
      * all: {@code SYNC_FAILED} would be dead code, a member whose bank credentials expired would
@@ -165,7 +182,7 @@ public class NotificationEventListener {
      * <p>Running inline on the publisher's thread is safe HERE precisely because of the same fact:
      * the sync's own writes are already committed, so there is nothing left to roll back and
      * nothing this handler can see half-done. Its own writes are {@code REQUIRES_NEW}, so they get
-     * a transaction of their own either way. The other two handlers keep the default because both
+     * a transaction of their own either way. The budget-threshold and price-change handlers keep the default because both
      * of their publishers ({@code EnvelopeSpendService.recalculateAll} and
      * {@code SubscriptionDetectionService.detectForHousehold}, both {@code @Transactional}) publish
      * INSIDE a live transaction, where AFTER_COMMIT is the guarantee that matters and a fallback
@@ -174,7 +191,7 @@ public class NotificationEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onSyncCompleted(SyncCompletedEvent event) {
-        if (event.isSuccess()) {
+        if (event.isSuccess() || event.failureAlert() == SyncCompletedEvent.FailureAlert.NONE) {
             return;
         }
         NotificationPreference preference = preferences.getOrCreate(event.userId());
@@ -191,7 +208,8 @@ public class NotificationEventListener {
             ? "Some transactions were imported and some were rejected. "
             : "Nothing was imported. ") + reason;
         String dedupKey = event.accountId() + ":"
-            + clock.today(event.userId());
+            + (event.failureAlert() == SyncCompletedEvent.FailureAlert.ONCE
+                ? event.syncLogId() : clock.today(event.userId()));
         notifications.notify(event.userId(), NotificationType.SYNC_FAILED,
             NotificationContent.of(subject, body, "/accounts/" + event.accountId(), dedupKey));
         LOG.debug("sync failure notification queued for account {}", event.accountId());

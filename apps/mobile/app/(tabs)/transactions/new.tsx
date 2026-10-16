@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MnBtn } from '@components/ui/MnBtn/MnBtn';
@@ -14,6 +14,8 @@ import { fieldError, toApiFailure } from '@api/errors';
 import { useAccounts } from '@hooks/useAccounts';
 import { useCreateManualTransaction } from '@hooks/useTransactions';
 import type { TransactionType } from '@api/types';
+import { normaliseAmountInput } from '@lib/amountInput';
+import { FormScroll } from '@components/ui/FormScroll/FormScroll';
 
 /**
  * Record a transaction by hand — `POST /v1/transactions`.
@@ -58,7 +60,7 @@ export default function NewTransactionScreen() {
     create.mutate(
       {
         accountId,
-        amount: amount.trim(),
+        amount: normaliseAmountInput(amount),
         date: date.trim(),
         type,
         merchant: merchant.trim() === '' ? undefined : merchant.trim(),
@@ -73,7 +75,7 @@ export default function NewTransactionScreen() {
       style={[styles.safe, { backgroundColor: theme.paper }]}
       testID="new-transaction-screen"
     >
-      <ScrollView contentContainerStyle={styles.content}>
+      <FormScroll contentContainerStyle={styles.content} testID="new-transaction-form">
         <MnBtn
           label="Back"
           variant="ghost"
@@ -195,7 +197,7 @@ export default function NewTransactionScreen() {
             />
           </View>
         </ScreenState>
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }

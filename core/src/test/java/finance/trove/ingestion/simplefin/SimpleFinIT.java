@@ -1,6 +1,7 @@
 package finance.trove.ingestion.simplefin;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import finance.trove.app.support.Json;
 import finance.trove.app.support.LedgerSupport;
@@ -32,6 +33,9 @@ class SimpleFinIT extends LedgerSupport {
 
     @Autowired
     private TestSimplefinBridge bridge;
+
+    @Autowired
+    private SimplefinSource simplefinSource;
 
     @Autowired
     private TestBankSource source;
@@ -141,8 +145,9 @@ class SimpleFinIT extends LedgerSupport {
         assertThat(response.statusCode()).isEqualTo(400);
         assertThat(Json.errorCode(response.body())).isEqualTo("outbound-url-rejected");
         assertThat(Json.parse(response.body()).path("error").path("detail").asString())
-            .as("the message names the RULE that refused it, never the resolved address")
-            .contains("private (RFC 1918)");
+            .as("the message is the one generic refusal: never the address, nor its range (B3-10)")
+            .contains("only to addresses this server is allowed to connect to")
+            .doesNotContain("private");
         assertThat(response.body())
             .doesNotContain("SECRET-TOKEN-VALUE")
             .doesNotContain("10.0.0.7/simplefin");
@@ -231,6 +236,26 @@ class SimpleFinIT extends LedgerSupport {
 
         assertThat(response.statusCode()).isEqualTo(400);
         assertThat(Json.errorCode(response.body())).isEqualTo("validation-error");
+    }
+
+    @Test
+    @DisplayName("RD2: a bridge soft error fails the fetch with a plain reason, not a silent success")
+    void aBridgeSoftErrorFailsTheFetch() {
+        String suffix = UUID.randomUUID().toString();
+        bridge.returning(accessUrl(suffix), List.of(bridgeAccount("chq-" + suffix, "Chequing",
+            "CAD")));
+        bridge.reportingErrors(List.of("Connection to My Bank needs re-authentication, see "
+            + "https://bridge.example.com/secret-path?token=abc"));
+
+        // The registry's test double stands in for SimplefinSource (see TestBankSource), so the
+        // real source is driven directly; the orchestrator turns this exception into the FAILED
+        // run, the account's errorMessage and the SYNC_FAILED notification.
+        assertThatThrownBy(() -> simplefinSource.fetch("chq-" + suffix,
+            java.time.LocalDate.now().minusDays(30), java.time.LocalDate.now(),
+            java.util.Map.of(SimplefinSource.CONFIG_ACCESS_URL, accessUrl(suffix))))
+            .isInstanceOf(finance.trove.common.plugin.BankSourceConnectionException.class)
+            .hasMessageContaining("re-authentication")
+            .message().doesNotContain("http").doesNotContain("secret-path");
     }
 
     private HttpResponse<String> exchange(String setupToken) {

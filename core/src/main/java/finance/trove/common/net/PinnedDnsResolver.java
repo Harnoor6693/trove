@@ -32,9 +32,19 @@ public final class PinnedDnsResolver implements DnsResolver {
         this.pinned = new InetAddress[] {target.ip()};
     }
 
+    /**
+     * The pinned address, for the pinned host only. HttpClient asks for an IPv6 literal as the URL
+     * writes it, {@code [2d00::1]}, while the policy pins the bare {@code 2d00::1}, so the brackets
+     * are dropped before comparing; without that every IPv6-literal endpoint failed to connect.
+     */
     @Override
     public InetAddress[] resolve(String requestedHost) throws UnknownHostException {
-        if (requestedHost == null || !host.equals(requestedHost.toLowerCase(Locale.ROOT))) {
+        String asked = requestedHost == null ? null : requestedHost.toLowerCase(Locale.ROOT);
+        if (asked != null && asked.length() > 1 && asked.charAt(0) == '['
+            && asked.endsWith("]")) {
+            asked = asked.substring(1, asked.length() - 1);
+        }
+        if (!host.equals(asked)) {
             throw new UnknownHostException("This client is pinned to " + host
                 + " and will not resolve " + requestedHost);
         }

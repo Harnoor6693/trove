@@ -5,7 +5,7 @@
   border: 1px solid var(--line-strong, rgba(27,26,23,0.20)); border-radius: var(--radius-sm);
   background: var(--paper); transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.inputRow:focus-within { border-color: var(--sage); box-shadow: 0 0 0 3px var(--sage-soft); }
+.inputRow:focus-within { border-color: var(--sage); box-shadow: 0 0 0 3px var(--sage-soft); outline: 2px solid var(--blue); outline-offset: 1px; }
 .inputRow.hasError { border-color: var(--red); }
 .inputRow.hasError:focus-within { box-shadow: 0 0 0 3px var(--red-soft); }
 .input {
@@ -13,8 +13,8 @@
   font-family: Inter, sans-serif; font-size: var(--font-base);
   color: var(--ink); background: transparent; border: none; outline: none; min-width: 0;
 }
-.input::placeholder { color: var(--ink-3, #8c8578); }
+.input::placeholder { color: var(--ink-3, #6b6558); }
 .withPrefix { padding-left: var(--space-2); }
-.prefix, .suffix { display: flex; align-items: center; padding: 0 var(--space-3); color: var(--ink-3, #8c8578); font-size: var(--font-sm); pointer-events: none; }
+.prefix, .suffix { display: flex; align-items: center; padding: 0 var(--space-3); color: var(--ink-3, #6b6558); font-size: var(--font-sm); pointer-events: none; }
 .error { font-size: var(--font-sm); color: var(--red); }
-.hint  { font-size: var(--font-sm); color: var(--ink-3, #8c8578); }
+.hint  { font-size: var(--font-sm); color: var(--ink-3, #6b6558); }

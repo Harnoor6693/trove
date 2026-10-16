@@ -171,6 +171,26 @@ describe('Budgets overview', () => {
     expect(mswState.budgetPeriods.find((p) => p.id === 'budget-1')?.totalIncome).not.toBe('999')
   })
 
+  it('no zero-based hint when floating-point sums differ but the decimals match (B4-06)', async () => {
+    authenticate()
+    mswState.budgetPeriods = mswState.budgetPeriods.map((p) =>
+      p.id === 'budget-1' ? { ...p, budgetType: 'ZERO_BASED', totalIncome: '0.30' } : p
+    )
+    const [base] = mswState.envelopesByPeriod['budget-1']
+    mswState.envelopesByPeriod['budget-1'] = [
+      { ...base, id: 'env-a', allocated: '0.10' },
+      { ...base, id: 'env-b', allocated: '0.20' },
+    ]
+    const user = userEvent.setup()
+    renderWithProviders(<Budgets />)
+    await screen.findByTestId('envelope-grid')
+
+    await user.click(screen.getByRole('button', { name: /edit period/i }))
+    const dialog = await screen.findByTestId('edit-period-dialog')
+    expect(within(dialog).getByLabelText('Total income')).toHaveValue('0.30')
+    expect(within(dialog).queryByTestId('zero-based-hint')).not.toBeInTheDocument()
+  })
+
   it('a 429 on the envelope list shows the wait-and-retry copy and does not refresh or log out', async () => {
     authenticate()
     mswState.envelopesRateLimited = true

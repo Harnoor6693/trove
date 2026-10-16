@@ -1,11 +1,15 @@
 /**
  * Money, number and date formatting driven by the signed-in user's own
- * settings — never the device's, and never a hardcoded currency.
+ * settings — the device's locale and zone are only a fallback until the
+ * server values arrive, and the currency is never hardcoded.
  *
- * Three inputs, all from the server:
- *   - `currency` and `country` from `GET /v1/auth/me` (§4.2 — identity fields,
- *     fixed at registration).
- *   - `locale` and `timezone` from `GET /v1/me/preferences` (§4.2).
+ * Inputs:
+ *   - `currency` from `GET /v1/auth/me` (§4.2 — identity field, fixed at
+ *     registration).
+ *   - `locale` and `timezone` from `GET /v1/me/preferences` (§4.2), falling
+ *     back to the same fields on `GET /v1/auth/me`, then to the device locale
+ *     and zone until either has loaded.
+ *   - `country` is not used.
  *
  * Amounts arrive as decimal strings (`"12.34"`, §5.4). They are parsed here
  * and nowhere else, so the `*Cents` integers this app used to carry — a third
@@ -13,7 +17,9 @@
  * gone for good.
  *
  * `toLocaleString`, a bare `'$'` and a hardcoded `'CAD'` are all banned by an
- * ESLint rule (`.eslintrc.cjs`); this module is the single exemption.
+ * ESLint rule (`.eslintrc.cjs`); this module is the formatting core exempted from it, alongside
+ * `src/api/types.ts` (the currency-code declarations) and `app/(auth)/setup.tsx`
+ * (where the user picks CAD or USD).
  */
 
 import { useMemo } from 'react';
@@ -39,6 +45,8 @@ export interface UserFormat extends UserFormatContext {
   number: (value: number, options?: Intl.NumberFormatOptions) => string;
   /** Format an ISO date (`2026-09-03`) or instant in the user's timezone. */
   date: (iso: string | null | undefined, style?: DateStyle) => string;
+  /** How long ago an instant was ("3 hours ago"), in the user's locale. */
+  relative: (iso: string | null | undefined, now?: number) => string;
 }
 
 export interface MoneyOptions {
@@ -49,6 +57,15 @@ export interface MoneyOptions {
   /** Always show a leading `+` on positive amounts. */
   signed?: boolean;
 }
+
+/** Largest unit first: an instant 26 hours old reads "yesterday", not "26 hours ago". */
+const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
+  ['year', 365 * 24 * 3600],
+  ['month', 30 * 24 * 3600],
+  ['day', 24 * 3600],
+  ['hour', 3600],
+  ['minute', 60],
+];
 
 export type DateStyle = 'short' | 'medium' | 'long' | 'monthYear' | 'dateTime';
 
@@ -91,7 +108,8 @@ function isMoney(value: Decimal | Money): value is Money {
  * `Number('   ')` are both `0`, `Number('0x1f')` is 31, `Number('1e3')` is
  * 1000 and `Number('Infinity')` is `Infinity`. A blank or malformed amount
  * must never render as a zero balance, and the only shape `trove-core`'s
- * global `BigDecimal` `ToStringSerializer` ever emits is a plain decimal
+ * global `BigDecimal` serializer (`PlainStringBigDecimalSerializer`) ever
+ * emits is a plain decimal
  * literal (§5.4). `apps/web/src/hooks/useUserFormat.ts` uses the same guard.
  */
 const DECIMAL_LITERAL = /^-?\d+(\.\d+)?$/;
@@ -150,7 +168,28 @@ export function createUserFormat(context: UserFormatContext): UserFormat {
     }).format(parsed);
   };
 
-  return { currency, locale, timeZone, money, number, date };
+  const relative: UserFormat['relative'] = (iso, now = Date.now()) => {
+    const at = typeof iso === 'string' ? Date.parse(iso) : Number.NaN;
+    if (Number.isNaN(at)) return UNKNOWN_VALUE;
+    const seconds = Math.round((at - now) / 1000);
+    if (Math.abs(seconds) < 60) return 'just now';
+    const [unit, size] =
+      RELATIVE_UNITS.find(([, length]) => Math.abs(seconds) >= length) ?? RELATIVE_UNITS[4];
+    const value = Math.round(seconds / size);
+    // Hermes ships Collator, DateTimeFormat and NumberFormat but not
+    // RelativeTimeFormat (hermes doc/IntlAPIs.md; facebook/hermes#1539), and
+    // this app adds no polyfill. Where the engine has it, it is used; where it
+    // does not, an English phrase of the same shape stands in.
+    if (typeof Intl.RelativeTimeFormat === 'function') {
+      return new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(value, unit);
+    }
+    if (unit === 'day' && value === -1) return 'yesterday';
+    const count = Math.abs(value);
+    const phrase = `${count} ${unit}${count === 1 ? '' : 's'}`;
+    return value < 0 ? `${phrase} ago` : `in ${phrase}`;
+  };
+
+  return { currency, locale, timeZone, money, number, date, relative };
 }
 
 /**

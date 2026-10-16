@@ -3,6 +3,7 @@ import { server } from '@/test/mswServer'
 import { fail, mswState } from '@/test/msw/handlers'
 import { http, HttpResponse } from 'msw'
 import { ApiError } from '@api/client'
+import { queryClient } from '../queryClient'
 import { selectIsAuthenticated, useAuthStore } from './authStore'
 
 describe('authStore', () => {
@@ -68,5 +69,17 @@ describe('authStore', () => {
     await useAuthStore.getState().logout()
     expect(useAuthStore.getState().status).toBe('anonymous')
     expect(useAuthStore.getState().user).toBeNull()
+  })
+
+  it('clears the query cache when a session expires or is signed out (B4-02)', async () => {
+    await useAuthStore.getState().hydrate()
+    queryClient.setQueryData(['preferences'], { locale: 'user-a' })
+    useAuthStore.getState().markExpired()
+    expect(queryClient.getQueryData(['preferences'])).toBeUndefined()
+
+    await useAuthStore.getState().hydrate()
+    queryClient.setQueryData(['preferences'], { locale: 'user-b' })
+    await useAuthStore.getState().logout()
+    expect(queryClient.getQueryData(['preferences'])).toBeUndefined()
   })
 })

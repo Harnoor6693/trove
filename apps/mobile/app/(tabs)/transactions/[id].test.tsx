@@ -4,11 +4,22 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import { useLocalSearchParams } from 'expo-router';
 import { createTestQueryClient } from '@/test/queryClient';
 import TransactionDetailScreen from './[id]';
-import { deleteTransaction, fetchTransaction, patchTransaction } from '@api/transactions';
+import { fetchCategories } from '@api/categories';
+import {
+  deleteTransaction,
+  fetchTransaction,
+  fetchTransactions,
+  patchTransaction,
+} from '@api/transactions';
 import { useAuthStore } from '@stores/authStore';
 import type { MeResponse, TransactionPatchRequest, TransactionResponse } from '@api/types';
 
+jest.mock('@api/categories', () => ({
+  fetchCategories: jest.fn(),
+}));
+
 jest.mock('@api/transactions', () => ({
+  fetchTransactions: jest.fn(),
   fetchTransaction: jest.fn(),
   patchTransaction: jest.fn(),
   deleteTransaction: jest.fn(),
@@ -16,6 +27,8 @@ jest.mock('@api/transactions', () => ({
 
 const mockFetch = fetchTransaction as jest.MockedFunction<typeof fetchTransaction>;
 const mockPatch = patchTransaction as jest.MockedFunction<typeof patchTransaction>;
+const mockCategories = fetchCategories as jest.MockedFunction<typeof fetchCategories>;
+const mockList = fetchTransactions as jest.MockedFunction<typeof fetchTransactions>;
 const mockDelete = deleteTransaction as jest.MockedFunction<typeof deleteTransaction>;
 const mockParams = useLocalSearchParams as jest.MockedFunction<typeof useLocalSearchParams>;
 
@@ -85,6 +98,13 @@ beforeEach(async () => {
   mockFetch.mockReset();
   mockPatch.mockReset();
   mockDelete.mockReset();
+  mockCategories.mockReset();
+  mockList.mockReset();
+  mockCategories.mockResolvedValue([
+    { id: 'c1', name: 'Coffee' },
+    { id: 'c2', name: 'Groceries' },
+  ] as Awaited<ReturnType<typeof fetchCategories>>);
+  mockList.mockResolvedValue({ data: [], meta: { total: 0, page: 0, limit: 100 } });
   mockParams.mockReturnValue({ id: '11111111-1111-4111-8111-111111111111' });
   await act(() => {
     useAuthStore.getState().setMe(ME);
@@ -149,7 +169,7 @@ describe('the patch body carries ONLY the changed field', () => {
     mockPatch.mockResolvedValue(transaction({ categoryId: 'c2' }));
     await renderScreen();
     await act(async () => {
-      await fireEvent.changeText(screen.getByTestId('transaction-category'), 'c2');
+      await fireEvent.press(await screen.findByTestId('transaction-category-c2'));
     });
     await act(async () => {
       await fireEvent.press(screen.getByTestId('transaction-save-category'));
@@ -177,43 +197,23 @@ describe('a control that has nothing to send does not send anything', () => {
    * contract declares `format: uuid`. Clearing has its own button and its own
    * explicit `null`.
    */
-  it('refuses to link a transfer while the field is empty', async () => {
-    await renderScreen(transaction({ transferGroupId: null }));
-    expect(screen.getByTestId('transaction-link-transfer').props.accessibilityState.disabled).toBe(
-      true
-    );
-    await act(async () => {
-      await fireEvent.press(screen.getByTestId('transaction-link-transfer'));
-    });
-    expect(mockPatch).not.toHaveBeenCalled();
+  it('has no free-text id field for category or transfer group', async () => {
+    await renderScreen();
+    expect(screen.queryByTestId('transaction-transfer-group')).toBeNull();
+    expect(screen.queryByTestId('transaction-category')).toBeNull();
+    expect(await screen.findByTestId('transaction-category-c1')).toBeTruthy();
   });
 
-  it('refuses to assign a category the member has just blanked', async () => {
+  it('refuses assign category until a different one is picked', async () => {
     await renderScreen(transaction({ categoryId: 'c1' }));
-    await act(async () => {
-      await fireEvent.changeText(screen.getByTestId('transaction-category'), '   ');
-    });
+    await screen.findByTestId('transaction-category-c1');
     expect(screen.getByTestId('transaction-save-category').props.accessibilityState.disabled).toBe(
       true
     );
     await act(async () => {
       await fireEvent.press(screen.getByTestId('transaction-save-category'));
     });
-    // The empty box is not "clear it": that request is the other button, and
-    // it sends the explicit null the contract defines.
     expect(mockPatch).not.toHaveBeenCalled();
-  });
-
-  it('trims what it does send, so a stray space is never part of an id', async () => {
-    mockPatch.mockResolvedValue(transaction({ transferGroupId: 'g1' }));
-    await renderScreen();
-    await act(async () => {
-      await fireEvent.changeText(screen.getByTestId('transaction-transfer-group'), '  g1  ');
-    });
-    await act(async () => {
-      await fireEvent.press(screen.getByTestId('transaction-link-transfer'));
-    });
-    expect(patchBody()).toEqual({ transferGroupId: 'g1' });
   });
 });
 
@@ -247,27 +247,75 @@ describe('tags — the fifth writable field on the patch', () => {
   });
 });
 
-describe('transfers — the patch is the whole affordance', () => {
-  it('linking a leg sets transferGroupId to the id the member entered', async () => {
-    mockPatch.mockResolvedValue(transaction({ transferGroupId: 'g1' }));
+describe('transfers — pick the other leg', () => {
+  const OTHER = '22222222-2222-4222-8222-222222222222';
+  function leg(overrides: Partial<TransactionResponse>): TransactionResponse {
+    return transaction({
+      id: OTHER,
+      accountId: 'a2',
+      type: 'CREDIT',
+      amount: '4.75',
+      date: '2026-09-05',
+      merchantName: 'Savings in',
+      transferGroupId: null,
+      ...overrides,
+    });
+  }
+
+  it('lists only opposite-sign, same-amount, other-account rows near the date', async () => {
+    mockList.mockResolvedValue({
+      data: [
+        leg({}),
+        leg({ id: '33333333-3333-4333-8333-333333333333', type: 'DEBIT' }),
+        leg({ id: '44444444-4444-4444-8444-444444444444', amount: '9.00' }),
+        leg({ id: '55555555-5555-4555-8555-555555555555', accountId: 'a1' }),
+        leg({ id: '66666666-6666-4666-8666-666666666666', date: '2026-08-01' }),
+      ],
+      meta: { total: 5, page: 0, limit: 100 },
+    });
     await renderScreen();
+    expect(await screen.findByTestId(`transfer-candidate-${OTHER}`)).toBeTruthy();
+    expect(screen.queryAllByTestId(/^transfer-candidate-/)).toHaveLength(1);
+    expect(mockList.mock.calls[0][0]).toMatchObject({ from: '2026-08-28', to: '2026-09-11' });
+  });
+
+  it('marking a candidate links both legs under one new group id', async () => {
+    mockList.mockResolvedValue({
+      data: [leg({})],
+      meta: { total: 1, page: 0, limit: 100 },
+    });
+    mockPatch.mockResolvedValue(transaction({ transferGroupId: 'g' }));
+    await renderScreen();
+    expect(screen.getByTestId('transaction-link-transfer').props.accessibilityState.disabled).toBe(
+      true
+    );
     await act(async () => {
-      await fireEvent.changeText(screen.getByTestId('transaction-transfer-group'), 'g1');
+      await fireEvent.press(await screen.findByTestId(`transfer-candidate-${OTHER}`));
     });
     await act(async () => {
       await fireEvent.press(screen.getByTestId('transaction-link-transfer'));
     });
-    expect(patchBody()).toEqual({ transferGroupId: 'g1' });
+    await waitFor(() => expect(mockPatch).toHaveBeenCalledTimes(2));
+    const first = patchBody(0).transferGroupId;
+    expect(first).toMatch(/^[0-9a-f-]{36}$/);
+    expect(mockPatch.mock.calls[0][0]).toBe('11111111-1111-4111-8111-111111111111');
+    expect(mockPatch.mock.calls[1][0]).toBe(OTHER);
+    expect(patchBody(1)).toEqual({ transferGroupId: first });
   });
 
-  it('unlinking sends transferGroupId: null', async () => {
+  it('says so when there is no candidate', async () => {
+    await renderScreen();
+    expect(await screen.findByTestId('transfer-no-candidates')).toBeTruthy();
+  });
+
+  it('a linked row offers only unlink', async () => {
     mockPatch.mockResolvedValue(transaction({ transferGroupId: null }));
     await renderScreen(transaction({ transferGroupId: 'g1' }));
+    expect(screen.queryByTestId('transaction-link-transfer')).toBeNull();
     await act(async () => {
       await fireEvent.press(screen.getByTestId('transaction-unlink-transfer'));
     });
     expect(patchBody()).toEqual({ transferGroupId: null });
-    expect(patchBody().transferGroupId).toBeNull();
   });
 });
 

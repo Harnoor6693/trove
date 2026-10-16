@@ -28,6 +28,20 @@ class CandidateFinderTest {
         new IntervalClassifier(properties), new ConfidenceCalculator(properties), properties);
 
     @Test
+    @DisplayName("Three annual charges are an ANNUAL subscription")
+    void threeAnnualChargesAreASubscription() {
+        LocalDate lastSeen = LocalDate.of(2026, 9, 4);
+        List<Transaction> charges = SubscriptionFixtures.series("DOMAIN RENEWAL", "24.00", lastSeen,
+            BillingCycle.ANNUAL, 3, CurrencyCode.CAD);
+
+        SubscriptionCandidate candidate =
+            finder.find("DOMAIN RENEWAL", charges, lastSeen.plusDays(1)).orElseThrow();
+
+        assertThat(candidate.billingCycle()).isEqualTo(BillingCycle.ANNUAL);
+        assertThat(candidate.transactionIds()).hasSize(3);
+    }
+
+    @Test
     @DisplayName("Three monthly charges are a MONTHLY subscription at that price")
     void threeMonthlyChargesAreASubscription() {
         LocalDate lastSeen = LocalDate.of(2026, 9, 4);

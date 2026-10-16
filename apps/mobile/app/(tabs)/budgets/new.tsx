@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MnBtn } from '@components/ui/MnBtn/MnBtn';
@@ -12,10 +12,9 @@ import { fieldError, toApiFailure } from '@api/errors';
 import { BUDGET_TYPES, BUDGET_TYPE_HINT, BUDGET_TYPE_LABEL } from '@lib/labels';
 import { useCreateBudgetPeriod } from '@hooks/useBudgets';
 import { CURRENCY_CODES, type BudgetType, type CurrencyCode } from '@api/types';
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+import { normaliseAmountInput } from '@lib/amountInput';
+import { localDateIso } from '@lib/localDate';
+import { FormScroll } from '@components/ui/FormScroll/FormScroll';
 
 /**
  * `POST /v1/budgets` — open a budget period for a month.
@@ -31,7 +30,7 @@ export default function NewBudgetPeriodScreen() {
   const router = useRouter();
   const create = useCreateBudgetPeriod();
 
-  const [month, setMonth] = useState(todayIso());
+  const [month, setMonth] = useState(localDateIso());
   const [totalIncome, setTotalIncome] = useState('');
   const [currency, setCurrency] = useState<CurrencyCode | null>(null);
   const [budgetType, setBudgetType] = useState<BudgetType | null>(null);
@@ -43,7 +42,7 @@ export default function NewBudgetPeriodScreen() {
     create.mutate(
       {
         month: month.trim(),
-        totalIncome: totalIncome.trim(),
+        totalIncome: normaliseAmountInput(totalIncome),
         currency: currency ?? undefined,
         budgetType: budgetType ?? undefined,
       },
@@ -56,7 +55,7 @@ export default function NewBudgetPeriodScreen() {
       style={[styles.safe, { backgroundColor: theme.paper }]}
       testID="new-budget-screen"
     >
-      <ScrollView contentContainerStyle={styles.content}>
+      <FormScroll contentContainerStyle={styles.content}>
         <MnBtn
           label="Back"
           variant="ghost"
@@ -166,7 +165,7 @@ export default function NewBudgetPeriodScreen() {
           onPress={submit}
           testID="new-budget-submit"
         />
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }

@@ -87,7 +87,7 @@ class PasswordResetServiceTest {
             byHash.put(token.getTokenHash(), token);
             return token;
         });
-        when(tokens.findByTokenHash(anyString()))
+        when(tokens.findByTokenHashForUpdate(anyString()))
             .thenAnswer(invocation -> Optional.ofNullable(byHash.get(invocation.getArgument(0))));
     }
 

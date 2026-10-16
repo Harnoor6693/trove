@@ -1,5 +1,7 @@
 # Inventory: services/budget-service
 
+> **Historical record, 2026-09-03.** Inventory of the pre-rebuild code, since removed. Current state: `docs-site/guide/architecture.md`.
+
 Audited against commit `9ad1b5f` (main), 2026-09-03. Read-only audit; every claim below was
 verified against source in this pass (not copied from 01-FINDINGS.md without re-checking).
 

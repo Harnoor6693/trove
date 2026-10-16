@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -22,6 +22,8 @@ import { FontFamily, FontSize, Radius, Space } from '@design/tokens';
 import { useTheme } from '@design/useTheme';
 import { useUserFormat } from '@lib/useUserFormat';
 import type { CurrencyCode, ReceiptPatchRequest } from '@api/types';
+import { normaliseAmountInput } from '@lib/amountInput';
+import { FormScroll } from '@components/ui/FormScroll/FormScroll';
 
 /**
  * One receipt in full.
@@ -38,10 +40,12 @@ import type { CurrencyCode, ReceiptPatchRequest } from '@api/types';
  *    records a verdict. Both are 409 `conflict` while the pipeline is still
  *    running, which is a "wait, this is still being read" state and not a
  *    generic failure.
- *  - **The tax split is displayed, never computed.** There is no tax
- *    calculation anywhere in this product: GST, PST and HST are what the
- *    server sent, each on its own currency-carrying row, and they are absent
- *    for a member whose country is not CA.
+ *  - **The tax split is displayed, never computed by the app.** The server
+ *    reverse-calculates GST, PST and HST from the receipt total for Canadian
+ *    members only; this screen shows what it sent, each on its own
+ *    currency-carrying row, absent for a member whose country is not CA. The
+ *    tax export does not carry these figures (the member data export includes
+ *    the stored split).
  */
 export default function ReceiptDetailScreen() {
   const theme = useTheme();
@@ -88,7 +92,7 @@ export default function ReceiptDetailScreen() {
     // string would be a 400.
     const body: ReceiptPatchRequest = {};
     if (merchant.trim() !== '') body.extractedMerchant = merchant.trim();
-    if (amount.trim() !== '') body.extractedAmount = amount.trim();
+    if (amount.trim() !== '') body.extractedAmount = normaliseAmountInput(amount);
     patch.mutate(body, { onSuccess: () => setEditing(false) });
   };
 
@@ -97,7 +101,7 @@ export default function ReceiptDetailScreen() {
       style={[styles.safe, { backgroundColor: theme.paper }]}
       testID="receipt-detail-screen"
     >
-      <ScrollView contentContainerStyle={styles.content}>
+      <FormScroll contentContainerStyle={styles.content}>
         <ScreenState
           isLoading={isLoading}
           error={error}
@@ -349,7 +353,7 @@ export default function ReceiptDetailScreen() {
             </>
           )}
         </ScreenState>
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }

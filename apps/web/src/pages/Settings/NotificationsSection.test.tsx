@@ -28,11 +28,42 @@ describe('Notification preferences', () => {
     expect(screen.queryByText(/device token/i)).not.toBeInTheDocument()
   })
 
+  it('hides the email toggle and address while this server cannot send email (F1-B8)', async () => {
+    authenticate()
+    resetMswState()
+    const user = userEvent.setup()
+    renderWithProviders(<NotificationsSection />)
+
+    const save = await screen.findByRole('button', { name: 'Save notification preferences' })
+    expect(screen.queryByLabelText(/also email me/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Email address')).not.toBeInTheDocument()
+    expect(screen.getByTestId('email-unavailable-note')).toHaveTextContent(/email is off/i)
+
+    await user.click(save)
+    await waitFor(() => expect(mswState.lastNotificationPreferencesBody).not.toBeNull())
+    // Fields the member cannot see are not sent, so the partial update leaves them alone.
+    expect(mswState.lastNotificationPreferencesBody).not.toHaveProperty('emailEnabled')
+    expect(mswState.lastNotificationPreferencesBody).not.toHaveProperty('emailAddress')
+  })
+
+  it('offers email when this server has an email channel (F1-B8)', async () => {
+    authenticate()
+    resetMswState({
+      notificationPreferences: { ...mswState.notificationPreferences, emailAvailable: true },
+    })
+    renderWithProviders(<NotificationsSection />)
+
+    expect(await screen.findByLabelText(/also email me/i)).toBeInTheDocument()
+    expect(screen.getByLabelText('Email address')).toBeInTheDocument()
+    expect(screen.queryByTestId('email-unavailable-note')).not.toBeInTheDocument()
+  })
+
   it('saves the whole form, with a blank email address sent as an explicit null', async () => {
     authenticate()
     resetMswState({
       notificationPreferences: {
         ...mswState.notificationPreferences,
+        emailAvailable: true,
         emailEnabled: true,
         emailAddress: 'alerts@example.test',
       },
@@ -64,5 +95,21 @@ describe('Notification preferences', () => {
     await waitFor(() =>
       expect(mswState.lastNotificationPreferencesBody?.budgetAlertThresholdPercent).toBe(75)
     )
+  })
+
+  it('refuses a non-numeric budget threshold and sends nothing (B4-05)', async () => {
+    authenticate()
+    resetMswState()
+    const user = userEvent.setup()
+    renderWithProviders(<NotificationsSection />)
+
+    const field = await screen.findByLabelText('Budget alert threshold (%)')
+    await user.clear(field)
+    await user.type(field, 'abc')
+    await user.click(screen.getByRole('button', { name: 'Save notification preferences' }))
+
+    expect(await screen.findByText('Enter a whole number.')).toBeInTheDocument()
+    expect(mswState.lastNotificationPreferencesBody).toBeNull()
+    expect(screen.queryByTestId('notification-prefs-saved')).not.toBeInTheDocument()
   })
 })

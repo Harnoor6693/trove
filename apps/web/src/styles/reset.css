@@ -34,3 +34,19 @@ img, svg {
   display: block;
   max-width: 100%;
 }
+
+/* Keyboard focus: one visible ring for every interactive element that does not
+   draw its own. `:where` keeps specificity at zero so component rings still win. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

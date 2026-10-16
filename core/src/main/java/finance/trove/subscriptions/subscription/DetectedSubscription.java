@@ -27,9 +27,9 @@ import java.util.UUID;
  *
  * <p><strong>Tenancy.</strong> {@link #getHouseholdId()} is the scope; the source table had
  * {@code user_id} only, which under a shared ledger would hide a partner's subscriptions.
- * {@link #getUserId()} means created-by, for audit — the calling member for
- * {@code POST /v1/subscriptions/scan}, the household's own administrator for the nightly job,
- * which has no caller.
+ * {@link #getUserId()} means attributed-to, for audit: the household's first ADMIN (else its first
+ * member), whichever of the nightly job, {@code POST /v1/subscriptions/scan} or the ingest
+ * listener triggered the scan.
  *
  * <p><strong>{@link #getCurrency()} has no default.</strong> The source column and entity both
  * defaulted to {@code "CAD"} and nothing ever overrode either (finding F1 / SD-3), so every
@@ -106,6 +106,9 @@ public class DetectedSubscription {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    /** How many cycles a charge may be missed by before the subscription counts as stopped. */
+    public static final int STOPPED_AFTER_MISSED_CYCLES = 3;
+
     protected DetectedSubscription() {
         // JPA
     }
@@ -171,6 +174,19 @@ public class DetectedSubscription {
 
     public LocalDate getLastSeenDate() {
         return lastSeenDate;
+    }
+
+    /**
+     * Whether charges have stopped: the next charge is overdue by more than
+     * {@value #STOPPED_AFTER_MISSED_CYCLES} whole billing cycles. Such a row is no longer
+     * counted as an active subscription; it returns by itself if charges resume.
+     */
+    public boolean hasStopped(LocalDate today) {
+        LocalDate limit = nextChargeDate;
+        for (int i = 0; i < STOPPED_AFTER_MISSED_CYCLES; i++) {
+            limit = billingCycle.advance(limit);
+        }
+        return today.isAfter(limit);
     }
 
     /** Soft-deleted by {@code DELETE /v1/subscriptions/{id}}; the row survives and stays readable. */

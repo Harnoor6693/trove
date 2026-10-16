@@ -48,6 +48,34 @@ class SimplefinNormalizerTest {
     }
 
     @Test
+    @DisplayName("B1-10: a credit the bank calls a refund is a REFUND, so it is not income")
+    void aRefundIsNotIncome() {
+        Instant day = Instant.parse("2026-09-01T10:00:00Z");
+
+        assertThat(normalizer.normalize(ACCOUNT, new SimplefinTransaction("r", "19.99",
+            "AMAZON.CA REFUND", day, day, null)).type())
+            .isEqualTo(TransactionType.REFUND);
+        assertThat(normalizer.normalize(ACCOUNT, new SimplefinTransaction("p", "19.99",
+            "E-TRANSFER FROM SAM", day, day, null)).type())
+            .isEqualTo(TransactionType.CREDIT);
+    }
+
+    @Test
+    @DisplayName("B1-22: a row is dated in the member's zone; a midnight-UTC stamp is a date")
+    void aRowIsDatedWhereTheMemberLives() {
+        java.time.ZoneId toronto = java.time.ZoneId.of("America/Toronto");
+
+        assertThat(normalizer.normalize(ACCOUNT, transaction("evening", BigDecimal.ONE,
+            Instant.parse("2026-02-01T00:30:00Z"), null), toronto).date())
+            .as("19:30 on the 31st in Toronto; read in UTC it landed on the 1st, in February")
+            .isEqualTo(LocalDate.of(2026, 1, 31));
+        assertThat(normalizer.normalize(ACCOUNT, transaction("dateOnly", BigDecimal.ONE,
+            Instant.parse("2026-02-01T00:00:00Z"), null), toronto).date())
+            .as("most bridges send a bare date as midnight UTC, and that is the 1st everywhere")
+            .isEqualTo(LocalDate.of(2026, 2, 1));
+    }
+
+    @Test
     @DisplayName("a null posted time means pending")
     void pendingIsDerivedFromPosted() {
         assertThat(normalizer.normalize(ACCOUNT, transaction("a", BigDecimal.ONE,
@@ -93,6 +121,7 @@ class SimplefinNormalizerTest {
 
     private static SimplefinTransaction transaction(String id, BigDecimal amount,
                                                     Instant transacted, Instant posted) {
-        return new SimplefinTransaction(id, amount, "A DESCRIPTION", transacted, posted);
+        return new SimplefinTransaction(id, amount == null ? null : amount.toPlainString(),
+            "A DESCRIPTION", transacted, posted, null);
     }
 }

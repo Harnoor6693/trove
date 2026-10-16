@@ -38,7 +38,8 @@ public interface MerchantCategoryMapRepository extends UserScopedRepository<Merc
 
     /**
      * Every PREFIX row of this household whose stored value is a leading substring of
-     * {@code merchant}, longest (most specific) first, then by {@code priority} descending — the
+     * {@code merchant}, longest (most specific) first, then by {@code priority} ascending
+     * (lower number first) — the
      * column the rules controller's reorder endpoint writes, for ties between prefixes of the
      * same length.
      */
@@ -46,7 +47,7 @@ public interface MerchantCategoryMapRepository extends UserScopedRepository<Merc
         + "and m.matchType = finance.trove.categorisation.MatchType.PREFIX "
         + "and length(m.normalisedMerchant) <= length(:merchant) "
         + "and substring(:merchant, 1, length(m.normalisedMerchant)) = m.normalisedMerchant "
-        + "order by length(m.normalisedMerchant) desc, m.priority desc")
+        + "order by length(m.normalisedMerchant) desc, m.priority asc")
     List<MerchantCategoryMap> findPrefixMatches(@Param("householdId") UUID householdId,
         @Param("merchant") String merchant);
 
@@ -54,8 +55,19 @@ public interface MerchantCategoryMapRepository extends UserScopedRepository<Merc
     List<MerchantCategoryMap> findAllByHouseholdIdAndSourceOrderByPriorityAscCreatedAtAsc(
         UUID householdId, MappingSource source);
 
-    /** Whether any mapping in this household still points at this category — the delete guard. */
+    /**
+     * Whether any mapping in this household still points at this category. The delete guard is
+     * {@link #existsByHouseholdIdAndCategoryIdAndSourceNot}.
+     */
     boolean existsByHouseholdIdAndCategoryId(UUID householdId, UUID categoryId);
+
+    /** Whether a mapping other than a machine guess (AI) still points at the category (B1-06). */
+    boolean existsByHouseholdIdAndCategoryIdAndSourceNot(UUID householdId, UUID categoryId,
+                                                         MappingSource source);
+
+    /** Drops the household's AI guesses that point at a category being deleted (B1-06). */
+    void deleteByHouseholdIdAndCategoryIdAndSource(UUID householdId, UUID categoryId,
+                                                   MappingSource source);
 
     /**
      * Idempotent upsert on {@code (household_id, normalised_merchant)} — the write

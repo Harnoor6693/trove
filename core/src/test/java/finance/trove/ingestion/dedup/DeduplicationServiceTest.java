@@ -15,6 +15,7 @@ import finance.trove.common.domain.CurrencyCode;
 import finance.trove.common.plugin.RawTransaction;
 import finance.trove.common.plugin.SourceKind;
 import finance.trove.common.plugin.TransactionType;
+import finance.trove.ingestion.ParsedRow;
 import finance.trove.ingestion.RawTransactionRejectedException;
 import finance.trove.transactions.Transaction;
 import finance.trove.transactions.TransactionFixtures;
@@ -242,6 +243,44 @@ class DeduplicationServiceTest {
         assertThatThrownBy(
             () -> service.deduplicate(account, USER, incoming, DedupBatch.of(incoming)))
             .isInstanceOf(RawTransactionRejectedException.class);
+    }
+
+    @Test
+    @DisplayName("B1-04: an exponent bomb is refused at the gate, in milliseconds, before normalise")
+    void anAmountTheColumnCannotHoldIsRejectedCheaply() {
+        RawTransaction bomb = new RawTransaction("bank-1", "ext", new BigDecimal("1E9999999"),
+            "CAD", "desc", "merchant", DAY, null, TransactionType.DEBIT, false, null);
+        RawTransaction fifthDecimal = new RawTransaction("bank-2", "ext",
+            new BigDecimal("1.23456"), "CAD", "desc", "merchant", DAY, null,
+            TransactionType.DEBIT, false, null);
+
+        long started = System.nanoTime();
+        assertThatThrownBy(() -> service.deduplicate(account, USER, bomb, DedupBatch.of(bomb)))
+            .isInstanceOf(RawTransactionRejectedException.class)
+            .hasMessageContaining("amount");
+        assertThatThrownBy(() -> service.classify(account, bomb, DedupBatch.of(bomb)))
+            .isInstanceOf(RawTransactionRejectedException.class);
+        assertThat(System.nanoTime() - started).isLessThan(100_000_000L);
+        assertThatThrownBy(
+            () -> service.deduplicate(account, USER, fifthDecimal, DedupBatch.of(fifthDecimal)))
+            .isInstanceOf(RawTransactionRejectedException.class);
+        verify(transactions, never()).save(any(Transaction.class));
+    }
+
+    @Test
+    @DisplayName("B1-13: a row the file's parser could not read is refused at commit for that reason")
+    void aRowTheParserRefusedIsRefusedAtCommit() {
+        RawTransaction noFitId = new ParsedRow(2, new RawTransaction(null, "ext",
+            new BigDecimal("9.99"), "CAD", "desc", "merchant", DAY, null, TransactionType.DEBIT,
+            false, null), "this transaction has no FITID").toPipeline();
+
+        assertThatThrownBy(() -> service.deduplicate(account, USER, noFitId,
+            DedupBatch.of(noFitId)))
+            .as("complete enough for the fuzzy pass, which would have inserted a row the preview "
+                + "showed as INVALID")
+            .isInstanceOf(RawTransactionRejectedException.class)
+            .hasMessage("this transaction has no FITID");
+        verify(transactions, never()).save(any(Transaction.class));
     }
 
     @Test

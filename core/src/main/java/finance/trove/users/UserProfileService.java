@@ -2,6 +2,7 @@ package finance.trove.users;
 
 import finance.trove.auth.dto.PreferencesUpdateRequest;
 import finance.trove.auth.dto.UpdateMeRequest;
+import finance.trove.common.exception.FieldValidationException;
 import finance.trove.common.exception.UnauthorizedException;
 import finance.trove.common.exception.ValidationException;
 import finance.trove.common.time.UserTimeZoneProvider;
@@ -29,15 +30,16 @@ import org.springframework.transaction.annotation.Transactional;
  * clients can see.
  *
  * <p><strong>Both writing endpoints are patches.</strong> Absent means "leave alone". The web
- * onboarding flow saves timezone and locale on one screen and {@code onboardingCompleted} on
- * another ({@code apps/web/src/pages/Onboarding/index.tsx:279}); a PUT that read absence as
- * "clear it" would blank the first screen's answers when the second saved. {@code region} is the
+ * onboarding flow saves timezone, locale and {@code onboardingCompleted} together at the end of
+ * step 1 ({@code completeStepOne}, {@code apps/web/src/pages/Onboarding/index.tsx:353-357}),
+ * while Settings sends locale alone ({@code apps/web/src/pages/Settings/index.tsx:150}); a PUT
+ * that read absence as "clear it" would blank those fields. {@code region} is the
  * one field that can be cleared, by sending an empty string, which is what the "no province"
  * option submits.
  *
  * <p>{@code timezone} is writable through <em>both</em> {@code PUT /v1/me} and
  * {@code PUT /v1/me/preferences}, because the web settings screen writes it to both in one save
- * ({@code apps/web/src/pages/Settings/index.tsx:56-60}). They address the same column, so the two
+ * ({@code apps/web/src/pages/Settings/index.tsx:68-72}). They address the same column, so the two
  * writes cannot disagree — which is the resolution to the open question that file leaves in a
  * comment.
  */
@@ -127,7 +129,7 @@ public class UserProfileService {
         try {
             return ZoneId.of(candidate.strip()).getId();
         } catch (DateTimeException e) {
-            throw new ValidationException(
+            throw new FieldValidationException("timezone",
                 "'" + candidate + "' is not a recognised IANA time zone.");
         }
     }

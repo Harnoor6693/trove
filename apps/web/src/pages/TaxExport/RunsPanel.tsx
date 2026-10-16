@@ -41,12 +41,33 @@ const STATUS_BADGE: Record<
   FAILED: { variant: 'red', label: 'Failed' },
 }
 
-const CURRENT_YEAR = new Date().getFullYear()
+/**
+ * The tax year a member most likely wants: from January to April (filing
+ * season) the year that just ended, otherwise the current one. Read on the
+ * member's own calendar, so the last evening of April is still April.
+ */
+function defaultTaxYear(timezone: string, now: Date = new Date()): number {
+  let year = now.getFullYear()
+  let month = now.getMonth() + 1
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: 'numeric',
+    }).formatToParts(now)
+    year = Number(parts.find((p) => p.type === 'year')?.value ?? year)
+    month = Number(parts.find((p) => p.type === 'month')?.value ?? month)
+  } catch {
+    // An unknown zone keeps the browser's own calendar.
+  }
+  return month <= 4 ? year - 1 : year
+}
 
 function CreateRunDialog({ onClose }: { onClose: () => void }) {
   const create = useCreateTaxExportRunMutation()
   const ref = useDialogFocus<HTMLDivElement>(true)
-  const [taxYear, setTaxYear] = useState(String(CURRENT_YEAR))
+  const { timezone } = useUserFormat()
+  const [taxYear, setTaxYear] = useState(() => String(defaultTaxYear(timezone)))
   const [format, setFormat] = useState<TaxExportFormat>('CSV')
 
   function submit(e: React.FormEvent) {
@@ -167,7 +188,7 @@ export function RunsPanel() {
       // PENDING, GENERATING *and* FAILED all answer 409 on download. A FAILED run
       // will never become COMPLETE, so "still generating" would be permanently
       // misleading for it — the Download button is not even offered for a FAILED
-      // row (see the `status === 'COMPLETE'` guard below), but keep this branch
+      // row (see the `row.status !== 'FAILED'` guard below), but keep this branch
       // honest for the PENDING/GENERATING race this button IS offered for.
       if (apiErr.code === 'conflict' && run.status !== 'FAILED') {
         setDownload({ runId: run.id, stillGenerating: true, error: null })

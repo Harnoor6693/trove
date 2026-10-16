@@ -3,17 +3,22 @@ package finance.trove.app.ratelimit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.description;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import finance.trove.auth.jwt.TroveUserDetails;
 import finance.trove.common.dto.ApiResponse;
 import finance.trove.common.exception.ErrorResponseFactory;
 import finance.trove.common.exception.SecurityErrorWriter;
 import finance.trove.common.json.TroveJsonModule;
+import finance.trove.users.UserRole;
 import jakarta.servlet.FilterChain;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,6 +28,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -290,5 +297,31 @@ class RateLimitFilterTest {
                 ApiResponse.class.getSimpleName())
             .contains("\"error\":")
             .contains("\"status\":429");
+    }
+
+    @Test
+    @DisplayName("The public sign-in routes are metered by address even with a valid token")
+    void thePublicSignInRoutesAreMeteredByAddress() throws Exception {
+        TroveUserDetails principal = new TroveUserDetails(UUID.randomUUID(), UUID.randomUUID(),
+            UUID.randomUUID(), "throwaway@trove.test", UserRole.MEMBER, Instant.now());
+        SecurityContextHolder.getContext().setAuthentication(
+            new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));
+        when(limiter.consume(anyString(), anyString()))
+            .thenReturn(RateLimitDecision.allowed(LOGIN_RULE));
+        try {
+            filter(ENABLED).doFilter(request("/api/v1/auth/login"), new MockHttpServletResponse(),
+                mock(FilterChain.class));
+            filter(ENABLED).doFilter(request("/api/v1/transactions"),
+                new MockHttpServletResponse(), mock(FilterChain.class));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+
+        verify(limiter, description("B3-06: keyed on the token's user, one throwaway account "
+            + "bought its own bucket on the brute-force surface, apart from its address's"))
+            .consume("198.18.0.7", "/api/v1/auth/login");
+        verify(limiter, description("everywhere else a signed-in caller keeps a bucket of their "
+            + "own, so a household behind one NAT does not share a ceiling"))
+            .consume(principal.getUserId().toString(), "/api/v1/transactions");
     }
 }

@@ -1,26 +1,15 @@
 import React, { useEffect } from 'react';
 import { Slot, useRouter, useSegments } from 'expo-router';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import * as SplashScreen from 'expo-splash-screen';
 import { useTroveFonts } from '@design/useFonts';
 import { AppLock } from '@/security/AppLock';
+import { queryClient } from '@api/queryClient';
 import { useAuthStore } from '@stores/authStore';
 import { useUiStore } from '@stores/uiStore';
 import { sweepStaleExports } from '@lib/shareFile';
 
 SplashScreen.preventAutoHideAsync();
-
-/**
- * The **only** `QueryClient` in the app. A second, module-scope client used to
- * wrap the receipt-capture modal, so an upload invalidated a cache the receipt
- * list never read and a captured receipt stayed invisible until the next cold
- * start (mobile inventory §4). One client, one cache.
- */
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { staleTime: 60_000, retry: 2 },
-  },
-});
 
 /**
  * Routes on `authStore.status`, and only once the persisted server and

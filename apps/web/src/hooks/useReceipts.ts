@@ -5,6 +5,7 @@
  * page count from `rows.length`. Upload writes a row and starts a background
  * pipeline, so it invalidates the list and hands back an id to poll.
  */
+import { useEffect } from 'react'
 import {
   keepPreviousData,
   useMutation,
@@ -67,13 +68,14 @@ export function useReceipt(id: string | null) {
  * `GET /v1/receipts/{id}/status`, polled to completion.
  *
  * `COMPLETE` and `FAILED` are terminal and the interval stops on either — a
- * poller that keeps asking after a terminal status is a request per second per
- * open tab, for ever. The route exists precisely so this costs a fraction of
+ * poller that keeps asking after a terminal status is a request every two seconds
+ * (the default interval) per open tab, for ever. The route exists precisely so this costs a fraction of
  * refetching the whole row, so nothing here polls `getReceipt` instead.
  */
 export function useReceiptStatus(id: string | null, opts: { intervalMs?: number } = {}) {
   const interval = opts.intervalMs ?? 2000
-  return useQuery<ReceiptStatusResponse, ApiError>({
+  const qc = useQueryClient()
+  const query = useQuery<ReceiptStatusResponse, ApiError>({
     queryKey: receiptStatusKey(id ?? ''),
     queryFn: () => getReceiptStatus(id as string),
     enabled: id !== null,
@@ -84,6 +86,14 @@ export function useReceiptStatus(id: string | null, opts: { intervalMs?: number 
     },
     staleTime: 0,
   })
+  // The row the list shows changed when the poll finished. The status entry is
+  // left alone: invalidating it would cancel and restart the poll that just ended.
+  const terminal = query.data !== undefined && isTerminalReceiptStatus(query.data.status)
+  useEffect(() => {
+    if (!terminal || id === null) return
+    void qc.invalidateQueries({ queryKey: receiptsKey, predicate: (q) => q.queryKey[1] !== 'status' })
+  }, [terminal, id, qc])
+  return query
 }
 
 /**

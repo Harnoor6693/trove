@@ -147,7 +147,7 @@ class LocalAccountServiceTest {
     @Test
     @DisplayName("A locked account fails identically, and still spends the verification")
     void lockedAccountsFailLikeAWrongPassword() {
-        credential.recordFailure(5, NOW.plus(Duration.ofMinutes(10)));
+        when(lockout.isLocked("member@trove.test", "203.0.113.1", NOW)).thenReturn(true);
         when(users.findByEmailIgnoreCase(anyString())).thenReturn(Optional.of(user));
         when(credentials.findByUserId(any())).thenReturn(Optional.of(credential));
 
@@ -159,6 +159,9 @@ class LocalAccountServiceTest {
             .as("skipping the hash for a locked account would make it measurably faster than a "
                 + "wrong password, revealing the lock the response deliberately hides")
             .isEqualTo(1);
+        verify(lockout, org.mockito.Mockito.never())
+            .recordFailure(anyString(), anyString(), any(), any());
+        verify(lockout, org.mockito.Mockito.never()).recordSuccess(any(), any(), any(), any());
     }
 
     @Test
@@ -215,10 +218,13 @@ class LocalAccountServiceTest {
     @Test
     @DisplayName("An admin unlock clears the counter without changing the password")
     void unlockClearsTheLock() {
-        credential.recordFailure(9, NOW.plus(Duration.ofHours(24)));
+        credential.recordFailure(9, NOW.plus(Duration.ofMinutes(15)));
         when(credentials.findByUserId(any())).thenReturn(Optional.of(credential));
 
+        when(users.findAccount(user.getId())).thenReturn(Optional.of(user));
+
         assertThat(service.unlock(user.getId())).isTrue();
+        verify(lockout).forgetFailures(user.getEmail());
         assertThat(credential.getLockedUntil()).isNull();
         assertThat(credential.getFailedAttempts()).isZero();
         assertThat(credential.getPasswordHash()).isNotBlank();

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -120,6 +121,30 @@ class RolloverServiceTest {
 
         verify(envelopes).save(argThat(saved ->
             saved.getRolloverAmount().compareTo(new BigDecimal("175.00")) == 0));
+    }
+
+    @Test
+    @DisplayName("B2-12: spent is recomputed from the ledger before the carry is taken")
+    void theCarryUsesAFreshSpent() {
+        Envelope stale = envelope("400.00", "300.00", "0.00");
+        sourceIs(september(), stale);
+        periodSavesPassThrough();
+        envelopeSavesPassThrough();
+        doAnswer(invocation -> {
+            if (SEPTEMBER.equals(invocation.getArgument(3))) {
+                stale.rewriteSpent(new BigDecimal("100.00"));
+            }
+            return null;
+        }).when(spend).recalculate(any(), any(), any(), any(YearMonth.class));
+        when(periods.findByHouseholdIdAndMonth(HOUSEHOLD, OCTOBER_FIRST))
+            .thenReturn(Optional.empty());
+        when(envelopes.findByPeriodIdAndCategoryId(any(), eq(GROCERIES)))
+            .thenReturn(Optional.empty());
+
+        service().rollForward(HOUSEHOLD, SOURCE_PERIOD);
+
+        verify(envelopes).save(argThat(saved ->
+            saved.getRolloverAmount().compareTo(new BigDecimal("300.00")) == 0));
     }
 
     @Test

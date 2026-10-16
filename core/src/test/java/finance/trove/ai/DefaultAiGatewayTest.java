@@ -65,7 +65,7 @@ class DefaultAiGatewayTest {
         audit = mock(AiAuditRecorder.class);
         encryption = new FieldEncryptionService(KEY_HEX);
 
-        InetAddress ip = InetAddress.getByName("203.0.113.10");
+        InetAddress ip = InetAddress.getByName("8.8.8.8");
         URI uri = URI.create("https://ai.example.test/v1");
         when(urlPolicy.check(anyString(), anyBoolean()))
             .thenReturn(new ResolvedTarget("ai.example.test", ip, 443, uri, List.of(ip)));
@@ -77,7 +77,7 @@ class DefaultAiGatewayTest {
     @Test
     @DisplayName("a member with no row at all gets a handle that is simply off")
     void unconfiguredIsDisabledRatherThanAbsent() {
-        when(repository.findByUserId(USER)).thenReturn(Optional.empty());
+        when(repository.findForActiveUser(USER)).thenReturn(Optional.empty());
 
         AiHandle handle = gateway.forUser(USER);
 
@@ -95,7 +95,7 @@ class DefaultAiGatewayTest {
     @Test
     @DisplayName("AI switched off refuses without resolving or connecting")
     void disabledRefusesBeforeAnythingLeaves() {
-        when(repository.findByUserId(USER)).thenReturn(Optional.of(settings(false,
+        when(repository.findForActiveUser(USER)).thenReturn(Optional.of(settings(false,
             PrivacyTier.LOCAL_ONLY)));
 
         AiHandle handle = gateway.forUser(USER);
@@ -110,7 +110,7 @@ class DefaultAiGatewayTest {
     @Test
     @DisplayName("a CLOUD_OK endpoint refuses a SENSITIVE payload before opening a connection")
     void privacyTierIsCheckedBeforeTheConnection() {
-        when(repository.findByUserId(USER)).thenReturn(Optional.of(settings(true,
+        when(repository.findForActiveUser(USER)).thenReturn(Optional.of(settings(true,
             PrivacyTier.CLOUD_OK)));
 
         AiHandle handle = gateway.forUser(USER);
@@ -125,7 +125,7 @@ class DefaultAiGatewayTest {
     @Test
     @DisplayName("a LOCAL_ONLY endpoint takes the same SENSITIVE payload")
     void localOnlyPermitsSensitivePayloads() {
-        when(repository.findByUserId(USER)).thenReturn(Optional.of(settings(true,
+        when(repository.findForActiveUser(USER)).thenReturn(Optional.of(settings(true,
             PrivacyTier.LOCAL_ONLY)));
         when(client.chat(any(), any())).thenReturn(new AiCompletion("ok", "llama3", 3, 1));
 
@@ -138,7 +138,7 @@ class DefaultAiGatewayTest {
     @Test
     @DisplayName("an ORDINARY payload goes to a cloud endpoint — the tier is not a blanket block")
     void ordinaryPayloadsGoToCloudEndpoints() {
-        when(repository.findByUserId(USER)).thenReturn(Optional.of(settings(true,
+        when(repository.findForActiveUser(USER)).thenReturn(Optional.of(settings(true,
             PrivacyTier.CLOUD_OK)));
         when(client.chat(any(), any())).thenReturn(new AiCompletion("ok", "llama3", null, null));
 
@@ -149,7 +149,7 @@ class DefaultAiGatewayTest {
     @Test
     @DisplayName("the egress policy runs on every call, not once when the settings were saved")
     void thePolicyIsRevaluatedPerCall() {
-        when(repository.findByUserId(USER)).thenReturn(Optional.of(settings(true,
+        when(repository.findForActiveUser(USER)).thenReturn(Optional.of(settings(true,
             PrivacyTier.LOCAL_ONLY)));
         when(client.chat(any(), any())).thenReturn(new AiCompletion("ok", "llama3", null, null));
 
@@ -167,7 +167,7 @@ class DefaultAiGatewayTest {
     void decryptsTheKeyPerCall() {
         AiSettings settings = settings(true, PrivacyTier.LOCAL_ONLY);
         settings.setApiKeyEnc(encryption.encrypt("sk-live-key"));
-        when(repository.findByUserId(USER)).thenReturn(Optional.of(settings));
+        when(repository.findForActiveUser(USER)).thenReturn(Optional.of(settings));
         when(client.chat(any(), any())).thenReturn(new AiCompletion("ok", "llama3", null, null));
 
         gateway.forUser(USER).chat(List.of(AiMessage.user("hi")), AiSensitivity.ORDINARY);
@@ -181,7 +181,7 @@ class DefaultAiGatewayTest {
     @Test
     @DisplayName("every call is audited, and a failure is audited with its slug")
     void auditsSuccessAndFailure() {
-        when(repository.findByUserId(USER)).thenReturn(Optional.of(settings(true,
+        when(repository.findForActiveUser(USER)).thenReturn(Optional.of(settings(true,
             PrivacyTier.LOCAL_ONLY)));
         when(client.chat(any(), any())).thenReturn(new AiCompletion("ok", "llama3", 11, 3));
 
@@ -209,7 +209,7 @@ class DefaultAiGatewayTest {
         AiSettings settings = settings(true, PrivacyTier.LOCAL_ONLY);
         settings.replaceWith(true, "https://ai.example.test/v1", "llama3", null, true,
             PrivacyTier.LOCAL_ONLY, 60_000, 600_000);
-        when(repository.findByUserId(USER)).thenReturn(Optional.of(settings));
+        when(repository.findForActiveUser(USER)).thenReturn(Optional.of(settings));
         when(client.chat(any(), any())).thenReturn(new AiCompletion("ok", "llama3", null, null));
 
         gateway.forUser(USER).chat(List.of(AiMessage.user("hi")), AiSensitivity.ORDINARY);
@@ -227,7 +227,7 @@ class DefaultAiGatewayTest {
     @Test
     @DisplayName("a streaming call reaches the client with its listener and audits as CHAT_STREAM")
     void streamsThroughTheClient() {
-        when(repository.findByUserId(USER)).thenReturn(Optional.of(settings(true,
+        when(repository.findForActiveUser(USER)).thenReturn(Optional.of(settings(true,
             PrivacyTier.LOCAL_ONLY)));
         when(client.chatStream(any(), any(), any()))
             .thenReturn(new AiCompletion("Spend less", "llama3", null, null));
@@ -248,7 +248,7 @@ class DefaultAiGatewayTest {
     @Test
     @DisplayName("a vision call is audited against the vision model, not the chat model")
     void visionUsesTheVisionModel() {
-        when(repository.findByUserId(USER)).thenReturn(Optional.of(settings(true,
+        when(repository.findForActiveUser(USER)).thenReturn(Optional.of(settings(true,
             PrivacyTier.LOCAL_ONLY)));
         when(client.vision(any(), anyString(), any(), anyString()))
             .thenReturn(new AiCompletion("{\"total\":12.34}", "llava", 900, 20));
@@ -267,7 +267,7 @@ class DefaultAiGatewayTest {
     @Test
     @DisplayName("a receipt image is a SENSITIVE payload and a cloud tier refuses it")
     void visionIsBlockedByACloudTier() {
-        when(repository.findByUserId(USER)).thenReturn(Optional.of(settings(true,
+        when(repository.findForActiveUser(USER)).thenReturn(Optional.of(settings(true,
             PrivacyTier.CLOUD_OK)));
 
         AiHandle handle = gateway.forUser(USER);
@@ -282,7 +282,7 @@ class DefaultAiGatewayTest {
     @Test
     @DisplayName("a failed model list is audited as a failure, with its slug")
     void auditsAFailedModelList() {
-        when(repository.findByUserId(USER)).thenReturn(Optional.of(settings(true,
+        when(repository.findForActiveUser(USER)).thenReturn(Optional.of(settings(true,
             PrivacyTier.CLOUD_OK)));
         when(client.models(any()))
             .thenThrow(new AiEndpointUnauthorizedException("the endpoint rejected the key"));

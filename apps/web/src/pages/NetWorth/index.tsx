@@ -12,6 +12,7 @@ import { useState } from 'react'
 import { QlButton } from '@components/ui/QlButton/QlButton'
 import { QlCard } from '@components/ui/QlCard/QlCard'
 import { QlChart } from '@components/ui/QlChart/QlChart'
+import { compactCurrency } from '@components/ui/QlChart/compactCurrency'
 import { QlSkeleton } from '@components/ui/QlSkeleton/QlSkeleton'
 import { EmptyState } from '@components/EmptyState/EmptyState'
 import { MoneyDisplay } from '@components/MoneyDisplay/MoneyDisplay'
@@ -56,7 +57,27 @@ function CurrencySeriesBlock({ series }: { series: NetWorthSeries }) {
         </EmptyState>
       ) : (
         <>
-          <QlChart variant="line" data={chartData} color="var(--sage)" height={220} />
+          {series.points.length < 2 ? (
+            <div data-testid="networth-single-point" className={styles.currencyLatest}>
+              <span>
+                Assets <MoneyDisplay amount={latest.totalAssets} currency={series.currency} colored={false} />
+              </span>
+              <span>
+                Liabilities <MoneyDisplay amount={latest.totalLiabilities} currency={series.currency} colored={false} />
+              </span>
+              <span className={styles.hint}>
+                The trend appears after your second snapshot. Take one now, or come back later.
+              </span>
+            </div>
+          ) : (
+            <QlChart
+              variant="line"
+              data={chartData}
+              color="var(--sage)"
+              height={220}
+              valueFormat={compactCurrency(format.locale, series.currency)}
+            />
+          )}
           {/* Text alternative for the chart above — a line is not readable by a
               screen reader. Visually hidden, not display:none, so it still
               reaches assistive tech (§9 accessibility rule). */}
@@ -104,9 +125,8 @@ export default function NetWorth() {
         <div>
           <h1 className={styles.heading}>Net worth</h1>
           <p className={styles.lede}>
-            Assets, liabilities and the series below come from snapshots your household has
-            recorded — never a client-side rollup. A household holding more than one currency
-            never has them added together; there is no exchange rate in this product.
+            Everything you own minus everything you owe, from the snapshots you have taken. Each
+            currency is shown on its own; Trove never converts between them.
           </p>
         </div>
         <div className={styles.headerActions}>

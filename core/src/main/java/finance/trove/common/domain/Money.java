@@ -17,8 +17,10 @@ import java.util.Objects;
  * and to hand out of a service without defensive copying.
  *
  * <p><strong>No floating point, ever.</strong> There is no {@code double} or {@code float} on
- * this type's API — {@code ArchitectureTest} enforces that for the whole {@code domain} package
- * ({@code docs/recovery/06-COLLAPSE-PLAN.md} §9 risk 6). Cross-currency arithmetic throws rather
+ * this type's API. {@code ArchitectureTest} forbids {@code float} and {@code double} fields
+ * across the domain and events packages and JPA entities, and forbids {@code float} and
+ * {@code double} return types in the domain and events packages. Only method parameters are
+ * left to convention ({@code docs/recovery/06-COLLAPSE-PLAN.md} §9 risk 6). Cross-currency arithmetic throws rather
  * than silently mixing CAD and USD, which is the bug that would corrupt envelope balances and
  * net worth (§9 risk 5).
  *
@@ -44,6 +46,14 @@ import java.util.Objects;
     creatorVisibility = JsonAutoDetect.Visibility.ANY)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class Money implements Comparable<Money> {
+
+    /** {@code NUMERIC(19,4)}: nineteen digits, four of them after the point. */
+    public static final int MAX_INTEGER_DIGITS = 15;
+
+    public static final int MAX_FRACTION_DIGITS = 4;
+
+    /** How many decimal places {@link #fitsColumn} reads past four, if they are all zeros. */
+    private static final int MAX_ZERO_PADDED_SCALE = 18;
 
     private final BigDecimal amount;
     private final CurrencyCode currency;
@@ -71,6 +81,27 @@ public final class Money implements Comparable<Money> {
     public static Money ofMinorUnits(long minorUnits, CurrencyCode currency) {
         return new Money(
             BigDecimal.valueOf(minorUnits).movePointLeft(currency.minorUnits()), currency);
+    }
+
+    /**
+     * Whether {@code amount} fits a {@code NUMERIC(19,4)} money column: at most fifteen digits
+     * before the decimal point and four after it, trailing zeros aside ({@code "12.340000"} fits).
+     *
+     * <p>The one bound every untrusted amount is held to (B1-04, B2-02): the JSON API through
+     * {@code TroveJsonModule}, and every importer before a row reaches {@code CurrencyCode.normalise}.
+     * {@code new BigDecimal("1E9999999")} is cheap to parse and ten million digits wide the moment
+     * anything rounds or prints it. This reads only {@code precision()} and {@code scale()} and
+     * strips zeros only once the scale is already small, so it is cheap at any exponent.
+     */
+    public static boolean fitsColumn(BigDecimal amount) {
+        int scale = amount.scale();
+        // long: precision minus a scale near Integer.MIN_VALUE overflows an int into a pass.
+        if (scale > MAX_ZERO_PADDED_SCALE
+            || (long) amount.precision() - scale > MAX_INTEGER_DIGITS) {
+            return false;
+        }
+        return scale <= MAX_FRACTION_DIGITS
+            || amount.stripTrailingZeros().scale() <= MAX_FRACTION_DIGITS;
     }
 
     public static Money zero(CurrencyCode currency) {

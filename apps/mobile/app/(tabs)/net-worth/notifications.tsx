@@ -101,7 +101,7 @@ export default function NotificationsInboxScreen() {
               >
                 Loading more…
               </Text>
-            ) : null
+            ) : undefined
           }
         />
       </ScreenState>

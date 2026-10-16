@@ -1,6 +1,7 @@
 import React from 'react';
 import { Switch, View, Text, StyleSheet } from 'react-native';
-import { Colors, FontFamily, FontSize } from '@design/tokens';
+import { useTheme } from '@design/useTheme';
+import { FontFamily, FontSize } from '@design/tokens';
 
 export interface MnToggleProps {
   label: string;
@@ -10,9 +11,10 @@ export interface MnToggleProps {
 }
 
 export function MnToggle({ label, value, onToggle, testID }: MnToggleProps) {
+  const t = useTheme();
   return (
     <View style={styles.row} testID={testID}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, { color: t.ink }]}>{label}</Text>
       <Switch
         value={value}
         onValueChange={onToggle}
@@ -23,8 +25,8 @@ export function MnToggle({ label, value, onToggle, testID }: MnToggleProps) {
         // A distinct suffix, not the same id as the row, keeps
         // `getByTestId`/`by.id` unambiguous for both.
         testID={testID ? `${testID}-switch` : undefined}
-        trackColor={{ false: Colors.line, true: Colors.sageSoft }}
-        thumbColor={value ? Colors.sage : Colors.ink3}
+        trackColor={{ false: t.line, true: t.sageSoft }}
+        thumbColor={value ? t.sage : t.ink3}
       />
     </View>
   );
@@ -37,5 +39,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 4,
   },
-  label: { fontFamily: FontFamily.body, fontSize: FontSize.md, color: Colors.ink },
+  label: { fontFamily: FontFamily.body, fontSize: FontSize.md },
 });

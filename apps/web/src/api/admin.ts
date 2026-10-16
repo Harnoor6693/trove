@@ -18,6 +18,7 @@
  */
 import { api, unwrap, unwrapVoid } from './client'
 import type {
+  AdminRoleRequest,
   AdminSettingsRequest,
   AdminSettingsResponse,
   AdminUserResponse,
@@ -80,6 +81,24 @@ export async function clearHouseholdMemberTotp(id: string): Promise<void> {
     `/v1/admin/users/${encodeURIComponent(id)}/totp`
   )
   unwrapVoid(res)
+}
+
+/**
+ * `PUT /v1/admin/users/{id}/role` — makes a member an administrator, or a member
+ * again. Demoting the household's last active ADMIN is 409 `conflict`. A
+ * demotion signs the member out everywhere, so the old role cannot linger in a
+ * live token; a promotion reaches their token at its next refresh.
+ */
+export async function changeHouseholdMemberRole(
+  id: string,
+  role: AdminRoleRequest['role']
+): Promise<AdminUserResponse> {
+  const body: AdminRoleRequest = { role }
+  const res = await api.put<ApiResponse<AdminUserResponse>>(
+    `/v1/admin/users/${encodeURIComponent(id)}/role`,
+    body
+  )
+  return unwrap(res)
 }
 
 /** `GET /v1/admin/settings` — read off the household row, not the boot-time environment. */

@@ -54,10 +54,11 @@ public final class EnvelopeHealthCalculator {
             .divide(BigDecimal.valueOf(daysInMonth), 0, RoundingMode.HALF_UP)
             .intValue();
 
-        BigDecimal allocated = envelope.getAllocated();
+        // What the member may actually spend: the carry-over is part of the budget.
+        BigDecimal allocated = envelope.getAllocated().add(envelope.getRolloverAmount());
         BigDecimal spent = envelope.getSpent();
         BigDecimal remaining = currency.normalise(
-            allocated.add(envelope.getRolloverAmount()).subtract(spent).max(BigDecimal.ZERO));
+            allocated.subtract(spent).max(BigDecimal.ZERO));
 
         if (allocated.signum() == 0) {
             // Nothing budgeted: there is no ratio to report and no pace to be over. Said once,

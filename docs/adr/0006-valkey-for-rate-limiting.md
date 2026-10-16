@@ -1,7 +1,7 @@
 # ADR-0006: ValKey (Redis Clone) for Distributed Rate Limiting
 
 **Date**: 2026-04-27  
-Status: Superseded by ADR-0020 (monolith collapse, 2026-09-26 — a single `core` instance has no cross-instance counter to keep consistent, so rate limiting moved to an in-process counter; see `finance.trove.app.ratelimit`)  
+Status: Superseded by [ADR-0020](0020-monolith-collapse.md) (monolith collapse, 2026-09-26 — a single `core` instance has no cross-instance counter to keep consistent, so rate limiting moved to an in-process counter; see `finance.trove.app.ratelimit`)  
 **Deciders**: Infrastructure and backend team
 
 ## Context

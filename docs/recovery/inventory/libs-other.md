@@ -1,5 +1,7 @@
 # Inventory — libs/privacy-engine, libs/ai-gateway-client, libs/model-adapter-api
 
+> **Historical record, 2026-09-03.** Inventory of the pre-rebuild shared libraries, since removed. Current state: `docs-site/guide/architecture.md`.
+
 Scope: the three non-`common` shared libraries in the reactor, for the monolith collapse into
 `trove-core`. Read-only pass; every claim below was checked against source in this working
 tree, not inferred from javadoc or README text. Baseline: `docs/recovery/01-FINDINGS.md`

@@ -1,0 +1,59 @@
+name: Deploy
+
+# The self-hosting stack (deploy/), the web image it runs, and the shell tests for the
+# `trove` CLI. Path-filtered like web-ci.yml and mobile-ci.yml so a core-only or
+# mobile-only change does not pay for it.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master, develop, canary]
+    paths:
+      - 'deploy/**'
+      - 'apps/web/Dockerfile'
+      - 'apps/web/nginx.conf'
+      - 'scripts/test-trove-cli.sh'
+      - 'scripts/test-compose-config.sh'
+      - 'scripts/web-healthcheck-probe.sh'
+      - '.github/workflows/deploy-ci.yml'
+  pull_request:
+    branches: [master, develop, canary]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'deploy/**'
+      - 'apps/web/Dockerfile'
+      - 'apps/web/nginx.conf'
+      - 'scripts/test-trove-cli.sh'
+      - 'scripts/test-compose-config.sh'
+      - 'scripts/web-healthcheck-probe.sh'
+      - '.github/workflows/deploy-ci.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  cli-and-compose:
+    name: trove CLI — shellcheck, bootstrap tests, compose config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: shellcheck
+        run: shellcheck -S warning deploy/trove scripts/test-trove-cli.sh scripts/test-compose-config.sh scripts/web-healthcheck-probe.sh
+      - name: bash -n
+        run: bash -n deploy/trove
+      - name: trove CLI tests (bootstrap, preflight, bind address)
+        run: scripts/test-trove-cli.sh
+      - name: docker compose config (required and optional variables, bind address)
+        run: scripts/test-compose-config.sh
+
+  web-image:
+    name: web image — builds, runs unprivileged, reports healthy on 8080
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: build, run and probe the health check
+        run: scripts/web-healthcheck-probe.sh

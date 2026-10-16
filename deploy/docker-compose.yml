@@ -8,12 +8,15 @@
 #   ./trove bootstrap   # generate .env (0600) with real secrets
 #   ./trove up          # build from source, start, wait for readiness
 #
-# Images are built locally from this repository on purpose: the repo is
-# private, so there is no public registry to pull `trove-core` from.
+# Images are built locally from this checkout so the running code is exactly
+# the source you can read (AGPL). Tagged releases are also published to
+# ghcr.io/harnoor6693/trove-core by .github/workflows/release.yml, but this
+# compose file does not pull them.
 #
-# Only `traefik` publishes ports. Everything else is reachable exclusively
-# through it (prometheus/grafana bind to loopback under the monitoring
-# profile, never to 0.0.0.0).
+# Only `traefik` publishes ports to the network (TROVE_BIND_ADDR picks the
+# interface; `./trove` sets it to 127.0.0.1 when TROVE_TLS_MODE=off). Everything
+# else is reachable exclusively through it, except prometheus and grafana, which
+# the optional monitoring profile publishes on 127.0.0.1 only, never on every interface.
 
 # Fixed project name so `docker compose` and `./trove` address the same
 # containers, volumes and networks no matter which directory you run from.
@@ -32,8 +35,8 @@ x-hardening: &hardening
 services:
 
   # ─── Docker API gate for Traefik ────────────────────────────────────────
-  # Copied from infra/full-stack/docker-compose.yml: Traefik never gets raw
-  # access to /var/run/docker.sock; it reads a filtered, read-only subset.
+  # Traefik never gets raw access to /var/run/docker.sock; it reads a
+  # filtered, read-only subset through this proxy.
   socket-proxy:
     image: ghcr.io/tecnativa/docker-socket-proxy:0.3
     environment:
@@ -62,9 +65,13 @@ services:
     image: traefik:v3.7
     command: ["--configfile=/etc/traefik/traefik.runtime.yml"]
     ports:
-      # The only published ports in the whole stack.
-      - "${TROVE_HTTP_PORT:-80}:80"
-      - "${TROVE_HTTPS_PORT:-443}:443"
+      # The only ports published to the network. TROVE_BIND_ADDR is the host interface:
+      # unset publishes on every interface, IPv4 and IPv6 (no host IP in the mapping, as a
+      # bare "80:80" does; an explicit 0.0.0.0 would be IPv4 only); `./trove` derives 127.0.0.1 when
+      # TROVE_TLS_MODE=off, because that mode serves cleartext HTTP and only a local
+      # TLS terminator (for example `tailscale serve`) should reach it.
+      - "${TROVE_BIND_ADDR:+${TROVE_BIND_ADDR}:}${TROVE_HTTP_PORT:-80}:80"
+      - "${TROVE_BIND_ADDR:+${TROVE_BIND_ADDR}:}${TROVE_HTTPS_PORT:-443}:443"
     environment:
       # Only read by the letsencrypt-dns resolver (TROVE_TLS_MODE=acme-dns).
       CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN:-}
@@ -108,7 +115,7 @@ services:
       #   tls.certresolver=letsencrypt-http | tls.certresolver=letsencrypt-dns | tls=false
       - "traefik.http.routers.trove-web.${TROVE_ROUTER_TLS_LABEL:-tls.certresolver=letsencrypt-http}"
       - "traefik.http.routers.trove-web.middlewares=security-headers@file,csp-web@file,ratelimit-general@file,compress@file"
-      - "traefik.http.services.trove-web.loadbalancer.server.port=80"
+      - "traefik.http.services.trove-web.loadbalancer.server.port=8080"
     depends_on:
       trove-core:
         condition: service_started
@@ -133,9 +140,9 @@ services:
       # the JVM itself reads. JAVA_OPTS stays the operator-facing name.
       JAVA_TOOL_OPTIONS: ${JAVA_OPTS:--Xmx1280m -XX:+UseZGC}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
-      # Datasource — both the canonical names (plan 1.6) and Spring's own
-      # relaxed-binding names, so the container is correct whichever the
-      # application.yml placeholder ends up being.
+      # Datasource. Compose passes Spring's own names (SPRING_DATASOURCE_*); they override the
+      # ${TROVE_DB_*} placeholders in application.yml, which compose does not set. POSTGRES_* are
+      # passed for tooling only; the application does not read them.
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-trove}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-trove}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env - run ./trove bootstrap to generate it}
@@ -151,14 +158,21 @@ services:
       TROVE_ENCRYPTION_KEY: ${TROVE_ENCRYPTION_KEY:?set TROVE_ENCRYPTION_KEY in deploy/.env - run ./trove bootstrap to generate it}
       # First-run bootstrap (consumed only while the users table is empty)
       TROVE_ADMIN_EMAIL: ${TROVE_ADMIN_EMAIL:?set TROVE_ADMIN_EMAIL in deploy/.env - the first admin account}
-      TROVE_ADMIN_PASSWORD: ${TROVE_ADMIN_PASSWORD:?set TROVE_ADMIN_PASSWORD in deploy/.env - run ./trove bootstrap to generate it}
+      # Optional once the first admin exists: only read while the users table is empty, so
+      # deleting this line from deploy/.env after the first sign-in is fine.
+      TROVE_ADMIN_PASSWORD: ${TROVE_ADMIN_PASSWORD:-}
+      TROVE_ADMIN_COUNTRY: ${TROVE_ADMIN_COUNTRY:-CA}
       # Storage and policy
       TROVE_DATA_DIR: ${TROVE_DATA_DIR:-/data}
       TROVE_REGISTRATION_OPEN: ${TROVE_REGISTRATION_OPEN:-false}
       TROVE_RATE_LIMIT_ENABLED: ${TROVE_RATE_LIMIT_ENABLED:-true}
       TROVE_EGRESS_ALLOW_PRIVATE: ${TROVE_EGRESS_ALLOW_PRIVATE:-false}
       TROVE_RECEIPT_QUOTA_MB: ${TROVE_RECEIPT_QUOTA_MB:-2048}
-      TROVE_AUDIT_RETENTION_DAYS: ${TROVE_AUDIT_RETENTION_DAYS:-90}
+      # Defaults repeat application.yml (trove.bootstrap.household-name, trove.simplefin.scheduled-sync-cron).
+      # Never pass a setting through with a bare `:-` unless the empty string is a valid value for it.
+      TROVE_HOUSEHOLD_NAME: ${TROVE_HOUSEHOLD_NAME:-Household}
+      TROVE_SIMPLEFIN_SCHEDULED_SYNC_CRON: ${TROVE_SIMPLEFIN_SCHEDULED_SYNC_CRON:-0 17 9 * * *}
+      # audit_log rows are purged after 365 days (PurgeJobs.AUDIT_RETENTION); not configurable
       # Optional OIDC (all-or-nothing, validated at boot)
       TROVE_OIDC_ENABLED: ${TROVE_OIDC_ENABLED:-false}
       TROVE_OIDC_ISSUER_URI: ${TROVE_OIDC_ISSUER_URI:-}
@@ -315,7 +329,10 @@ services:
     image: grafana/grafana:11.6.16
     profiles: ["monitoring"]
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in deploy/.env before enabling the monitoring profile - there is no default}
+      # `:-`, not `:?`: compose evaluates every service's variables even when this profile is
+      # off, so a required value would abort every command. `./trove up` and `./trove doctor`
+      # refuse to run with the monitoring profile on and no password set.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-}
       GF_SECURITY_DISABLE_GRAVATAR: "true"
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_ANALYTICS_REPORTING_ENABLED: "false"

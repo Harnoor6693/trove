@@ -4,11 +4,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import finance.trove.app.support.AuthFlowSupport;
 import finance.trove.app.support.Json;
+import finance.trove.app.support.RowLockGate;
 import finance.trove.auth.jwt.AuthCookies;
 import finance.trove.auth.totp.TotpGenerator;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
@@ -248,6 +255,76 @@ class TotpFlowIT extends AuthFlowSupport {
             Json.object("challengeToken", secondChallenge, "code", recovery)).statusCode())
             .as("a reusable recovery code is a permanent password that bypasses the factor")
             .isEqualTo(401);
+    }
+
+    @Test
+    @DisplayName("One TOTP code, two simultaneous logins: exactly one gets a session")
+    void aTotpCodeCannotBeSpentTwiceConcurrently() throws Exception {
+        Enrolled enrolled = enrol("totp-race");
+
+        assertThat(raceSecondFactor(enrolled, codeFor(enrolled.secret(), 1)))
+            .as("last_used_step stops a code being replayed one after the other; read without a "
+                + "lock it let two parallel logins with the same code both through")
+            .containsExactlyInAnyOrder(200, 401);
+    }
+
+    @Test
+    @DisplayName("One recovery code, two simultaneous logins: exactly one gets a session")
+    void aRecoveryCodeCannotBeSpentTwiceConcurrently() throws Exception {
+        Enrolled enrolled = enrol("totp-recovery-race");
+
+        assertThat(raceSecondFactor(enrolled, enrolled.recoveryCodes().get(0)))
+            .as("a recovery code is single-use, and that has to hold under concurrency too")
+            .containsExactlyInAnyOrder(200, 401);
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT cardinality(recovery_codes_hashed) FROM totp_credential WHERE user_id = ?",
+            Integer.class, enrolled.session().userId()))
+            .isEqualTo(enrolled.recoveryCodes().size() - 1);
+    }
+
+    /**
+     * Two password logins, then both challenges completed with {@code code} at once.
+     *
+     * <p>The gate holds the member's {@code totp_credential} row, which spending a code must
+     * write, so both requests have verified the code before either can record that it was used.
+     */
+    private List<Integer> raceSecondFactor(Enrolled enrolled, String code) throws Exception {
+        List<String> challenges = List.of(challengeFor(enrolled), challengeFor(enrolled));
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            List<Future<Integer>> results;
+            RowLockGate gate = RowLockGate.hold(jdbcTemplate,
+                "SELECT 1 FROM totp_credential WHERE user_id = ? FOR UPDATE",
+                enrolled.session().userId());
+            try {
+                CountDownLatch ready = new CountDownLatch(2);
+                CountDownLatch go = new CountDownLatch(1);
+                results = challenges.stream()
+                    .map(challenge -> pool.submit(() -> {
+                        ready.countDown();
+                        go.await(30, TimeUnit.SECONDS);
+                        return postJson(appUrl("/v1/auth/login/totp"),
+                            Json.object("challengeToken", challenge, "code", code)).statusCode();
+                    }))
+                    .toList();
+                assertThat(ready.await(30, TimeUnit.SECONDS)).isTrue();
+                go.countDown();
+                gate.awaitWaiters(2, Duration.ofSeconds(30));
+            } finally {
+                gate.close();
+            }
+            return List.of(results.get(0).get(60, TimeUnit.SECONDS),
+                results.get(1).get(60, TimeUnit.SECONDS));
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    private String challengeFor(Enrolled enrolled) {
+        return Json.data(postJson(appUrl("/v1/auth/login"),
+            Json.object("email", enrolled.session().email(), "password", MEMBER_PASSWORD)).body())
+            .path("challengeToken").asString();
     }
 
     @Test

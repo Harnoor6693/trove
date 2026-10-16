@@ -2,6 +2,7 @@ package finance.trove.ai;
 
 import finance.trove.common.repository.UserKeyedRepository;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -41,4 +42,17 @@ public interface AiSettingsRepository extends UserKeyedRepository<AiSettings> {
         + "where s.userId = :userId")
     int recordTestOutcome(@Param("userId") UUID userId, @Param("at") Instant at,
                           @Param("ok") boolean ok);
+
+    /**
+     * The member's settings, unless the member is no longer active (B3-14).
+     *
+     * <p>What {@link AiGateway#forUser} reads. A member an administrator deleted is inactive at
+     * once but their row lives through the seven-day grace, and a receipt they uploaded can still
+     * be re-run by the orphan sweep in that time; read through {@code findByUserId}, the sweep
+     * spent their key at their endpoint on their behalf. {@code is_active} is how every other
+     * background path already tells a member who has left (UserAdminService#deleteMember).
+     */
+    @Query("select s from AiSettings s where s.userId = :userId and exists "
+        + "(select u.id from User u where u.id = s.userId and u.active = true)")
+    Optional<AiSettings> findForActiveUser(@Param("userId") UUID userId);
 }

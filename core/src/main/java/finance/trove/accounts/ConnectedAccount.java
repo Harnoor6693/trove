@@ -27,8 +27,8 @@ import java.util.UUID;
  *
  * <p><strong>{@link #getConfigEncrypted()} is nullable, and that is a fix.</strong> The column was
  * {@code NOT NULL} and the field was {@code @Column(nullable = false)}, which made a MANUAL, CSV
- * or OFX account impossible to insert: none of them has a credential blob to encrypt. Both change
- * together in this commit, because {@code ddl-auto: validate} compares them and a mismatch fails
+ * or OFX account impossible to insert: none of them has a credential blob to encrypt. The column
+ * and the field must agree, because {@code ddl-auto: validate} compares them and a mismatch fails
  * the context refresh on boot rather than at first use.
  *
  * <p><strong>The credentials never leave this class.</strong> There is no {@code configEncrypted}

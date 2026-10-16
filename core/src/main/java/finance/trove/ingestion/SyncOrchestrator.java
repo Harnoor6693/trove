@@ -5,12 +5,14 @@ import finance.trove.accounts.ConnectedAccount;
 import finance.trove.accounts.SyncStatus;
 import finance.trove.common.crypto.FieldEncryptionService;
 import finance.trove.common.events.SyncCompletedEvent;
+import finance.trove.common.events.SyncCompletedEvent.FailureAlert;
 import finance.trove.common.exception.ConflictException;
 import finance.trove.common.plugin.BankSource;
 import finance.trove.common.plugin.BankSourceConnectionException;
 import finance.trove.common.plugin.RawTransaction;
 import finance.trove.common.time.UserClock;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -120,7 +122,8 @@ public class SyncOrchestrator {
      * The same run, with the configuration and the batch identity a FILE IMPORT supplies
      * ({@code docs/recovery/07-READINESS-GAPS.md} P2-12).
      *
-     * <p><strong>This is the one overload, and the three-argument method above delegates to it.</strong>
+     * <p><strong>This, the three-argument method above and {@link #syncScheduled} are three doors
+     * onto one private implementation.</strong>
      * Commit reuses this pipeline rather than a parallel one, which is what keeps the claim, the
      * fetch-outside-any-transaction rule, the single short batch transaction, the {@code sync_log}
      * row and the {@code afterCommit} event identical for an import and for a bank sync. A second
@@ -139,6 +142,25 @@ public class SyncOrchestrator {
      */
     public SyncLog sync(UUID householdId, UUID userId, UUID accountId,
                         Map<String, String> config, UUID importBatchId) {
+        return run(householdId, userId, accountId, config, importBatchId, FailureAlert.DAILY);
+    }
+
+    /**
+     * The same run, started by {@link ScheduledSyncJob} rather than by a member (C-01r).
+     *
+     * <p>Nothing about the run differs — claim, window, {@code last_synced_at} rule, log, event —
+     * except who decides how a failure is announced. The job knows whether the account was healthy
+     * before this run and says so in {@code failureAlert}; the event carries it to the listener.
+     *
+     * @throws ConflictException if a manual run holds the claim; the job skips the account
+     */
+    public SyncLog syncScheduled(UUID householdId, UUID userId, UUID accountId,
+                                 FailureAlert failureAlert) {
+        return run(householdId, userId, accountId, null, null, failureAlert);
+    }
+
+    private SyncLog run(UUID householdId, UUID userId, UUID accountId, Map<String, String> config,
+                        UUID importBatchId, FailureAlert failureAlert) {
         ConnectedAccount account = accounts.get(householdId, accountId);
         BankSource source = sources.find(account.getSourceKind())
             .orElseThrow(() -> new ConflictException("No source is registered for "
@@ -168,7 +190,7 @@ public class SyncOrchestrator {
         try {
             List<RawTransaction> rows = source.fetch(account.getExternalAccountId(),
                 windowStart(account, userId), clock.today(userId),
-                config != null ? config : configOf(account));
+                withMemberZone(config != null ? config : configOf(account), userId));
             fetched = rows.size();
 
             batch = batchWriter.persist(account, userId, rows, importBatchId);
@@ -208,7 +230,7 @@ public class SyncOrchestrator {
 
         events.publishEvent(new SyncCompletedEvent(householdId, userId, accountId,
             finished.getId(), status.toOutcome(), batch.created(), batch.updated(),
-            failureReason));
+            failureReason, failureAlert));
         return finished;
     }
 
@@ -230,6 +252,16 @@ public class SyncOrchestrator {
             return clock.today(userId).minusDays(FIRST_SYNC_LOOKBACK_DAYS);
         }
         return clock.dateOf(userId, account.getLastSyncedAt()).minusDays(OVERLAP_DAYS);
+    }
+
+    /**
+     * {@code config} plus the member's zone under {@link BankSource#MEMBER_ZONE}: the window is
+     * the member's days, and so are the dates of the rows in it (B1-22).
+     */
+    private Map<String, String> withMemberZone(Map<String, String> config, UUID userId) {
+        Map<String, String> withZone = new HashMap<>(config);
+        withZone.put(BankSource.MEMBER_ZONE, clock.zoneOf(userId).getId());
+        return withZone;
     }
 
     /**

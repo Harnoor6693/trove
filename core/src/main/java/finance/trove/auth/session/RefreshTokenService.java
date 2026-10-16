@@ -55,7 +55,9 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>The grace cache holds a successor token in memory for thirty seconds. That is deliberate and
  * bounded: a plaintext refresh token must never be written to a database, a log or a disk, and the
- * monolith is one JVM — the reason Valkey could be dropped in the first place (§1.1).
+ * monolith is one JVM — the reason Valkey could be dropped in the first place (§1.1). A restart
+ * empties it; a replay inside the window that then finds no successor is refused without
+ * revoking the family, because the window is read from the row as well as from the cache.
  */
 @Service
 public class RefreshTokenService {
@@ -98,6 +100,10 @@ public class RefreshTokenService {
         this.jwtProperties = jwtProperties;
         this.properties = properties;
         this.securityEvents = securityEvents;
+        // ponytail: one JVM's memory. A restart or an eviction loses the successor, and the
+        // racing tab is then refused rather than served (rotate). Fine for the single-instance
+        // monolith; a second instance needs the successor kept for reuseGrace where every
+        // instance can read it — encrypted on the rotated row, never in plaintext (B3-13).
         this.graceCache = new ExpiringCache<>(GRACE_CACHE_MAX, properties.reuseGrace());
     }
 
@@ -143,6 +149,16 @@ public class RefreshTokenService {
                 LOG.debug("Refresh replayed inside the grace window; returning the successor");
                 return new RefreshResult(stored.getUserId(), stored.getFamilyId(),
                     cached.successor(), true);
+            }
+            if (cached == null && withinGrace(stored.getRevokedAt(), now)) {
+                // The race the window exists for, but the successor is no longer in memory: this
+                // process restarted, or the cache evicted it, since the rotation. It cannot be
+                // handed back, so the request is refused — and only refused. Burning the family
+                // here signed a member out of every device whenever a deploy landed inside the
+                // window (B3-13), and inside the window a replay is not treated as theft anyway.
+                LOG.info("Refresh replayed inside the grace window after its successor left "
+                    + "memory; refused without revoking family {}", stored.getFamilyId());
+                throw new UnauthorizedException("Invalid or expired session");
             }
             revokeFamilyOnReuse(stored, now);
             throw new UnauthorizedException("Invalid or expired session");
@@ -256,7 +272,10 @@ public class RefreshTokenService {
         return tokens.findByTokenHash(hash(rawToken)).map(RefreshToken::getFamilyId);
     }
 
-    /** Daily purge (§5.6 {@code refresh-token-purge}); collapse step 4 schedules it. */
+    /**
+     * Daily purge, run by {@code PurgeJobs#purgeRefreshTokens} at 03:10 UTC (§5.6
+     * {@code refresh-token-purge}).
+     */
     @Transactional
     public int purgeExpired(Instant cutoff) {
         return tokens.purgeExpired(cutoff);
@@ -293,9 +312,13 @@ public class RefreshTokenService {
      * widening the window a real replay would have to fit through.
      */
     private boolean withinGraceWindow(GraceEntry cached, Instant now) {
-        Duration since = Duration.between(cached.rotatedAt(), now).abs();
-        return since.compareTo(properties.reuseGrace()) <= 0
-            && cached.successor().expiresAt().isAfter(now);
+        return withinGrace(cached.rotatedAt(), now) && cached.successor().expiresAt().isAfter(now);
+    }
+
+    /** See {@link #withinGraceWindow}; {@code rotatedAt} is the row's {@code revoked_at}. */
+    private boolean withinGrace(Instant rotatedAt, Instant now) {
+        return rotatedAt != null
+            && Duration.between(rotatedAt, now).abs().compareTo(properties.reuseGrace()) <= 0;
     }
 
     private boolean isIdle(RefreshToken stored, Instant now) {

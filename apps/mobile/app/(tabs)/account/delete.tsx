@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MnBtn } from '@components/ui/MnBtn/MnBtn';
@@ -13,6 +13,7 @@ import { clearSession } from '@api/client';
 import { toApiFailure } from '@api/errors';
 import { ErrorSlug } from '@api/types';
 import { signedOutState, useAuthStore } from '@stores/authStore';
+import { FormScroll } from '@components/ui/FormScroll/FormScroll';
 
 /**
  * Delete your own account — `POST /v1/me/delete`.
@@ -26,7 +27,8 @@ import { signedOutState, useAuthStore } from '@stores/authStore';
  * description**, because a member cannot find any of it out afterwards:
  *
  *  - The account is disabled immediately and every session of it ends.
- *  - An administrator can restore it inside a seven-day grace.
+ *  - An administrator can restore it inside the grace period (seven days by
+ *    default; the server's configured window).
  *  - After the grace it is purged for good, and the address stays reserved
  *    until that purge runs.
  *  - The **household keeps the shared ledger**, with this member's authorship
@@ -88,7 +90,7 @@ export default function DeleteAccountScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.paper }]} testID="delete-screen">
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <FormScroll contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={[styles.title, { color: theme.ink }]}>Delete your account</Text>
 
         <MnEyebrow style={styles.section}>What happens</MnEyebrow>
@@ -157,7 +159,7 @@ export default function DeleteAccountScreen() {
           style={styles.section}
           onPress={() => router.back()}
         />
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }

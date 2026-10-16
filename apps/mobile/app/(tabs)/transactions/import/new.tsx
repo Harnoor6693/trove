@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MnBtn } from '@components/ui/MnBtn/MnBtn';
@@ -15,6 +15,7 @@ import { IMPORTABLE_SOURCE_KINDS, SOURCE_KIND_LABEL } from '@lib/labels';
 import { useAccounts } from '@hooks/useAccounts';
 import { useCreateImport } from '@hooks/useImports';
 import { pickImportFile } from '@lib/importFilePicker';
+import { FormScroll } from '@components/ui/FormScroll/FormScroll';
 
 /**
  * Step one of an import: choose the account the rows belong to, choose a file,
@@ -94,7 +95,7 @@ export default function NewImportScreen() {
       style={[styles.safe, { backgroundColor: theme.paper }]}
       testID="new-import-screen"
     >
-      <ScrollView contentContainerStyle={styles.content}>
+      <FormScroll contentContainerStyle={styles.content}>
         <MnBtn
           label="Back"
           variant="ghost"
@@ -239,7 +240,7 @@ export default function NewImportScreen() {
             testID="new-import-open"
           />
         </MnCard>
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }

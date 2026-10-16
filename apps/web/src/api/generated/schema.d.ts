@@ -13,10 +13,9 @@ export interface paths {
         };
         /**
          * Server status
-         * @description The unauthenticated, detail-free probe. **The one route in the API whose
+         * @description The unauthenticated, detail-free probe. **The one JSON route whose
          *     body is not the `ApiResponse` envelope** — it is bare so that an uptime
-         *     check, the SPA's degraded state and `trove status` all have something
-         *     trivial to key off.
+         *     check and the SPA's degraded state have something trivial to key off.
          *
          *     `status` is the actuator aggregate collapsed to two words: anything that
          *     is not `UP` is `DEGRADED`. Which component is unhappy is management-port
@@ -48,6 +47,15 @@ export interface paths {
          *
          *     An unrecognised `timezone` does not fail the request; it falls back to
          *     `UTC`. `currency` and `country` default to `CAD` and `CA`.
+         *
+         *     **`email-taken` tells the caller the address has an account.** A new
+         *     address is signed straight in, so the two answers cannot be made the
+         *     same without a success that creates nothing, and no email is sent that
+         *     could carry the difference instead. Only a caller holding an invite
+         *     without a bound address, or any caller once registration is open, can
+         *     ask. Each `email-taken` counts as a failed sign-in from the caller's
+         *     address, so asking meets the gate that guessing passwords meets: 429
+         *     `account-locked` after 20 inside 10 minutes.
          */
         post: operations["register"];
         delete?: never;
@@ -459,8 +467,10 @@ export interface paths {
          *     changed inside that window has to be visible on the next read — the
          *     alternative is a settings screen that appears not to have saved.
          *
-         *     It lives under `/v1/auth/` rather than `/v1/me` because that is where the
-         *     shipped clients call it, and it is on their never-refresh list.
+         *     It lives under `/v1/auth/` rather than `/v1/me` because that is where
+         *     the shipped clients call it; the web client calls it with refresh-on-401
+         *     switched off for the first-visit probe (`skipAuthRefresh`), so an
+         *     anonymous 401 stays a 401.
          *
          *     Identity comes from the signed token. No route in this group takes a user
          *     id from a path, a query or a body.
@@ -685,12 +695,17 @@ export interface paths {
          *     byte count), `transactions.csv`, and one JSON document per dataset —
          *     accounts, categories, merchant rules, budget periods, envelopes, savings
          *     goals, subscriptions, net-worth snapshots, assets, liabilities, receipts,
-         *     coach conversations and notification preferences.
+         *     coach conversations, the member's own tax-line mappings and notification
+         *     preferences.
          *
-         *     The transactions file is written by the same builder the tax export uses,
-         *     with the same columns and the same protection: a cell that begins with an
-         *     equals sign, a plus, a minus, an at sign, a tab or a carriage return is
-         *     prefixed with an apostrophe, so a merchant literally named
+         *     `transactions.csv` is the whole ledger, every transaction the household
+         *     has: both legs of a transfer and pending rows are included. It uses the
+         *     tax export's columns followed by `type`, `accountId`, `transferGroupId`
+         *     and `pending`, and it has no totals section, so it is one rectangular
+         *     table an importer can read. It is UTF-8 with a byte order mark. The cell
+         *     protection is the tax export's: a cell that begins with an equals sign,
+         *     a plus, a minus, an at sign, a tab or a carriage return is prefixed with
+         *     an apostrophe, so a merchant literally named
          *     `=HYPERLINK("http://evil","click")` opens as text rather than as a live
          *     formula.
          *
@@ -703,11 +718,8 @@ export interface paths {
          *
          *     Every amount is a decimal string at the ledger's four-decimal scale and
          *     carries its own currency on its own row. Nothing is converted and no
-         *     total is blended across currencies. The only computed figures anywhere in
-         *     the archive are the plain per-currency sums in the `Totals by tax line`
-         *     section that the shared builder appends under the last row of
-         *     `transactions.csv`: one row per tax line per currency, added and nothing
-         *     else. Dates are the member's own local dates.
+         *     total is blended across currencies. No figure in the archive is computed.
+         *     Dates are the member's own local dates.
          *
          *     **The rows are the household's, the run is the member's.** The ledger is
          *     shared, so the archive contains the whole household's transactions; a
@@ -912,10 +924,12 @@ export interface paths {
          * Clear a member's sign-in lock
          * @description **Requires the `ADMIN` role.**
          *
-         *     The intended way out of the long lock repeated failures produce. It
-         *     exists because the alternative for a household member who mistyped their
-         *     password ten times is waiting a day, and the alternative for an admin is
-         *     a database edit. It does not change the password.
+         *     Ends every sign-in throttle on the member's account, from every address,
+         *     by forgetting its failed attempts. Throttles end by themselves within
+         *     fifteen minutes, but an account under attack from many addresses stays
+         *     throttled for addresses it has not signed in from until the attack
+         *     stops; this is the way out for a member signing in from somewhere new.
+         *     It does not change the password.
          *
          *     **A self-target is 403 `step-up-required`**, so that "an admin route
          *     never acts on the admin's own security state" is one rule rather than a
@@ -958,6 +972,47 @@ export interface paths {
          *     by the weakest credential that reaches it.
          */
         delete: operations["clearHouseholdMemberTotp"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/users/{id}/role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Make a member an administrator, or a member again
+         * @description **Requires the `ADMIN` role.**
+         *
+         *     Sets a member's role to `ADMIN` or `MEMBER`. This is how the last
+         *     administrator hands the household over before deleting their account
+         *     or leaving: `DELETE /v1/me` refuses the last `ADMIN` with 409.
+         *
+         *     **The household always keeps at least one active `ADMIN`.** Demoting
+         *     the household's last active administrator — another member or the
+         *     caller themselves — is **409 `conflict`**. The count is taken inside
+         *     one transaction behind a lock on the household row, the same lock
+         *     `DELETE /v1/admin/users/{id}` takes, so two administrators demoting
+         *     each other at the same instant cannot both succeed.
+         *
+         *     **A demotion revokes every session of the demoted member**, so the
+         *     `ADMIN` claim in their current access token stops working at once
+         *     rather than when it expires; they sign in again as a `MEMBER`. A
+         *     promotion revokes nothing: the new role reaches the member's token at
+         *     their next refresh or sign-in. Setting the role a member already has
+         *     changes nothing and answers 200.
+         *
+         *     A member of another household, or an unknown id, is **404**. A member
+         *     inside the deletion grace is **409**: restore them first.
+         */
+        put: operations["changeHouseholdMemberRole"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1034,19 +1089,21 @@ export interface paths {
          * Household settings
          * @description **Requires the `ADMIN` role.**
          *
-         *     One flag in this version. It is read from the household row rather than
-         *     from configuration, so an admin's runtime decision — not the boot-time
-         *     environment variable — is what the sign-in page reflects.
+         *     Two flags. `registrationOpen` is seeded once from the environment on
+         *     first boot; `scheduledSyncEnabled` has no environment seed and starts
+         *     off. Both are then read from the household row, so the admin's decision
+         *     is what the sign-in page and the scheduled bank sync obey.
          */
         get: operations["getAdminSettings"];
         /**
          * Update household settings
          * @description **Requires the `ADMIN` role.**
          *
-         *     A partial update: an absent or null `registrationOpen` leaves the flag
-         *     alone and the current settings come back unchanged. The value is written
+         *     A partial update: an absent or null field leaves that flag alone, and
+         *     an empty body returns the current settings unchanged. A value is written
          *     to the household row so it survives a restart; the environment variable
-         *     is only ever a seed for the first boot.
+         *     (for `registrationOpen` only) is only ever a seed for the first boot;
+         *     `scheduledSyncEnabled` has none.
          */
         put: operations["updateAdminSettings"];
         post?: never;
@@ -1074,10 +1131,12 @@ export interface paths {
          *     answer is "what changed, and who changed it".
          *
          *     `path` is the matched **route template** (`/api/v1/admin/users/{id}`),
-         *     never the caller's raw URI. Two routes on this API carry a live credential
-         *     in the path, and a table that stored the URI would become a second,
-         *     permanent, plaintext copy of every invitation token this install has ever
-         *     issued. Nothing else about the request is kept: no body, no headers, no
+         *     never the caller's raw URI. One route on this API (`GET
+         *     /v1/auth/invites/{token}`) carries a live credential in the path. It is
+         *     a read, so it is never recorded, but the table stores the route template
+         *     regardless, so that a future change to the audit scope could never turn
+         *     it into a second, permanent, plaintext copy of every invitation token
+         *     this install has issued. Nothing else about the request is kept: no body, no headers, no
          *     query string, no token.
          *
          *     Scoped to the caller's own household. `userId` and `clientIp` are null
@@ -1308,11 +1367,17 @@ export interface paths {
          *     **`endpointUrl` is checked by the egress policy on the way in and again
          *     on every call.** `https` is required unless *both* the install-wide
          *     `TROVE_EGRESS_ALLOW_PRIVATE` and this user's own `allowPrivateEndpoint`
-         *     are set, which is also the only way to reach a private, loopback or
-         *     link-local target — a LAN Ollama is the primary AI story, so a blanket
-         *     block would be wrong, and an instance-wide switch alone would be too
-         *     coarse for a per-user endpoint. A refusal is 400 `outbound-url-rejected`
-         *     with a sentence naming the rule (never the resolved address). Passing
+         *     are set, which is also the only way to reach a private (RFC 1918,
+         *     carrier-grade NAT, IPv6 unique-local, IPv6 site-local) or loopback
+         *     target — a LAN Ollama is the primary AI story, so a blanket block would
+         *     be wrong, and an instance-wide switch alone would be too coarse for a
+         *     per-user endpoint. Link-local, the cloud metadata addresses and the
+         *     other always-refused ranges (unspecified, multicast, reserved, and the
+         *     IANA special-purpose ranges that are not globally reachable) stay
+         *     refused whatever the keys say. A refusal is 400 `outbound-url-rejected`
+         *     with a sentence naming the rule for the URL's shape (scheme, credentials,
+         *     port); every refusal by address, including a name that does not resolve,
+         *     reads the same and never names the address or its range. Passing
          *     this check at save time buys nothing on its own: the policy is
          *     re-evaluated, and the address re-pinned, on every outbound call.
          *
@@ -1686,12 +1751,10 @@ export interface paths {
          *     There is no server-side default currency literal anywhere — an account
          *     always carries the one it was created with.
          *
-         *     409 `conflict` means an account of this `sourceKind` already occupies
-         *     this household's slot for the provider account being described: the
-         *     unique key is `(household_id, source_kind, external_account_id)` with
-         *     nulls compared equal, which is what lets a later re-exchange or repeat
-         *     upload reuse the account instead of duplicating it and every transaction
-         *     on it.
+         *     409 `conflict` is the server's generic answer when the database refuses
+         *     the write with an integrity or data error that request validation did
+         *     not catch; account creation has no expected conflict and it is not a
+         *     duplicate-account signal.
          */
         post: operations["createAccount"];
         delete?: never;
@@ -1923,6 +1986,9 @@ export interface paths {
          *     as a duplicate here. For a batch that has been committed or undone the
          *     stored counts are returned, `rows` is empty and `warnings` says why —
          *     the uploaded file is kept only while the batch can still be undone.
+         *
+         *     `409` when a `PREVIEW` batch no longer has its stored file, and `400` when
+         *     that file no longer parses, which is what the parser's reason says.
          *
          *     Resolved inside the caller's own household, so an id belonging to another
          *     household is 404 and never 403.
@@ -2344,8 +2410,10 @@ export interface paths {
         };
         /**
          * The household's active detected subscriptions
-         * @description Every non-cancelled `detected_subscription` of the caller's household,
-         *     ordered by normalised merchant name. One shared ledger per household
+         * @description Every non-cancelled `detected_subscription` of the caller's household
+         *     whose charges have not stopped (a next charge more than three whole
+         *     billing cycles overdue hides the row until charges resume), ordered by
+         *     normalised merchant name. One shared ledger per household
          *     (owner decision), so a household mate sees exactly the same list;
          *     `createdBy` records the member the detection was attributed to and is
          *     for audit only, never for scoping.
@@ -2491,9 +2559,9 @@ export interface paths {
          *     was still empty the next night. The job now enumerates households with
          *     transactions, and this is the manual trigger that was missing entirely.
          *
-         *     Detection reads the household's DEBIT transactions of the last thirteen
-         *     months (transfer legs excluded), groups them by normalised merchant,
-         *     classifies the cadence and upserts one row per merchant with
+         *     Detection reads the household's DEBIT transactions inside the detection
+         *     window, set by `trove.subscriptions.detection-window` (transfer legs
+         *     excluded), groups them by normalised merchant, classifies the cadence and upserts one row per merchant with
          *     `INSERT ... ON CONFLICT (household_id, merchant_name) DO UPDATE`. It is
          *     therefore **idempotent**: running it twice over unchanged history leaves
          *     every row's amount, cycle and next-charge date exactly as they were, and
@@ -3036,8 +3104,8 @@ export interface paths {
          * The caller's own notification inbox
          * @description One page of the caller's undismissed notifications, newest first.
          *
-         *     **Per member, not per household.** This is one of the three areas of
-         *     this API where a household mate is refused rather than served: the
+         *     **Per member, not per household.** This is one of the areas of this API
+         *     where a household mate is refused rather than served: the
          *     ledger is shared, but a notification is addressed to one person and
          *     another member's inbox is 404, never 403. The rows are written by
          *     `NotificationService` on the events the ledger raises — an envelope
@@ -3255,10 +3323,11 @@ export interface paths {
          *
          *     **`targetUrl` is checked by the shared egress policy, and it is checked
          *     again on every delivery attempt.** A refusal here is 400
-         *     `outbound-url-rejected` with a sentence naming the rule — the scheme,
-         *     or the address range the host resolves to — but never the resolved
-         *     address itself, which would turn this route into an internal port
-         *     scanner. Re-checking at delivery time is what closes the DNS-rebinding
+         *     `outbound-url-rejected`. A refusal for the URL's shape (the scheme,
+         *     credentials before the host) names that rule; every refusal by address,
+         *     including a name that does not resolve, reads the same and names neither
+         *     the address nor its range, which would turn this route into an internal
+         *     network probe. Re-checking at delivery time is what closes the DNS-rebinding
          *     window: a name that answers a public address while you are saving it
          *     and a private one an hour later is refused at the second point, and the
          *     HTTP client connects to the address the policy approved rather than
@@ -3266,11 +3335,22 @@ export interface paths {
          *
          *     **`secret` is write-only.** It is encrypted at rest with the same
          *     AES-GCM field encryption the AI API key and the SimpleFIN access URL
-         *     use, it appears in no response schema, and it is never logged. Every
-         *     delivery carries `X-Trove-Signature: sha256=<hex>`, an HMAC-SHA256 over
-         *     the exact request bytes keyed with it, alongside `X-Trove-Event` (the
-         *     event type) and `X-Trove-Delivery` (the delivery id, stable across
-         *     retries so a receiver can deduplicate).
+         *     use, it appears in no response schema, and it is never logged.
+         *
+         *     **Every delivery is signed in the Standard Webhooks scheme**
+         *     (https://www.standardwebhooks.com, symmetric `v1`). Headers:
+         *     `webhook-id` (the delivery id, stable across retries so a receiver can
+         *     deduplicate), `webhook-timestamp` (Unix seconds of this attempt),
+         *     `webhook-signature` (`v1,<base64>`, an HMAC-SHA256 keyed with the UTF-8
+         *     bytes of `secret` over `<webhook-id>.<webhook-timestamp>.<raw body>`)
+         *     and `X-Trove-Event` (the event type). A receiver recomputes the HMAC
+         *     over the exact bytes it received, compares in constant time, and
+         *     refuses a `webhook-timestamp` more than five minutes from its own
+         *     clock: that window is what makes a captured delivery useless for a
+         *     replay. Standard Webhooks libraries take a base64 `whsec_` secret by
+         *     default; pass this secret's raw UTF-8 bytes instead. This replaced
+         *     `X-Trove-Signature: sha256=<hex>` over the body alone, which signed
+         *     neither the id nor a time.
          *
          *     Deliveries are retried with exponential backoff — 2^n seconds, five
          *     attempts — and a subscription that never succeeds is left `EXHAUSTED`
@@ -3641,8 +3721,9 @@ export interface components {
         };
         /**
          * @description Pagination for a listed collection, present on every operation whose
-         *     response declares it — `GET /v1/audit`, `GET /v1/transactions`,
-         *     `GET /v1/chat/history` and `GET /v1/insights`. The capped lists
+         *     response declares it — `GET /v1/audit`, `GET /v1/transactions`, `GET
+         *     /v1/chat/history`, `GET /v1/insights`, `GET /v1/receipts`, `GET
+         *     /v1/notifications`, `GET /v1/tax-export/runs` and `GET /v1/me/export`. The capped lists
          *     (`security-events`, `invites`) omit it: they are bounded, not paged.
          * @example {
          *       "total": 137,
@@ -3724,7 +3805,7 @@ export interface components {
              *     | `invite-expired` | 410 | the invitation has expired or been redeemed |
              *     | `upload-too-large` | 413 | the upload exceeds the configured maximum |
              *     | `answer-too-long` | 413 | a streamed coach answer outran the length this server stores |
-             *     | `account-locked` | 429 | too many sign-in attempts from this address |
+             *     | `account-locked` | 429 | the per-address sign-in gate refused: too many failed attempts from this address, no resolvable address, or the attempt count could not be read |
              *     | `rate-limited` | 429 | a rate limit was exceeded |
              *     | `internal-server-error` | 500 | unexplained; quote `requestId` |
              *     | `encryption-failed` | 500 | a field could not be encrypted or decrypted |
@@ -3739,8 +3820,8 @@ export interface components {
              *     — the limiter sits in front of them all — and `service-unavailable`
              *     by every operation under `/v1/auth`, which refuses rather than
              *     passing a request through when the limiter cannot decide.
-             *     `upload-too-large` is emitted by `POST /v1/imports`, the one
-             *     operation in this version that accepts a file.
+             *     `upload-too-large` is emitted by the two operations that accept a
+             *     file, `POST /v1/imports` and `POST /v1/receipts/upload`.
              *     `answer-too-long` is **in-band only**: no HTTP response of this API
              *     carries it. It is the last frame of a streamed
              *     `POST /v1/chat/completions` whose answer outran the length the server
@@ -3939,7 +4020,7 @@ export interface components {
          *         "role": "MEMBER",
          *         "totpEnabled": false
          *       },
-         *       "accessToken": "eyJhbGciOiJFUzI1NiJ9.EXAMPLE-ACCESS-TOKEN.not-a-real-signature",
+         *       "accessToken": "eyJraWQiOiJrMSIsImFsZyI6IkhTMjU2In0.EXAMPLE-ACCESS-TOKEN.not-a-real-signature",
          *       "refreshToken": "cmVmcmVzaC10b2tlbi1FWEFNUExFLW5vdC1yZWFs",
          *       "expiresIn": 900
          *     }
@@ -3947,8 +4028,9 @@ export interface components {
         BearerSession: {
             user: components["schemas"]["AuthUser"];
             /**
-             * @description ES256 JWT, 15-minute lifetime. Hold it in memory only.
-             * @example eyJhbGciOiJFUzI1NiJ9.EXAMPLE-ACCESS-TOKEN.not-a-real-signature
+             * @description HMAC-signed JWT (HS256 to HS512, set by the length of
+             *     `TROVE_JWT_SECRET`), 15-minute lifetime. Hold it in memory only.
+             * @example eyJraWQiOiJrMSIsImFsZyI6IkhTMjU2In0.EXAMPLE-ACCESS-TOKEN.not-a-real-signature
              */
             accessToken: string;
             /**
@@ -3977,7 +4059,7 @@ export interface components {
          *     error** — the client shows the code screen and posts the challenge back to
          *     `POST /v1/auth/login/totp`. Valid for 60 seconds.
          * @example {
-         *       "challengeToken": "eyJhbGciOiJFUzI1NiJ9.EXAMPLE-TOTP-CHALLENGE.not-a-real-signature"
+         *       "challengeToken": "eyJraWQiOiJrMSIsImFsZyI6IkhTMjU2In0.EXAMPLE-TOTP-CHALLENGE.not-a-real-signature"
          *     }
          */
         TotpChallenge: {
@@ -3985,7 +4067,7 @@ export interface components {
              * @description A short-lived JWT of type `totp_challenge`. It is accepted by that one
              *     route and refused everywhere else, exactly as a full access token is
              *     refused there.
-             * @example eyJhbGciOiJFUzI1NiJ9.EXAMPLE-TOTP-CHALLENGE.not-a-real-signature
+             * @example eyJraWQiOiJrMSIsImFsZyI6IkhTMjU2In0.EXAMPLE-TOTP-CHALLENGE.not-a-real-signature
              */
             challengeToken: string;
         };
@@ -4020,13 +4102,13 @@ export interface components {
         /**
          * @description Bearer-mode rotation. Both new tokens, and the old refresh token is spent.
          * @example {
-         *       "accessToken": "eyJhbGciOiJFUzI1NiJ9.EXAMPLE-ACCESS-TOKEN.not-a-real-signature",
+         *       "accessToken": "eyJraWQiOiJrMSIsImFsZyI6IkhTMjU2In0.EXAMPLE-ACCESS-TOKEN.not-a-real-signature",
          *       "refreshToken": "cmVmcmVzaC10b2tlbi1FWEFNUExFLXJvdGF0ZWQ",
          *       "expiresIn": 900
          *     }
          */
         BearerRefresh: {
-            /** @example eyJhbGciOiJFUzI1NiJ9.EXAMPLE-ACCESS-TOKEN.not-a-real-signature */
+            /** @example eyJraWQiOiJrMSIsImFsZyI6IkhTMjU2In0.EXAMPLE-ACCESS-TOKEN.not-a-real-signature */
             accessToken: string;
             /** @example cmVmcmVzaC10b2tlbi1FWEFNUExFLXJvdGF0ZWQ */
             refreshToken: string;
@@ -4414,9 +4496,10 @@ export interface components {
             createdAt: string;
         };
         /**
-         * @description The household's settings. One flag in this version.
+         * @description The household's settings.
          * @example {
-         *       "registrationOpen": false
+         *       "registrationOpen": false,
+         *       "scheduledSyncEnabled": false
          *     }
          */
         AdminSettingsResponse: {
@@ -4426,6 +4509,14 @@ export interface components {
              * @example false
              */
             registrationOpen: boolean;
+            /**
+             * @description Whether the server syncs every SimpleFIN-connected account on its
+             *     own, once a day (`trove.simplefin.scheduled-sync-cron`). Off by
+             *     default. A scheduled run that fails tells the account's owner once,
+             *     when the account goes from working to failing, not every day.
+             * @example false
+             */
+            scheduledSyncEnabled: boolean;
         };
         /**
          * @description One mutating request, as `GET /v1/audit` returns it. Written after the
@@ -4595,7 +4686,7 @@ export interface components {
         TotpLoginRequest: {
             /**
              * @description The token a password login returned. Wins over the cookie when both are present.
-             * @example eyJhbGciOiJFUzI1NiJ9.EXAMPLE-TOTP-CHALLENGE.not-a-real-signature
+             * @example eyJraWQiOiJrMSIsImFsZyI6IkhTMjU2In0.EXAMPLE-TOTP-CHALLENGE.not-a-real-signature
              */
             challengeToken?: string | null;
             /**
@@ -4820,6 +4911,17 @@ export interface components {
         AdminSettingsRequest: {
             /** @example true */
             registrationOpen?: boolean | null;
+            /** @example true */
+            scheduledSyncEnabled?: boolean | null;
+        };
+        /**
+         * @description The role to give the member.
+         * @example {
+         *       "role": "ADMIN"
+         *     }
+         */
+        AdminRoleRequest: {
+            role: components["schemas"]["UserRole"];
         };
         /**
          * @description A category, whether system-seeded or the household's own — one shape
@@ -5155,10 +5257,12 @@ export interface components {
              */
             visionModel: string | null;
             /**
-             * @description This member's own opt-in to a private, loopback or link-local target.
-             *     It is one of two keys: the install must also set
+             * @description This member's own opt-in to a private (RFC 1918, carrier-grade NAT,
+             *     IPv6 unique-local, IPv6 site-local) or loopback target, and to plain
+             *     http. It is one of two keys: the install must also set
              *     `TROVE_EGRESS_ALLOW_PRIVATE`, and a private target is reachable only
-             *     when both are true.
+             *     when both are true. Link-local, the cloud metadata addresses and the
+             *     other always-refused ranges stay refused even with both keys set.
              * @example false
              */
             allowPrivateEndpoint: boolean;
@@ -5173,8 +5277,10 @@ export interface components {
             connectTimeoutMs: number;
             /**
              * Format: int32
-             * @description Milliseconds to wait for an answer, capped on use by the install's
-             *     `TROVE_HTTP_READ_TIMEOUT_MS`.
+             * @description Milliseconds to wait for an answer, capped on use at four times the
+             *     install's `TROVE_HTTP_READ_TIMEOUT_MS` (120 s at the default). The
+             *     stored value is what was asked for; the effective one is the smaller
+             *     of the two.
              * @example 120000
              */
             readTimeoutMs: number;
@@ -5532,7 +5638,9 @@ export interface components {
          * @description Where an account's transactions come from. `MANUAL` is the
          *     credential-less account (gap P2-13): nothing fetches for it, and it is
          *     the only kind that accepts a hand-entered transaction. The other three
-         *     are fetched or uploaded; the code that does so is not in this version.
+         *     are fetched or uploaded: SIMPLEFIN accounts are fetched from the
+         *     SimpleFIN bridge (`POST /v1/accounts/exchange-setup-token`, then sync);
+         *     OFX and CSV are uploaded through `POST /v1/imports`.
          * @example MANUAL
          * @enum {string}
          */
@@ -6161,9 +6269,11 @@ export interface components {
             manual: boolean;
             /**
              * Format: uuid
-             * @description The category this row counts against. Written on insert by the
-             *     categorisation pipeline and overwritten by a `PATCH`; null only for
-             *     a row written before a category could be resolved.
+             * @description The category this row counts against. Set on insert by the
+             *     categorisation pipeline (or by the caller on manual entry) and
+             *     changed by a `PATCH`. Null for a row written before a category could
+             *     be resolved, or after a member clears it with `PATCH {categoryId:
+             *     null}`.
              * @example 00000000-0000-4000-8000-0000000000d1
              */
             categoryId: string | null;
@@ -6223,8 +6333,10 @@ export interface components {
              */
             accountId: string;
             /**
-             * @description The absolute value, as a decimal string with at most four decimal
-             *     places. Zero and negative values are rejected — direction is `type`.
+             * @description The absolute value, as a decimal string with at most two decimal
+             *     places (accounts are CAD or USD, whose smallest unit is the cent), so
+             *     nothing is silently rounded. Zero and negative values are rejected —
+             *     direction is `type`.
              * @example 4.75
              */
             amount: string;
@@ -6233,6 +6345,7 @@ export interface components {
              * @example 2026-09-04
              */
             date: string;
+            /** @description Omitted means `DEBIT`. */
             type?: components["schemas"]["TransactionType"];
             /**
              * @description Stored as `merchantName`, and what the categorisation pipeline matches on.
@@ -6271,6 +6384,7 @@ export interface components {
             /** @example Reimbursable */
             notes?: string | null;
             /**
+             * @description At most 50 tags of at most 50 characters each. Blank tags are dropped.
              * @example [
              *       "travel"
              *     ]
@@ -6293,7 +6407,8 @@ export interface components {
             spentToday: components["schemas"]["MoneyAmount"];
             /**
              * Format: int32
-             * @description How many transactions of any type fell on the caller's own today.
+             * @description How many transactions of any type, excluding internal-transfer legs,
+             *     fell on the caller's own today.
              * @example 3
              */
             transactionsToday: number;
@@ -6348,8 +6463,10 @@ export interface components {
             incomeThisMonth: components["schemas"]["MoneyAmount"];
             netThisMonth: components["schemas"]["MoneyAmount"];
             /**
-             * @description One entry per currency present in this household's ledger, ordered
-             *     by currency code. Empty when the household has no transactions.
+             * @description One entry per currency that has at least one transaction that is not
+             *     a paired internal-transfer leg, dated from the first of the caller's
+             *     current month through the caller's today, ordered by currency code.
+             *     Empty when there are none.
              *     An array rather than an object keyed by code, so a generated client
              *     gets a typed list instead of an index signature.
              */
@@ -6360,7 +6477,8 @@ export interface components {
          *     `@Pattern`-validated exactly these four literal values, so this is
          *     modelled as a real enum rather than a free string: an out-of-range
          *     value is 400 `validation-error`, predicted by the document rather
-         *     than discovered at runtime. `ALL` has no lower bound.
+         *     than discovered at runtime. `3M`, `6M` and `1Y` reach back 90, 180 and
+         *     365 days from the caller's own today; `ALL` reaches back to 2000-01-01.
          * @default 1Y
          * @example 1Y
          * @enum {string}
@@ -6453,6 +6571,7 @@ export interface components {
              */
             name: string;
             assetType: components["schemas"]["AssetType"];
+            /** @description Zero or greater; a negative value is 400 `validation-error`. */
             value: components["schemas"]["MoneyAmount"];
             /**
              * @description Same value set as `CurrencyCode`, spelled out here because an
@@ -6487,6 +6606,7 @@ export interface components {
             /** @example Everyday Chequing */
             name: string;
             assetType: components["schemas"]["AssetType"];
+            /** @description Zero or greater; a negative value is 400 `validation-error`. */
             value: components["schemas"]["MoneyAmount"];
             /**
              * Format: uuid
@@ -6579,6 +6699,7 @@ export interface components {
              */
             name: string;
             liabilityType: components["schemas"]["LiabilityType"];
+            /** @description Zero or greater; a negative value is 400 `validation-error`. */
             balance: components["schemas"]["MoneyAmount"];
             /**
              * @description Defaults to zero (zero-interest debt) when omitted OR sent explicitly as `null`.
@@ -6619,6 +6740,7 @@ export interface components {
             /** @example Visa Credit Card */
             name: string;
             liabilityType: components["schemas"]["LiabilityType"];
+            /** @description Zero or greater; a negative value is 400 `validation-error`. */
             balance: components["schemas"]["MoneyAmount"];
             /**
              * @description A full replace, not a partial patch: omitted OR sent explicitly as `null` resets to
@@ -6783,7 +6905,12 @@ export interface components {
          *     * `RED` — a charge was expected and has not been observed:
          *       `nextChargeDate` is further in the past than the cycle's own tolerance
          *       window allows. Bank posting delays are absorbed by that tolerance, so
-         *       `RED` means the charge is genuinely missing, not merely late.
+         *       `RED` means the charge is genuinely missing, not merely late. A
+         *       subscription whose next charge is more than three whole billing cycles
+         *       overdue is treated as stopped: it is left out of `GET /v1/subscriptions`
+         *       and of every summary figure (run rate, counts, `next14Days`) until
+         *       charges resume, but stays readable by id. So `RED` on a listed row means
+         *       overdue by more than the tolerance but not yet three cycles.
          * @example GREEN
          * @enum {string}
          */
@@ -6794,7 +6921,11 @@ export interface components {
          *     the column's CHECK constraint admits them and a client's union should be
          *     complete, but nothing writes them yet — upcoming charges are served by
          *     the summary's `next14Days`, and delivery of any of these as a
-         *     notification belongs to a later step.
+         *     notification is not built. A `PRICE_INCREASE` alert is raised alongside
+         *     a SUBSCRIPTION_PRICE_CHANGE notification (sent only if the member has
+         *     subscription alerts enabled) and a `subscription.price_changed` webhook.
+         *     That event, and so the notification and webhook, also fires when the
+         *     price falls, but no alert row is written for a decrease.
          * @example PRICE_INCREASE
          * @enum {string}
          */
@@ -6923,7 +7054,8 @@ export interface components {
             /**
              * @description True once a member has dismissed it with
              *     `DELETE /v1/subscriptions/{id}`. A cancelled row is excluded from
-             *     `GET /v1/subscriptions` and from every summary figure, but is still
+             *     `GET /v1/subscriptions` and from every summary figure, as is one
+             *     whose charges have stopped (see `SubscriptionSignal`), but is still
              *     readable by id and is still kept current by the scan — it is never
              *     un-cancelled and never raises another alert.
              * @example false
@@ -6949,7 +7081,7 @@ export interface components {
          *       "createdBy": "00000000-0000-4000-8000-000000000002",
          *       "subscriptionId": "00000000-0000-4000-8000-0000000000f1",
          *       "alertType": "PRICE_INCREASE",
-         *       "alertMessage": "SPOTIFY went up from 9.99 CAD to 11.99 CAD a month.",
+         *       "alertMessage": "SPOTIFY went up from 9.99 CAD to 11.99 CAD.",
          *       "isRead": false,
          *       "createdAt": "2026-09-05T02:00:00Z"
          *     }
@@ -6987,7 +7119,7 @@ export interface components {
              * @description A sentence written for the member, naming the merchant and both
              *     amounts with their currency. Safe to display; a client that wants
              *     its own wording should build it from `subscriptionId` instead.
-             * @example SPOTIFY went up from 9.99 CAD to 11.99 CAD a month.
+             * @example SPOTIFY went up from 9.99 CAD to 11.99 CAD.
              */
             alertMessage: string;
             /**
@@ -7114,7 +7246,8 @@ export interface components {
             currency: components["schemas"]["CurrencyCode"];
             /**
              * Format: int32
-             * @description Active subscriptions across every currency.
+             * @description Active subscriptions across every currency. A subscription more than
+             *     three whole billing cycles overdue counts as stopped and is left out.
              * @example 5
              */
             activeCount: number;
@@ -7171,6 +7304,7 @@ export interface components {
              * @example 2026-09-01
              */
             month: string;
+            /** @description Zero or greater; a negative value is 400 `validation-error`. */
             totalIncome: components["schemas"]["MoneyAmount"];
             /**
              * @description Same value set as `CurrencyCode`, spelled out here because an
@@ -7198,6 +7332,7 @@ export interface components {
          *     }
          */
         BudgetPeriodUpdateRequest: {
+            /** @description Zero or greater; a negative value is 400 `validation-error`. */
             totalIncome: components["schemas"]["MoneyAmount"];
             budgetType: components["schemas"]["BudgetType"];
         };
@@ -7288,6 +7423,7 @@ export interface components {
              * @example 00000000-0000-4000-8000-0000000000f1
              */
             categoryId: string;
+            /** @description Zero or greater; a negative value is 400 `validation-error`. */
             allocated: components["schemas"]["MoneyAmount"];
             /**
              * @description Same value set as `CurrencyCode`, spelled out here because an
@@ -7308,12 +7444,16 @@ export interface components {
          *     }
          */
         EnvelopeUpdateRequest: {
+            /** @description Zero or greater; a negative value is 400 `validation-error`. */
             allocated: components["schemas"]["MoneyAmount"];
         };
         /**
          * @description Computed on every read from the envelope's amounts and where today falls
          *     inside the period's month, in the CALLER's own timezone. Never stored:
-         *     it depends on the clock, not on the row.
+         *     it depends on the clock, not on the row. `expectedSpend` is (`allocated` +
+         *     `rolloverAmount`) multiplied by the elapsed fraction of the month, and
+         *     `remainingAmount` is `allocated` + `rolloverAmount` less `spent`, floored
+         *     at zero.
          *
          *     For a month already over, the pace is 100 %; for one not yet begun it is
          *     0 %. The pre-collapse calculator used today's day-of-month whatever
@@ -7330,8 +7470,9 @@ export interface components {
         EnvelopeHealth: {
             /**
              * Format: int32
-             * @description `spent / allocated` as a percentage, rounded. Above 100 means the
-             *     envelope is over budget. Zero when nothing is allocated.
+             * @description `spent / (allocated + rolloverAmount)` as a percentage, rounded
+             *     half-up. Above 100 means the envelope is over budget. Zero when
+             *     allocated plus `rolloverAmount` is zero.
              * @example 62
              */
             healthPercentage: number;
@@ -7342,8 +7483,11 @@ export interface components {
              */
             paceMarkerPercentage: number;
             /**
-             * @description `spent` is more than 110 % of the linear-pace expectation for today.
-             *     The 10 % buffer absorbs ordinary day-to-day variance.
+             * @description `spent` is more than 110 % of `expectedSpend`, the linear-pace
+             *     expectation for today. Like `healthPercentage` and `expectedSpend`,
+             *     it is measured against `allocated` + `rolloverAmount`; it is false
+             *     when that sum is zero. The 10 % buffer absorbs ordinary day-to-day
+             *     variance.
              * @example true
              */
             overPace: boolean;
@@ -7439,6 +7583,7 @@ export interface components {
              * @example Emergency Fund
              */
             name: string;
+            /** @description Zero or greater; a negative value is 400 `validation-error`. */
             targetAmount: components["schemas"]["MoneyAmount"];
             /**
              * @description Same value set as `CurrencyCode`, spelled out here because an
@@ -7472,7 +7617,9 @@ export interface components {
              * @example Emergency Fund
              */
             name: string;
+            /** @description Zero or greater; a negative value is 400 `validation-error`. */
             targetAmount: components["schemas"]["MoneyAmount"];
+            /** @description Zero or greater; a negative value is 400 `validation-error`. */
             currentAmount: components["schemas"]["MoneyAmount"];
             /**
              * Format: date
@@ -7555,7 +7702,12 @@ export interface components {
         /**
          * @description What the generated file is. `CSV` is the machine-readable one an
          *     accountant imports; `PDF` renders the same columns for printing. Both
-         *     carry the member's own amounts and labels and no computed figure.
+         *     carry the member's own amounts and labels. Amounts are always
+         *     positive; the final `type` column (`DEBIT`, `CREDIT`, `REFUND`, `FEE`,
+         *     `INTEREST`, `TRANSFER`, `OTHER`) says which way the money moved. The
+         *     per-tax-line totals are spending only: a `DEBIT` adds, a `REFUND`
+         *     subtracts, and every other type is listed on its row but never added
+         *     into a total. This is an export, not a tax calculation.
          * @example CSV
          * @enum {string}
          */
@@ -7820,8 +7972,9 @@ export interface components {
             errorMessage: string | null;
             /**
              * Format: date-time
-             * @description When the download link stops working — 24 hours after the archive was
-             *     written. Null until the run is `COMPLETE`. A download after this
+             * @description When the download link stops working — by default 24 hours after
+             *     the archive was written (operator setting
+             *     `trove.data-export.download-ttl`). Null until the run is `COMPLETE`. A download after this
              *     instant is 409 `conflict`, and a scheduled sweep deletes the file
              *     itself.
              * @example 2026-09-07T14:00:02Z
@@ -7964,13 +8117,30 @@ export interface components {
              */
             emailEnabled: boolean;
             /**
-             * @description Where email notifications go, or null. Separate from the sign-in
-             *     address on purpose: a member may want alerts somewhere other than
-             *     the mailbox their account is named after. The server also applies
-             *     Jakarta `@Email`, which is stricter than this pattern.
+             * @description Where email notifications go, or null. The email channel mails it
+             *     only when it matches the member's own sign-in address (letter case
+             *     aside): nothing proves a member owns any other address, so another
+             *     address is stored but never mailed until address verification
+             *     exists. The server also applies Jakarta `@Email`, which is stricter
+             *     than this pattern.
              * @example alerts@example.test
              */
             emailAddress: string | null;
+            /**
+             * @description Whether this server can send email at all: true only when an
+             *     operator has configured and enabled the email channel
+             *     (`SMTP_ENABLED=true`). Read-only, and not part of the update body.
+             *     While it is false, clients hide the email toggle and address,
+             *     because nothing would ever be mailed; `emailEnabled` and
+             *     `emailAddress` are still stored and returned as written.
+             *
+             *     This server always sends it. It is left out of `required` on
+             *     purpose: a mobile build talks to whatever server version its
+             *     household runs, and a server older than this field does not send
+             *     it. A client treats an absent value as false.
+             * @example false
+             */
+            readonly emailAvailable?: boolean;
             /**
              * @description Whether this member is in the Monday digest. The job triggers at
              *     08:00 UTC; the week it reports is the last complete Monday-to-Sunday
@@ -8036,7 +8206,9 @@ export interface components {
             /**
              * @description An explicit `null` clears the stored address — this is the only way
              *     to unset it, and the one field where `null` and "omitted" differ.
-             *     The server also applies Jakarta `@Email`.
+             *     Mailed only when it matches the member's own sign-in address; any
+             *     other address is stored but never mailed. The server also applies
+             *     Jakarta `@Email`.
              * @example alerts@example.test
              */
             emailAddress?: string | null;
@@ -8127,9 +8299,10 @@ export interface components {
              */
             targetUrl: string;
             /**
-             * @description The shared secret every delivery is signed with
-             *     (`X-Trove-Signature: sha256=<hex>`, HMAC-SHA256 over the exact
-             *     request bytes). Sixteen characters minimum, because a short shared
+             * @description The shared secret every delivery is signed with (Standard Webhooks
+             *     `webhook-signature: v1,<base64>`, HMAC-SHA256 keyed with this
+             *     string's UTF-8 bytes over `<webhook-id>.<webhook-timestamp>.<raw
+             *     body>`). Sixteen characters minimum, because a short shared
              *     secret is guessable offline from a single captured delivery. Stored
              *     AES-GCM-encrypted and never returned or logged.
              * @example a-long-enough-webhook-secret
@@ -8144,9 +8317,11 @@ export interface components {
              *     than the one that ships. The vocabulary is
              *     `budget.threshold_crossed`, `subscription.price_changed`,
              *     `sync.completed` and `receipt.processed`; it is not written as an
-             *     enum here because the component that publishes into the delivery
-             *     queue arrives with a later collapse step, and an enum would promise
-             *     a delivery this build cannot make.
+             *     enum because the server accepts any non-blank string of at most 50 characters and
+             *     does not check it against this list. Only the four names above are
+             *     ever delivered. A name outside the list is stored but never matches
+             *     an event, so a subscription that lists only unknown names receives
+             *     nothing.
              * @example [
              *       "budget.threshold_crossed"
              *     ]
@@ -8502,9 +8677,10 @@ export interface components {
              */
             extractedMerchant?: string;
             /**
-             * @description The receipt total. `MoneyAmount` admits a negative because the ledger
-             *     has negative amounts elsewhere; a receipt total does not, and the
-             *     server refuses one below zero with 400 `validation-error`.
+             * @description The receipt total. `MoneyAmount` admits a negative because the
+             *     ledger has negative amounts elsewhere; a receipt total does not, and
+             *     the server refuses one below zero with 400 `validation-error`. Zero
+             *     or greater and at most 1000000000.
              */
             extractedAmount?: components["schemas"]["MoneyAmount"];
             extractedCurrency?: components["schemas"]["CurrencyCode"];
@@ -8780,7 +8956,7 @@ export interface components {
                 };
             };
         };
-        /** @description **400.** The setup token could not be used. `validation-error` is a token that is not base64 or does not decode to an absolute URL; `malformed-request` is an unparseable body; `outbound-url-rejected` is the egress policy refusing the URL the token decodes to — not https, no host, or an address this server will not connect to (loopback, private, link-local, the cloud instance-metadata address, or a name that resolves to one). HTTP Basic credentials in the URL's userinfo are *not* a refusal here: the SimpleFIN protocol puts them there, so they are taken off the URL before the policy sees it and sent as an `Authorization` header to the address that was approved. The message names the rule that refused it and never the resolved address, and it never echoes the token, the decoded URL or any credential. */
+        /** @description **400.** The setup token could not be used. `validation-error` is a token that is not base64 or does not decode to an absolute URL; `malformed-request` is an unparseable body; `outbound-url-rejected` is the egress policy refusing the URL the token decodes to — not https, no host, or an address this server will not connect to (loopback, private, link-local, the cloud instance-metadata address, or a name that resolves to one). HTTP Basic credentials in the URL's userinfo are *not* a refusal here: the SimpleFIN protocol puts them there, so they are taken off the URL before the policy sees it and sent as an `Authorization` header to the address that was approved. A refusal for the URL's shape names that rule; a refusal by address reads the same whatever the address or its range. It never echoes the token, the decoded URL or any credential. */
         SetupTokenRejected: {
             headers: {
                 "X-Request-Id": components["headers"]["XRequestId"];
@@ -8855,7 +9031,7 @@ export interface components {
                 };
             };
         };
-        /** @description **429.** The sign-in was refused before any password was verified, for one of two reasons, and the slug says which. `account-locked` is the brute-force gate: too many failed attempts from this client address inside the lockout window, checked before a credential is read so it costs an attacker the same whether or not the account exists. `rate-limited` is the request-rate limiter in front of it: too many calls to this route from this client address, regardless of whether they failed. Both carry `Retry-After` in seconds. */
+        /** @description **429.** The sign-in or registration was refused before any password was verified, for one of two reasons, and the slug says which. `account-locked` is the brute-force gate: too many failed attempts from this client address inside the lockout window (a registration refused as `email-taken` counts as one), checked before a credential is read so it costs an attacker the same whether or not the account exists. The gate fails closed, so it also answers `account-locked` when the request carries no resolvable client address, or when the failed-attempt count cannot be read (a database error); in those two cases nothing was wrong with the caller's attempts, `Retry-After` is 60 seconds, and the same request can be repeated once the store or the proxy chain is healthy. `rate-limited` is the request-rate limiter in front of it: too many calls to this route from this client address, regardless of whether they failed. Both carry `Retry-After` in seconds. */
         LoginThrottled: {
             headers: {
                 "X-Request-Id": components["headers"]["XRequestId"];
@@ -8871,7 +9047,7 @@ export interface components {
                 };
             };
         };
-        /** @description **429.** A request-rate limit was exceeded. The limiter keys on the authenticated user when there is one and on the client address otherwise, and matches the request against the rules in `rate_limit_config`, so the ceiling that was hit depends on the route. `Retry-After` carries the number of seconds to wait. Every route on this API except `GET /v1/status` can answer this. */
+        /** @description **429.** A request-rate limit was exceeded. The limiter keys on the authenticated user when there is one and on the client address otherwise, except on the anonymous sign-in routes (`register`, `login`, `login/totp`, `refresh`, `logout`, `password/reset`), which are always keyed on the client address so that a session cannot buy a second budget there, and matches the request against the rules in `rate_limit_config`, so the ceiling that was hit depends on the route. `Retry-After` carries the number of seconds to wait. Every route on this API except `GET /v1/status` can answer this. */
         RateLimited: {
             headers: {
                 "X-Request-Id": components["headers"]["XRequestId"];
@@ -8918,7 +9094,7 @@ export interface components {
                 };
             };
         };
-        /** @description **400.** The body failed validation, or the endpoint URL was refused by the egress policy. `outbound-url-rejected` carries a sentence naming the rule that refused it — the scheme, the missing opt-in, or the address range the host resolves to — but never the resolved address itself, which would turn the validator into the internal port scanner it exists to prevent. */
+        /** @description **400.** The body failed validation, or the endpoint URL was refused by the egress policy. `outbound-url-rejected` names the rule when the URL's shape is refused (the scheme, the missing opt-in, credentials before the host). A refusal by address reads the same whatever the address, its range, or whether the name resolves at all: anything more would turn the validator into the internal network probe it exists to prevent. */
         AiSettingsRejected: {
             headers: {
                 "X-Request-Id": components["headers"]["XRequestId"];
@@ -8993,7 +9169,11 @@ export interface components {
                 };
             };
         };
-        /** @description **504.** The endpoint did not answer inside the deadline. The deadline is the caller's own `readTimeoutMs`, capped by the install's `TROVE_HTTP_READ_TIMEOUT_MS`; a local model on modest hardware legitimately needs longer than a cloud one, which is why the value is per user at all. */
+        /**
+         * @description **504.** The endpoint did not answer inside the deadline. The deadline is the caller's own `readTimeoutMs`, capped
+         *     at four times the install's `TROVE_HTTP_READ_TIMEOUT_MS` (120 s at the
+         *     default 30000 ms); a local model on modest hardware legitimately needs longer than a cloud one, which is why the value is per user at all.
+         */
         AiTimeout: {
             headers: {
                 "X-Request-Id": components["headers"]["XRequestId"];
@@ -9053,7 +9233,7 @@ export interface components {
                 };
             };
         };
-        /** @description **400.** The body failed validation, or the target URL was refused by the shared egress policy. `outbound-url-rejected` carries a sentence naming the rule that refused it — plain `http`, credentials before the host, or the address range the host resolves to (loopback, private, carrier-grade NAT, IPv6 unique-local, link-local, or the cloud instance-metadata address) — but never the resolved address itself, which would turn this route into the internal port scanner the policy exists to prevent. The same policy runs again on every delivery attempt, so passing here is not a promise that a later delivery will be attempted. */
+        /** @description **400.** The body failed validation, or the target URL was refused by the shared egress policy. `outbound-url-rejected` names the rule when the URL's shape is refused (plain `http`, credentials before the host). A refusal by address (loopback, private, carrier-grade NAT, IPv6 unique-local or transition, link-local, the cloud instance-metadata address, or a name that does not resolve) reads the same whatever the reason, so this route cannot become the internal network probe the policy exists to prevent. The same policy runs again on every delivery attempt, so passing here is not a promise that a later delivery will be attempted. */
         WebhookRejected: {
             headers: {
                 "X-Request-Id": components["headers"]["XRequestId"];
@@ -9292,9 +9472,13 @@ export interface components {
         /**
          * @description **Cookie mode only.** Two `Set-Cookie` headers, `__Host-trove_access` and
          *     `__Host-trove_refresh`, each `HttpOnly; Secure; SameSite=Lax; Path=/` with
-         *     `Max-Age` set to the refresh token's remaining life. Bearer-mode responses
-         *     set neither and carry the tokens in the body instead. A `XSRF-TOKEN`
-         *     cookie (readable, `Secure; Path=/`) may be planted alongside them.
+         *     `Max-Age` set to the refresh token's remaining life (86400 s, one day,
+         *     for a fresh sign-in by default; `trove.jwt.refresh-expiry-seconds` sets
+         *     it). Bearer-mode responses set neither and carry the tokens in the body instead. A `XSRF-TOKEN`
+         *     cookie (readable, `Secure; Path=/`) may be planted alongside them. On
+         *     register, password login and TOTP login the `XSRF-TOKEN` cookie is
+         *     replaced with a fresh value; `POST /v1/auth/refresh` leaves it as it
+         *     was.
          */
         SetSessionCookies: string;
         /**
@@ -9442,7 +9626,7 @@ export interface operations {
             403: components["responses"]["RegistrationClosed"];
             404: components["responses"]["InviteInvalid"];
             410: components["responses"]["InviteExpired"];
-            429: components["responses"]["RateLimited"];
+            429: components["responses"]["LoginThrottled"];
             500: components["responses"]["InternalServerError"];
             503: components["responses"]["LimiterUnavailable"];
         };
@@ -11280,6 +11464,81 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["AdminSelfTargetRefused"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    changeHouseholdMemberRole: {
+        parameters: {
+            query?: never;
+            header?: {
+                /**
+                 * @description Must be exactly `XMLHttpRequest` on a mutating request that was
+                 *     authenticated by cookie. Missing it is 403 `csrf-header-missing`. Bearer
+                 *     callers are not checked (the mobile client sends it anyway).
+                 */
+                "X-Requested-With"?: components["parameters"]["RequestedWithHeader"];
+                /**
+                 * @description The CSRF double-submit token, echoing the value of the non-HttpOnly
+                 *     `XSRF-TOKEN` cookie the server plants on the first request. Required on
+                 *     any mutating request that carries a session cookie or declares
+                 *     `X-Trove-Auth-Mode: cookie`; a missing or stale token is 403 `forbidden`.
+                 *     Bearer callers omit it.
+                 */
+                "X-XSRF-TOKEN"?: components["parameters"]["XsrfTokenHeader"];
+                /**
+                 * @description An optional caller-supplied correlation id. It is honoured **only if it
+                 *     parses as a UUID**, otherwise the server generates one; either way the id
+                 *     in force comes back in the `X-Request-Id` response header and in
+                 *     `error.requestId`.
+                 */
+                "X-Request-Id"?: components["parameters"]["RequestIdHeader"];
+            };
+            path: {
+                /**
+                 * @description The target member's id. Resolved inside the caller's own household, so an
+                 *     id from another household is 404 rather than 403.
+                 */
+                id: components["parameters"]["UserIdPath"];
+            };
+            cookie?: {
+                /**
+                 * @description The readable half of the CSRF double-submit pair (not HttpOnly, Secure,
+                 *     Path=/). The browser sends it automatically; the client's job is to copy
+                 *     it into `X-XSRF-TOKEN`.
+                 */
+                "XSRF-TOKEN"?: components["parameters"]["XsrfCookie"];
+                /**
+                 * @description The cookie-mode access token (HttpOnly, Secure, SameSite=Lax, Path=/,
+                 *     Max-Age tied to the refresh token's remaining life). Present instead of
+                 *     `Authorization: Bearer` for browser callers.
+                 */
+                "__Host-trove_access"?: components["parameters"]["AccessCookie"];
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminRoleRequest"];
+            };
+        };
+        responses: {
+            /** @description The member, with their role after the write. */
+            200: {
+                headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data: components["schemas"]["AdminUserResponse"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["InternalServerError"];
         };
@@ -13504,8 +13763,10 @@ export interface operations {
                     };
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["InternalServerError"];
         };
@@ -14038,8 +14299,9 @@ export interface operations {
         parameters: {
             query?: {
                 /**
-                 * @description The window to report. `ALL` has no lower bound. Any other value is
-                 *     400 `validation-error`, which is why this is a real enum rather
+                 * @description The window to report. `3M`, `6M` and `1Y` reach back 90, 180 and
+                 *     365 days from the caller's own today; `ALL` reaches back to
+                 *     2000-01-01. Any other value is 400 `validation-error`, which is why this is a real enum rather
                  *     than a free string.
                  */
                 range?: components["schemas"]["NetWorthRange"];

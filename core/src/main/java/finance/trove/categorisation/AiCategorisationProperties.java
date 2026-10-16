@@ -23,8 +23,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *       applied at every tier ({@code CategorisationService.java:159} and {@code :168}). Kept, so
  *       that the tier that costs money, time and privacy is no more eager than the free rule tiers
  *       were. Below it the household is better served by {@code Uncategorised}: a member corrects
- *       it once and the correction is learned as a {@link MappingSource#USER} row, which is a
- *       better mapping than a guess the model itself was unsure of.</li>
+ *       it once, the correction is pinned on that transaction ({@code category_override}), and a
+ *       rule under Categories makes it stick for the merchant, which is a better mapping than a
+ *       guess the model itself was unsure of.</li>
  *   <li>{@code trove.ai.categorisation.max-calls-per-batch} — {@code 25}. One AI call per
  *       uncategorised transaction is a five-hundred-call bill for one year of imported CSV, so
  *       the bound is explicit and per invocation. Twenty-five is chosen against what an import

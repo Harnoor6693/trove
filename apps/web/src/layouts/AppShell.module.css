@@ -135,3 +135,7 @@
   color: var(--ink-3);
 }
 .footer a { color: var(--sage); }
+
+.skip { position: absolute; left: var(--space-2); top: -48px; z-index: 300; padding: var(--space-2) var(--space-4); background: var(--card); color: var(--ink); border-radius: var(--radius-sm); box-shadow: var(--shadow-md); font-size: var(--font-sm); }
+.skip:focus-visible { top: var(--space-2); }
+.main:focus { outline: none; }

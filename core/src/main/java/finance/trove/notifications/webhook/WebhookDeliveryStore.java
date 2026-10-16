@@ -1,6 +1,7 @@
 package finance.trove.notifications.webhook;
 
 import jakarta.persistence.EntityManager;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -10,7 +11,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * The two short transactions the split {@code deliver()} needs, and nothing else
+ * The two short transactions the split {@code deliverDue()} needs, and nothing else
  * ({@code docs/recovery/06-COLLAPSE-PLAN.md} §6 D3).
  *
  * <h2>Why a class and not a Spring Data interface</h2>
@@ -31,6 +32,15 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Component
 public class WebhookDeliveryStore {
+
+    /**
+     * How long a row may sit {@code IN_FLIGHT} before it is taken to be orphaned (B3-01).
+     *
+     * <p>One attempt takes at most twenty seconds (ten to connect, ten to read) and a pass is
+     * bounded by the retry job's 29-second lock, so a row still {@code IN_FLIGHT} after ten minutes
+     * belongs to a process that crashed, was killed, or was interrupted between claim and outcome.
+     */
+    static final Duration STALE_IN_FLIGHT = Duration.ofMinutes(10);
 
     private final EntityManager entityManager;
 
@@ -60,6 +70,12 @@ public class WebhookDeliveryStore {
      * twenty seconds per row on somebody else's network, and a managed entity would keep this
      * transaction's persistence context alive for the whole of it.
      *
+     * <p>A row left {@code IN_FLIGHT} for longer than {@link #STALE_IN_FLIGHT} is claimed again
+     * (B3-01). Without that, a crash, a kill or a deploy between claim and outcome dropped the
+     * event for good, with nothing to show it was lost. The cost is that a receiver can see the
+     * same delivery twice when the first call did land; the delivery id header is stable across
+     * attempts, so the receiver can drop the duplicate.
+     *
      * @return the claimed rows, in due order; empty when nothing is due
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -67,9 +83,11 @@ public class WebhookDeliveryStore {
         @SuppressWarnings("unchecked")
         List<UUID> ids = entityManager.createNativeQuery(
                 "SELECT id FROM webhook_delivery_log "
-                    + "WHERE status IN ('PENDING', 'FAILED') AND next_attempt_at <= :now "
+                    + "WHERE (status IN ('PENDING', 'FAILED') AND next_attempt_at <= :now) "
+                    + "OR (status = 'IN_FLIGHT' AND updated_at <= :staleBefore) "
                     + "ORDER BY next_attempt_at ASC LIMIT :batchSize FOR UPDATE SKIP LOCKED")
             .setParameter("now", now)
+            .setParameter("staleBefore", now.minus(STALE_IN_FLIGHT))
             .setParameter("batchSize", batchSize)
             .getResultList();
         if (ids.isEmpty()) {
@@ -107,7 +125,8 @@ public class WebhookDeliveryStore {
      * a delivery the member had just cancelled and then failing the foreign key. An UPDATE simply
      * affects nothing.
      *
-     * <p>It also writes exactly the five columns an attempt owns. Everything else on the row is
+     * <p>It also writes exactly the six columns an attempt owns (status, attempt_count,
+     * next_attempt_at, last_status_code, error_message, updated_at). Everything else on the row is
      * immutable after insert, so nothing here can overwrite state that changed while the call was
      * in flight.
      *
@@ -130,7 +149,10 @@ public class WebhookDeliveryStore {
         return updated == 1;
     }
 
-    /** One row by id, for tests and for the retry loop's re-read. Detached. */
+    /**
+     * One row by id. Detached. Only the integration tests call this; nothing in production code
+     * reads a delivery row back by id.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public WebhookDeliveryLog find(UUID id) {
         WebhookDeliveryLog row = entityManager.find(WebhookDeliveryLog.class, id);

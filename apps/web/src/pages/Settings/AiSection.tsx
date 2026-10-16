@@ -49,6 +49,7 @@ import {
 import { aiSettingsErrorCopy } from './aiErrorCopy'
 import type { AiSettingsSave } from '@hooks/useAiSettings'
 import type { AiSettingsResponse, PrivacyTier } from '@api/types'
+import { WHOLE_NUMBER_ERROR, wholeNumber } from './wholeNumber'
 import styles from './Settings.module.css'
 
 /** The two tiers, with what each one actually does to a coach question. */
@@ -106,8 +107,8 @@ function bodyFrom(form: FormState): AiSettingsSave {
     endpointUrl: form.endpointUrl.trim() === '' ? null : form.endpointUrl.trim(),
     model: form.model.trim() === '' ? null : form.model.trim(),
     visionModel: form.visionModel.trim() === '' ? null : form.visionModel.trim(),
-    connectTimeoutMs: Number(form.connectTimeoutMs),
-    readTimeoutMs: Number(form.readTimeoutMs),
+    connectTimeoutMs: wholeNumber(form.connectTimeoutMs) ?? 0,
+    readTimeoutMs: wholeNumber(form.readTimeoutMs) ?? 0,
   }
 }
 
@@ -115,6 +116,7 @@ function bodyFrom(form: FormState): AiSettingsSave {
 function AiForm({ settings }: { settings: AiSettingsResponse }) {
   const [form, setForm] = useState<FormState>(() => formFrom(settings))
   const [saved, setSaved] = useState(false)
+  const [tried, setTried] = useState(false)
 
   const save = useUpdateAiSettingsMutation()
   const forget = useDeleteAiApiKeyMutation()
@@ -128,8 +130,13 @@ function AiForm({ settings }: { settings: AiSettingsResponse }) {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
+  const timeoutError = (value: string) =>
+    tried && wholeNumber(value) === null ? WHOLE_NUMBER_ERROR : undefined
+
   function submit() {
     setSaved(false)
+    setTried(true)
+    if (wholeNumber(form.connectTimeoutMs) === null || wholeNumber(form.readTimeoutMs) === null) return
     // The key travels OUT OF BAND, never as a mutation variable: TanStack Query
     // keeps `variables` on a settled mutation and the Mutation object lives on
     // in the mutation cache for its gc window, so a key passed here would be
@@ -318,7 +325,7 @@ function AiForm({ settings }: { settings: AiSettingsResponse }) {
         inputMode="numeric"
         value={form.connectTimeoutMs}
         onChange={(e) => set('connectTimeoutMs', e.target.value)}
-        error={save.error?.fieldError('connectTimeoutMs')}
+        error={timeoutError(form.connectTimeoutMs) ?? save.error?.fieldError('connectTimeoutMs')}
       />
       <QlInput
         label="Read timeout (milliseconds)"
@@ -326,7 +333,7 @@ function AiForm({ settings }: { settings: AiSettingsResponse }) {
         value={form.readTimeoutMs}
         onChange={(e) => set('readTimeoutMs', e.target.value)}
         hint="A local model on modest hardware legitimately needs longer than a cloud one."
-        error={save.error?.fieldError('readTimeoutMs')}
+        error={timeoutError(form.readTimeoutMs) ?? save.error?.fieldError('readTimeoutMs')}
       />
 
       {save.isError && (

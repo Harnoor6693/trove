@@ -34,6 +34,15 @@ describe('AppShell navigation', () => {
     for (const item of NAV_ITEMS) expect(served.has(item.to)).toBe(true)
   })
 
+  it('offers a skip link that targets the main landmark (D1-17)', () => {
+    authenticate()
+    resetMswState()
+    renderWithProviders(<AppShell />)
+    const skip = screen.getByRole('link', { name: 'Skip to content' })
+    expect(skip).toHaveAttribute('href', '#main-content')
+    expect(screen.getByRole('main')).toHaveAttribute('id', 'main-content')
+  })
+
   it('exposes the overflow destinations behind More on a narrow viewport', async () => {
     authenticate()
     setViewport(500)

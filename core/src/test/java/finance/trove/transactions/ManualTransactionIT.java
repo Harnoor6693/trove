@@ -21,6 +21,10 @@ import tools.jackson.databind.JsonNode;
  */
 class ManualTransactionIT extends LedgerSupport {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private finance.trove.categorisation.RecordingAiCategorisationTier aiTier;
+
+
     @Test
     @DisplayName("A transaction entered by hand is stored, marked manual, and categorised")
     void aManualTransactionIsStoredAndCategorised() {
@@ -157,6 +161,38 @@ class ManualTransactionIT extends LedgerSupport {
                 Json.object("accountId", accountId, "amount", "-4.75", "date", "2026-09-04"),
                 "Authorization", bearer));
         assertThat(negative.statusCode()).isEqualTo(400);
+    }
+
+    @Test
+    @DisplayName("B1-14: an amount finer than a cent is refused, not rounded to 0.00 or 12.35")
+    void subCentAmountsAreRejected() {
+        Session admin = loginBootstrapAdmin();
+        String accountId = createManualAccount(admin, "Cash " + UUID.randomUUID());
+        for (String amount : new String[] {"0.004", "12.345"}) {
+            HttpResponse<String> response = withoutRequestValidation(
+                "the contract now says at most two decimals; this asserts the SERVER refuses a "
+                    + "finer amount too rather than trusting the document",
+                () -> postJson(appUrl("/v1/transactions"),
+                    Json.object("accountId", accountId, "amount", amount, "date", "2026-09-04"),
+                    "Authorization", "Bearer " + admin.accessToken()));
+            assertThat(response.statusCode()).as(amount).isEqualTo(400);
+        }
+    }
+
+    @Test
+    @DisplayName("B1-12: the AI model call for a hand-entered row runs outside any DB transaction")
+    void theAiCallHoldsNoDatabaseTransaction() {
+        Session admin = loginBootstrapAdmin();
+        String accountId = createManualAccount(admin, "Cash " + UUID.randomUUID());
+        aiTier.reset();
+
+        createManualTransaction(admin, accountId, "5.00", "2026-09-04", "DEBIT",
+            "UNKNOWN SHOP " + UUID.randomUUID());
+
+        assertThat(aiTier.calls()).as("the AI tier was reached").isPositive();
+        assertThat(aiTier.callsInsideTransaction())
+            .as("a slow model call inside a transaction pins a pooled connection for its length")
+            .isZero();
     }
 
     @Test

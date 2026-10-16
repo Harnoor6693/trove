@@ -19,4 +19,4 @@
 }
 .item:hover { background: var(--paper, #f6f3ec); }
 .item.danger { color: var(--red, #9b3a2a); }
-.itemIcon { display: inline-flex; color: var(--ink-3, #8c8578); }
+.itemIcon { display: inline-flex; color: var(--ink-3, #6b6558); }

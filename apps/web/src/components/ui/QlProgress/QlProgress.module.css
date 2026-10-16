@@ -1,7 +1,7 @@
 .wrapper { width: 100%; display: flex; flex-direction: column; gap: var(--space-1, 4px); }
 .labelRow { display: flex; justify-content: space-between; align-items: center; }
 .label { font-family: Inter, sans-serif; font-size: var(--font-sm, 13px); color: var(--ink-2, #4a453d); }
-.pct   { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: var(--ink-3, #8c8578); }
+.pct   { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: var(--ink-3, #6b6558); }
 .track { background: var(--line, rgba(27,26,23,0.10)); border-radius: var(--radius-pill, 999px); overflow: hidden; width: 100%; }
 .fill  { height: 100%; background: var(--sage, #4a6b4f); border-radius: var(--radius-pill, 999px); transition: width 0.3s ease; }
 .over  { background: var(--red, #9b3a2a); }

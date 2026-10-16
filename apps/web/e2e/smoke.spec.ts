@@ -1,7 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 
 const KNOWN_NOISY_ERRORS = [
-  /favicon\.ico/i,
   /Download the React DevTools/i,
 ];
 

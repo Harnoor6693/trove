@@ -1,5 +1,7 @@
 # 23 — Load and security verification of the whole stack
 
+> **Historical record, 2026-09-25.** Measurements of the stack at `821b0874` (rebuild step 23). Figures are not updated for later steps. Current state: `docs-site/guide/architecture.md`.
+
 Collapse step 23 (plan `06-COLLAPSE-PLAN.md` §7 row 23, §9 risks 17–20, 22, 26–28, 30). Measured
 2026-09-25 on branch `step/23` (base `821b0874`), on one developer machine: Apple silicon, 10 cores,
 16 GB RAM, Docker Desktop 29.8.0 (linux/arm64 VM, 10 CPUs, 7.7 GiB). Every number below was

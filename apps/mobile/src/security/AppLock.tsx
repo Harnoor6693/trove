@@ -3,10 +3,11 @@ import { AppState, type AppStateStatus, StyleSheet, Text, View } from 'react-nat
 import { MnBtn } from '@components/ui/MnBtn/MnBtn';
 import { FontFamily, FontSize, Space } from '@design/tokens';
 import { useTheme } from '@design/useTheme';
-import { authenticateWithBiometrics, checkBiometricAvailability } from '@hooks/useBiometric';
+import { authenticateWithBiometrics } from '@hooks/useBiometric';
 import { logError } from '@lib/logError';
 import { fetchMe } from '@api/me';
 import { fetchPreferences } from '@api/preferences';
+import { isLockSuppressed } from './lockSuppression';
 import { useAuthStore } from '@stores/authStore';
 import { useUiStore } from '@stores/uiStore';
 
@@ -37,6 +38,7 @@ export function AppLock({ children }: { children: React.ReactNode }) {
   const status = useAuthStore((s) => s.status);
   const lock = useAuthStore((s) => s.lock);
   const unlock = useAuthStore((s) => s.unlock);
+  const signOut = useAuthStore((s) => s.signOut);
   const setMe = useAuthStore((s) => s.setMe);
   const setPreferences = useAuthStore((s) => s.setPreferences);
   const appLockEnabled = useUiStore((s) => s.appLockEnabled);
@@ -67,20 +69,34 @@ export function AppLock({ children }: { children: React.ReactNode }) {
     setUnlocking(true);
     try {
       if (appLockEnabled) {
-        const available = await checkBiometricAvailability();
-        if (available) {
-          // `disableDeviceFallback: false` in `useBiometric` means a failed
-          // face/finger scan falls back to the device passcode rather than
-          // dead-ending.
-          const result = await authenticateWithBiometrics('Unlock Trove');
-          if (!result.success) {
-            setError('Unlock failed. Try again.');
-            return;
-          }
+        // Always prompt. `disableDeviceFallback: false` in `useBiometric`
+        // means a device with no enrolled biometrics, or a failed scan, falls
+        // back to the device passcode. A device with neither stays locked: the
+        // lock must never silently open (B5-04).
+        const result = await authenticateWithBiometrics('Unlock Trove');
+        if (!result.success) {
+          setError(
+            result.error === 'not_enrolled' || result.error === 'passcode_not_set'
+              ? 'Set a device passcode or biometrics to use the app lock.'
+              : 'Unlock failed. Try again.'
+          );
+          return;
         }
       }
-      const ok = await unlock();
-      if (!ok) {
+      const outcome = await unlock();
+      if (outcome === 'ended') {
+        // The server refused the refresh and the session is over: the store
+        // is `anonymous`, which replaces this screen with the sign-in flow, so
+        // there is nothing to say here.
+        return;
+      }
+      if (outcome === 'retryable') {
+        // The session is kept and the store stays `locked`: say so, because
+        // "sign in again" would be wrong advice.
+        setError('Could not reach Trove. Check your connection and try again.');
+        return;
+      }
+      if (outcome === 'no-token') {
         setError('Your session expired. Sign in again.');
         return;
       }
@@ -99,8 +115,8 @@ export function AppLock({ children }: { children: React.ReactNode }) {
     if (status !== 'locked' || !settingsHydrated || appLockEnabled) return;
     let cancelled = false;
     void (async () => {
-      const ok = await unlock();
-      if (ok && !cancelled) await revalidate();
+      const outcome = await unlock();
+      if (outcome === 'ok' && !cancelled) await revalidate();
     })();
     return () => {
       cancelled = true;
@@ -113,7 +129,10 @@ export function AppLock({ children }: { children: React.ReactNode }) {
       setObscured(leaving);
 
       if (leaving) {
-        if (backgroundedAt.current === null) backgroundedAt.current = Date.now();
+        // The system camera/picker sent us away, not the member (B5-12).
+        if (backgroundedAt.current === null && !isLockSuppressed()) {
+          backgroundedAt.current = Date.now();
+        }
         return;
       }
 
@@ -150,6 +169,17 @@ export function AppLock({ children }: { children: React.ReactNode }) {
             fullWidth
           />
         )}
+        {/* The way out when the device can no longer open the lock (passcode
+            removed, biometrics unenrolled). It shows no data and takes the
+            ordinary sign-out path, so tokens are revoked and cleared. */}
+        <MnBtn
+          testID="app-lock-sign-out-btn"
+          label="Sign out"
+          variant="ghost"
+          onPress={() => void signOut()}
+          fullWidth
+          style={styles.signOut}
+        />
       </View>
     );
   }
@@ -189,6 +219,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: Space.s6,
   },
+  signOut: { marginTop: Space.s2 },
   error: {
     fontFamily: FontFamily.body,
     fontSize: FontSize.sm,

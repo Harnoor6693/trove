@@ -137,6 +137,16 @@ describe('the account picker', () => {
   });
 });
 
+describe('the keyboard (B5-07)', () => {
+  it('scrolls above the keyboard and lets the first tap reach Save', async () => {
+    mockAccounts.mockResolvedValue([account('manual-1')]);
+    await renderScreen();
+    const form = screen.getByTestId('new-transaction-form');
+    expect(form.props.automaticallyAdjustKeyboardInsets).toBe(true);
+    expect(form.props.keyboardShouldPersistTaps).toBe('handled');
+  });
+});
+
 describe('recording a transaction', () => {
   async function fillForm() {
     mockAccounts.mockResolvedValue([account('manual-1', { displayName: 'Cash' })]);
@@ -169,6 +179,18 @@ describe('recording a transaction', () => {
     });
     // `currency` is the account's and the operation does not accept it.
     expect(mockCreate.mock.calls[0][0]).not.toHaveProperty('currency');
+  });
+
+  it('sends a comma-decimal amount as a dot decimal (B5-08)', async () => {
+    mockCreate.mockResolvedValue(CREATED);
+    await fillForm();
+    await act(async () => {
+      await fireEvent.changeText(screen.getByTestId('new-transaction-amount'), '12,34');
+    });
+    await act(async () => {
+      await fireEvent.press(screen.getByTestId('new-transaction-submit'));
+    });
+    expect(mockCreate.mock.calls[0][0].amount).toBe('12.34');
   });
 
   it('carries the chosen type rather than assuming a debit', async () => {

@@ -6,11 +6,13 @@ on:
       - 'apps/mobile/**'
       - 'openapi/**'
       - '.github/workflows/mobile-ci.yml'
+      - '.github/workflows/release.yml'
   pull_request:
     paths:
       - 'apps/mobile/**'
       - 'openapi/**'
       - '.github/workflows/mobile-ci.yml'
+      - '.github/workflows/release.yml'
   workflow_dispatch:
 
 concurrency:
@@ -73,9 +75,10 @@ jobs:
       - name: Validate eas.json profiles
         run: npm run test:eas-config
 
-  # Detox needs a macOS runner with a matching Xcode and a native build that
-  # currently fails on react-native-screens codegen. Manual-only until the mobile
-  # phase rebuilds the native projects (plan step 21).
+  # Both Detox jobs (detox-ios on macos-15, detox-android on ubuntu) are manual-only
+  # (workflow_dispatch) because they are slow: each builds a native project, starts
+  # Postgres, the Trove server and Metro, and boots a simulator or emulator. Run them
+  # from the Actions tab before landing mobile changes.
   detox-ios:
     if: github.event_name == 'workflow_dispatch'
     runs-on: macos-15
@@ -255,10 +258,20 @@ jobs:
             sleep 2
           done
           cat metro.log; exit 1
+      # Detox's androidx.test launch gives the first activity 45 s to go idle,
+      # and a cold Metro build of the bundle took 34 s of that on this runner
+      # (run 38824582627: "Could not launch intent ... within 45000 milliseconds",
+      # then "app has unexpectedly disconnected" in the first suite). Build it
+      # once here, before the emulator competes for the CPU, using the URL the
+      # debug app requests, so the launch only downloads a cached bundle.
+      - name: Warm Metro's Android bundle
+        run: >-
+          curl -sSf --max-time 600 -o /dev/null
+          'http://localhost:8081/.expo/.virtual-metro-entry.bundle?platform=android&dev=true&lazy=true&minify=false&app=com.trove.app&modulesOnly=false&runModule=true&excludeSource=true&sourcePaths=url-server'
       - name: Run Detox Android tests
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
-          # Expo SDK 57 needs API 36, and .detoxrc.js boots the AVD by name:
+          # Expo SDK 58 (RN 0.88: targetSdk 36, compileSdk 37) runs on API 36, and .detoxrc.js boots the AVD by name:
           # keep api-level and avd-name in step with it.
           api-level: 36
           avd-name: Pixel_5_API_36

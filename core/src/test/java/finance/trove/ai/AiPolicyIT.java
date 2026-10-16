@@ -37,11 +37,11 @@ class AiPolicyIT extends AuthFlowSupport {
     void publicHttpsIsAccepted() {
         Session member = inviteAndRegister(loginBootstrapAdmin(), "policy-https");
 
-        HttpResponse<String> response = save(member, "https://203.0.113.10/v1", false);
+        HttpResponse<String> response = save(member, "https://[2d00::1]/v1", false);
 
         assertThat(response.statusCode()).as(response.body()).isEqualTo(200);
         assertThat(Json.data(response.body()).path("endpointUrl").asString())
-            .isEqualTo("https://203.0.113.10/v1");
+            .isEqualTo("https://[2d00::1]/v1");
     }
 
     @Test
@@ -49,7 +49,7 @@ class AiPolicyIT extends AuthFlowSupport {
     void publicHttpIsRefused() {
         Session member = inviteAndRegister(loginBootstrapAdmin(), "policy-http");
 
-        HttpResponse<String> response = save(member, "http://203.0.113.10/v1", true);
+        HttpResponse<String> response = save(member, "http://[2d00::1]/v1", true);
 
         assertRefused(response);
         assertThat(response.body())

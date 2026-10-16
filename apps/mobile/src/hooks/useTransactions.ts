@@ -65,9 +65,11 @@ export function nextTransactionPage(last: Page<TransactionResponse>): number | u
  * caller passes filters only.
  */
 export function useTransactions(
-  query: TransactionQuery = {}
+  query: TransactionQuery = {},
+  enabled = true
 ): UseInfiniteQueryResult<InfiniteData<Page<TransactionResponse>>> {
   return useInfiniteQuery({
+    enabled,
     queryKey: transactionKeys.list(query),
     initialPageParam: 0,
     queryFn: ({ pageParam }) => fetchTransactions({ ...query, page: pageParam as number }),

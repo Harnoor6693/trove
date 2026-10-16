@@ -4,7 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import finance.trove.app.support.AuthFlowSupport;
 import finance.trove.app.support.Json;
+import finance.trove.app.support.RowLockGate;
 import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
@@ -89,6 +97,72 @@ class PasswordResetIT extends AuthFlowSupport {
         assertThat(postJson(appUrl("/v1/auth/password/reset"),
             Json.object("token", token, "password", "yet-another-fine-passphrase")).statusCode())
             .isEqualTo(400);
+    }
+
+    @Test
+    @DisplayName("One link, two simultaneous redeems: exactly one password is set")
+    void aLinkCannotBeRedeemedTwiceConcurrently() throws Exception {
+        // Redeem was check-then-act with no lock: read consumed_at, hash a password for tens of
+        // milliseconds, then write consumed_at. Two requests could both read null, and whoever
+        // committed last chose the final password, so an attacker racing the owner won.
+        Session admin = loginBootstrapAdmin();
+        Session member = inviteAndRegister(admin, "reset-race");
+        String token = issueLink(admin, member.email());
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        List<Future<Integer>> results;
+        // Both redeems must write the member's credential row. Holding it open until both are
+        // parked means each has already passed whatever check it makes before that write.
+        RowLockGate gate = RowLockGate.hold(jdbcTemplate,
+            "SELECT 1 FROM local_credential WHERE user_id = ? FOR UPDATE", member.userId());
+        try {
+            CountDownLatch ready = new CountDownLatch(2);
+            CountDownLatch go = new CountDownLatch(1);
+            results = List.of(
+                pool.submit(() -> redeemRace(ready, go, token, NEW_PASSWORD)),
+                pool.submit(() -> redeemRace(ready, go, token, "an-attackers-fine-passphrase")));
+            assertThat(ready.await(30, TimeUnit.SECONDS)).isTrue();
+            go.countDown();
+            gate.awaitWaiters(2, Duration.ofSeconds(30));
+        } finally {
+            gate.close();
+        }
+
+        try {
+            List<Integer> statuses = List.of(results.get(0).get(60, TimeUnit.SECONDS),
+                results.get(1).get(60, TimeUnit.SECONDS));
+            assertThat(statuses)
+                .as("a single-use link sets one password: %s", statuses)
+                .containsExactlyInAnyOrder(200, 400);
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    private int redeemRace(CountDownLatch ready, CountDownLatch go, String token,
+                           String password) throws Exception {
+        ready.countDown();
+        go.await(30, TimeUnit.SECONDS);
+        return postJson(appUrl("/v1/auth/password/reset"),
+            Json.object("token", token, "password", password)).statusCode();
+    }
+
+    @Test
+    @DisplayName("A link for a deactivated account is refused like an unknown one")
+    void aDeactivatedAccountCannotBeReset() {
+        Session admin = loginBootstrapAdmin();
+        Session member = inviteAndRegister(admin, "reset-inactive");
+        String token = issueLink(admin, member.email());
+        jdbcTemplate.update("UPDATE users SET is_active = false WHERE id = ?", member.userId());
+
+        HttpResponse<String> refused = postJson(appUrl("/v1/auth/password/reset"),
+            Json.object("token", token, "password", NEW_PASSWORD));
+
+        assertThat(refused.statusCode())
+            .as("a reset must not rewrite the password of a member who was removed or "
+                + "disabled after the link was minted: %s", refused.body())
+            .isEqualTo(400);
+        assertThat(Json.errorCode(refused.body())).isEqualTo("reset-invalid");
     }
 
     @Test

@@ -150,4 +150,34 @@ class MoneyTest {
                 .hasToString("100.00 CAD");
         }
     }
+
+    @Nested
+    @DisplayName("fitsColumn: what NUMERIC(19,4) can hold")
+    class ColumnFit {
+
+        @ParameterizedTest(name = "{0} fits")
+        @CsvSource({"0", "12.34", "-12.34", "999999999999999.9999", "-999999999999999.9999",
+            "12.340000", "0.0001", "1E+2", "0.00000"})
+        @DisplayName("fifteen digits before the point and four after, trailing zeros aside")
+        void fits(String value) {
+            assertThat(Money.fitsColumn(new BigDecimal(value))).isTrue();
+        }
+
+        @ParameterizedTest(name = "{0} does not fit")
+        @CsvSource({"1000000000000000", "0.00001", "12.34567", "1E+15", "1E-5", "1E9999999",
+            "-1E+999999999", "1E-999999999", "0E-999999999", "1E+2147483647"})
+        @DisplayName("a sixteenth integer digit, a fifth decimal or an exponent bomb is refused")
+        void doesNotFit(String value) {
+            assertThat(Money.fitsColumn(new BigDecimal(value))).isFalse();
+        }
+
+        @Test
+        @DisplayName("deciding is cheap at any exponent: nothing is ever expanded")
+        void isCheapAtAnyExponent() {
+            long started = System.nanoTime();
+            assertThat(Money.fitsColumn(new BigDecimal("1E999999999"))).isFalse();
+            assertThat(Money.fitsColumn(new BigDecimal("1E-999999999"))).isFalse();
+            assertThat(System.nanoTime() - started).isLessThan(100_000_000L);
+        }
+    }
 }

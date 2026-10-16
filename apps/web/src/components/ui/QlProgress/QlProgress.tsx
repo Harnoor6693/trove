@@ -11,7 +11,7 @@ interface QlProgressProps {
 
 export function QlProgress({ value, max = 100, label, showLabel = false, height = 3, over = false }: QlProgressProps) {
   const pct = Math.min(100, (value / max) * 100);
-  const isOver = over || pct >= 100;
+  const isOver = over || value > max;
   return (
     <div
       data-testid={isOver ? 'ql-progress-over' : 'ql-progress'}

@@ -117,7 +117,7 @@ public class BudgetPeriodService {
             // Only once the period has envelopes. One that has none has allocated nothing, and
             // refusing to change its income before its first envelope exists would make
             // ZERO_BASED unusable rather than strict.
-            requireZeroBasedInvariant(period, envelopes.sumAllocatedByPeriodId(periodId));
+            requireZeroBasedInvariant(period, envelopes.sumAllocatedByPeriodId(periodId, period.getCurrency()));
         }
         return periods.save(period);
     }
@@ -145,8 +145,9 @@ public class BudgetPeriodService {
      * it sent, which is what {@code validation-error} means.
      *
      * <p>A {@code FLEXIBLE} or {@code ROLLOVER} period passes unconditionally. The callers decide
-     * <em>when</em> to ask: every envelope write does, because after it the period certainly has
-     * an envelope, and a period update does only once one exists — refusing to change a
+     * <em>when</em> to ask: envelope create and update do, because after either the period
+     * certainly has an envelope (delete does not check), and a period update does only once one
+     * exists — refusing to change a
      * ZERO_BASED period's income before its first envelope exists would make the type unusable
      * rather than strict.
      *

@@ -2,6 +2,7 @@ package finance.trove.ai;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import finance.trove.ai.AiGateway;
 import finance.trove.app.support.AuthFlowSupport;
 import finance.trove.app.support.Json;
 import java.net.http.HttpResponse;
@@ -9,6 +10,7 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -19,14 +21,19 @@ import tools.jackson.databind.JsonNode;
  * <p><strong>Why the endpoint is an IP literal.</strong> {@code OutboundUrlPolicy} resolves the
  * host and refuses anything private, and it does so at save time as well as on every call. A
  * hostname would need DNS, which an offline build does not have; {@code localhost} is loopback and
- * is refused by design. {@code 203.0.113.10} is RFC 5737 TEST-NET-3: a literal, so
- * {@code InetAddress} answers without a lookup, and public as far as the policy is concerned, so
- * the save succeeds. Nothing in this class actually reaches it except the two tests that are about
- * what happens when an endpoint cannot be reached.
+ * is refused by design. {@code 2d00::1} is a literal, so {@code InetAddress} answers without a
+ * lookup, and public as far as the policy is concerned, so the save succeeds; it is global
+ * unicast that IANA has not delegated to any registry ({@code 2d00::/8}), so nobody routes it. A
+ * documentation range such as RFC 5737's TEST-NET-3 cannot stand in: the policy refuses those.
+ * Nothing in this class actually reaches it except the two tests that are about what happens
+ * when an endpoint cannot be reached.
  */
 class AiSettingsIT extends AuthFlowSupport {
 
-    private static final String ENDPOINT = "https://203.0.113.10/v1";
+    @Autowired
+    private AiGateway gateway;
+
+    private static final String ENDPOINT = "https://[2d00::1]/v1";
     private static final String API_KEY = "sk-integration-test-key-9f2c";
 
     @Test
@@ -134,7 +141,7 @@ class AiSettingsIT extends AuthFlowSupport {
                 + "AND type = 'EGRESS_SETTING_CHANGE'", String.class, member.userId());
         assertThat(metadata).hasSize(1);
         assertThat(metadata.get(0))
-            .contains("203.0.113.10")
+            .contains("2d00::1")
             .as("the row is readable by its subject; an endpoint path routinely carries a token")
             .doesNotContain("secret-path")
             .doesNotContain(API_KEY);
@@ -203,9 +210,9 @@ class AiSettingsIT extends AuthFlowSupport {
         Session member = inviteAndRegister(loginBootstrapAdmin(), "ai-unreachable");
         String bearer = "Bearer " + member.accessToken();
 
-        // The lowest connect timeout the schema allows, because 203.0.113.10 is a documentation
-        // range that nothing routes to: the point is which exception comes back, not how long it
-        // takes to come back.
+        // The lowest connect timeout the schema allows, because 2d00::1 is undelegated space that
+        // nothing routes to: the point is which exception comes back, not how long it takes to
+        // come back.
         putJson(appUrl("/v1/ai/settings"),
             Json.object("enabled", true, "endpointUrl", ENDPOINT, "model", "llama3",
                 "allowPrivateEndpoint", false, "privacyTier", "CLOUD_OK",
@@ -242,7 +249,7 @@ class AiSettingsIT extends AuthFlowSupport {
 
         // What a member's settings look like the moment before they pick a model: an endpoint,
         // AI still off, and nothing in the model box. The short timeouts are because nothing
-        // routes to 203.0.113.10 and the point is which answer comes back, not how long it takes.
+        // routes to 2d00::1 and the point is which answer comes back, not how long it takes.
         putJson(appUrl("/v1/ai/settings"),
             Json.object("enabled", false, "endpointUrl", ENDPOINT, "allowPrivateEndpoint", false,
                 "privacyTier", "CLOUD_OK", "connectTimeoutMs", 100, "readTimeoutMs", 1000),
@@ -323,6 +330,28 @@ class AiSettingsIT extends AuthFlowSupport {
         JsonNode mine = Json.data(get(appUrl("/v1/ai/settings"), one.accessToken()).body());
         assertThat(mine.path("endpointUrl").asString()).isEqualTo(ENDPOINT);
         assertThat(mine.path("enabled").asBoolean()).isTrue();
+    }
+
+    @Test
+    @DisplayName("a member who has left is never called on behalf of, during the deletion grace too")
+    void aDeletedMembersSettingsAreNotUsed() {
+        Session admin = loginBootstrapAdmin();
+        Session member = inviteAndRegister(admin, "ai-leaver");
+        putJson(appUrl("/v1/ai/settings"),
+            settingsBody(true, ENDPOINT, API_KEY, "llama3", "llava", "LOCAL_ONLY"),
+            "Authorization", "Bearer " + member.accessToken());
+        assertThat(gateway.forUser(member.userId()).isEnabled())
+            .as("the settings are live while the member is, or the assertion below proves nothing")
+            .isTrue();
+
+        HttpResponse<String> deleted = delete(appUrl("/v1/admin/users/" + member.userId()),
+            null, "Authorization", "Bearer " + admin.accessToken());
+        assertThat(deleted.statusCode()).as(deleted.body()).isLessThan(300);
+
+        assertThat(gateway.forUser(member.userId()).isEnabled())
+            .as("B3-14: the receipt sweep re-runs a stuck receipt as its uploader, and spent a "
+                + "deleted member's key at their endpoint for the seven days of the grace")
+            .isFalse();
     }
 
     @Test

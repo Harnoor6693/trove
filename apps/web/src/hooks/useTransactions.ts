@@ -22,7 +22,9 @@ import {
   listTransactions,
   patchTransaction,
 } from '@api/transactions'
+import { budgetsKey } from './useBudgetPeriods'
 import { dashboardTodayKey } from './useDashboardToday'
+import { notificationsKey } from './useNotifications'
 import type { ApiError } from '@api/client'
 import type {
   ManualTransactionRequest,
@@ -41,6 +43,9 @@ export const transactionKey = (id: string) => ['transactions', 'detail', id] as 
 export function invalidateLedger(qc: QueryClient): void {
   void qc.invalidateQueries({ queryKey: transactionsKey })
   void qc.invalidateQueries({ queryKey: dashboardTodayKey })
+  // Envelope `spent`/`health` and alerts are derived from transactions.
+  void qc.invalidateQueries({ queryKey: budgetsKey })
+  void qc.invalidateQueries({ queryKey: notificationsKey })
 }
 
 /**

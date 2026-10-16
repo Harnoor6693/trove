@@ -16,7 +16,9 @@ import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Manual entry, enrichment and deletion of the household's transactions
@@ -36,11 +38,14 @@ public class TransactionService {
     private final TransactionCategoriser categoriser;
     private final ApplicationEventPublisher events;
     private final UserClock clock;
+    private final TransactionTemplate writeTransaction;
 
     public TransactionService(TransactionRepository transactions,
                               CategoryOverrideRepository overrides, CategoryRepository categories,
                               AccountService accounts, TransactionCategoriser categoriser,
-                              ApplicationEventPublisher events, UserClock clock) {
+                              ApplicationEventPublisher events, UserClock clock,
+                              PlatformTransactionManager transactionManager) {
+        this.writeTransaction = new TransactionTemplate(transactionManager);
         this.transactions = transactions;
         this.overrides = overrides;
         this.categories = categories;
@@ -63,7 +68,6 @@ public class TransactionService {
      * unless {@code categoryId} was given, which pins it: a member who chose a category at entry
      * time has already made the decision the pipeline would be guessing at.
      */
-    @Transactional
     public Transaction createManual(UUID householdId, UUID userId,
                                     ManualTransactionRequest request) {
         ConnectedAccount account = accounts.get(householdId, request.accountId());
@@ -92,12 +96,16 @@ public class TransactionService {
         }
         transaction.setCategoryId(categoryId);
 
-        Transaction saved = transactions.save(transaction);
-        if (request.categoryId() != null) {
-            pin(householdId, userId, saved.getId(), categoryId);
-        }
-        publishCategorised(householdId, userId, saved, null, categoryId);
-        return saved;
+        // Only the write is transactional (B1-12): the categorisation above may call the AI
+        // model, which must not hold a database connection while it thinks.
+        return writeTransaction.execute(status -> {
+            Transaction saved = transactions.save(transaction);
+            if (request.categoryId() != null) {
+                pin(householdId, userId, saved.getId(), categoryId);
+            }
+            publishCategorised(householdId, userId, saved, null, categoryId);
+            return saved;
+        });
     }
 
     /**
@@ -116,7 +124,9 @@ public class TransactionService {
                              TransactionPatch patch) {
         Transaction transaction = require(householdId, transactionId);
         UUID previousCategoryId = transaction.getCategoryId();
+        UUID previousGroupId = transaction.getTransferGroupId();
         boolean categoryChanged = false;
+        boolean ledgerChanged = false;
 
         if (patch.hasMerchantName()) {
             transaction.setMerchantName(patch.merchantName());
@@ -128,7 +138,13 @@ public class TransactionService {
             transaction.setTags(patch.tags());
         }
         if (patch.hasTransferGroupId()) {
+            if (patch.transferGroupId() == null) {
+                freePartners(householdId, userId, transaction);
+            }
             transaction.setTransferGroupId(patch.transferGroupId());
+            // Linking or unlinking moves the row in or out of every spend aggregate (B2-04).
+            ledgerChanged = !java.util.Objects.equals(transaction.getTransferGroupId(),
+                previousGroupId);
         }
         if (patch.hasCategoryId()) {
             UUID categoryId = patch.categoryId() == null
@@ -148,15 +164,19 @@ public class TransactionService {
         try {
             saved = transactions.save(transaction);
         } catch (DataIntegrityViolationException e) {
-            // merchant_category_map.category_id is ON DELETE RESTRICT and category_override's
-            // category_id has no cascade either, so a category that vanished between the
-            // visibility check and the write surfaces here rather than as a 500.
+            // If the category vanished between the visibility check and the write, the FK on
+            // transaction.category_id or category_override.category_id rejects it, which surfaces
+            // here rather than as a 500. (Deleting a category cascades the pin since V46;
+            // merchant_category_map.category_id is ON DELETE RESTRICT.)
             throw new ConflictException(
                 "The transaction could not be updated because a referenced row changed. "
                     + "Reload and try again.", e);
         }
         if (categoryChanged) {
             publishCategorised(householdId, userId, saved, previousCategoryId,
+                saved.getCategoryId());
+        } else if (ledgerChanged) {
+            publishCategorised(householdId, userId, saved, saved.getCategoryId(),
                 saved.getCategoryId());
         }
         return saved;
@@ -178,7 +198,31 @@ public class TransactionService {
                 + "came from its account's source and would return on the next sync; disconnect "
                 + "the account instead.");
         }
+        freePartners(householdId, transaction.getUserId(), transaction);
         transactions.deleteByIdAndHouseholdId(transactionId, householdId);
+        // The envelope still counts the row until it is recomputed (B2-04).
+        publishCategorised(householdId, transaction.getUserId(), transaction,
+            transaction.getCategoryId(), transaction.getCategoryId());
+    }
+
+    /**
+     * Frees the other legs of this row's transfer group (B1-08): without its pair a leg is not a
+     * transfer, and left linked it would vanish from spending, income and every envelope.
+     */
+    private void freePartners(UUID householdId, UUID userId, Transaction transaction) {
+        UUID group = transaction.getTransferGroupId();
+        if (group == null) {
+            return;
+        }
+        for (Transaction partner : transactions.findAllByHouseholdIdAndTransferGroupId(
+            householdId, group)) {
+            if (!partner.getId().equals(transaction.getId())) {
+                partner.setTransferGroupId(null);
+                transactions.save(partner);
+                publishCategorised(householdId, userId, partner, partner.getCategoryId(),
+                    partner.getCategoryId());
+            }
+        }
     }
 
     /** The scoped lookup every by-id route funnels through; empty is 404, never 403. */
@@ -220,9 +264,10 @@ public class TransactionService {
     /**
      * Publishes {@link TransactionCategorisedEvent} (§6 D4 → D1).
      *
-     * <p>Nothing consumes it in this step — {@code EnvelopeSpendListener} is step 8's and
-     * {@code CategorisationListener} step 16's. Publishing it now is what lets those steps be
-     * additive: they add a listener, they do not have to go back and find every write path.
+     * <p>Consumed after commit by {@code EnvelopeSpendListener}. {@code CategorisationListener}
+     * listens to {@code TransactionsIngestedEvent} instead. Publishing it from every write path
+     * keeps new listeners additive: they add a listener, they do not have to go back and find
+     * every write path.
      *
      * <p>The month comes from the transaction's own {@code date}, which is already a calendar date
      * in the source's terms, so no timezone conversion is involved or wanted here.

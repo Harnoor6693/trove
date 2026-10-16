@@ -1,0 +1,21 @@
+{
+  "errors": [],
+  "accounts": [
+    {
+      "org": {"domain": "bank.example", "sfin-url": "https://bridge.example/simplefin"},
+      "id": "a1",
+      "name": "Chequing",
+      "currency": "CAD",
+      "balance": "1234.56",
+      "balance-date": 1760194800,
+      "transactions": [
+        {"id": "T1", "posted": 1760054400, "transacted_at": 1760011200,
+         "amount": "-33.10", "description": "GROCERY STORE"},
+        {"id": "T2", "posted": 0, "transacted_at": 1760194800, "pending": true,
+         "amount": "-12.00", "description": "COFFEE SHOP"},
+        {"id": "T3", "posted": 1760054400, "amount": "-1.23456",
+         "description": "FIVE DECIMALS"}
+      ]
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 package finance.trove.ingestion.importbatch;
 
+import finance.trove.common.exception.ConflictException;
 import finance.trove.common.exception.ResourceNotFoundException;
 import finance.trove.ingestion.ImportMapping;
 import finance.trove.transactions.Transaction;
@@ -76,6 +77,9 @@ public class ImportUndoService {
             if (!isUntouched(householdId, row)) {
                 continue;
             }
+            if (row.getTransferGroupId() != null) {
+                transactions.clearTransferGroups(householdId, List.of(row.getTransferGroupId()));
+            }
             removed += (int) transactions.deleteByIdAndHouseholdId(row.getId(), householdId);
         }
         batch.markUndone();
@@ -87,13 +91,17 @@ public class ImportUndoService {
         return removed;
     }
 
-    /** Records what the commit did. See {@link ImportBatch#markCommitted}. */
-    @Transactional
+    /**
+     * Records what the commit did, unless another commit recorded itself first or the sweep removed
+     * the batch while this one ran (B1-16). The PREVIEW check is the update's own condition, so
+     * two commits can never both write their counts.
+     */
     public void markCommitted(UUID householdId, UUID batchId, int rowCount, int newCount,
                               int dupCount) {
-        ImportBatch batch = require(householdId, batchId);
-        batch.markCommitted(rowCount, newCount, dupCount);
-        batches.save(batch);
+        if (batches.markCommitted(batchId, householdId, rowCount, newCount, dupCount) == 0) {
+            throw new ConflictException("This import was committed, or removed, while this commit "
+                + "was running. Reload it to see what it holds.");
+        }
     }
 
     /** Persists the mapping a commit is about to use, so the batch always says what it used. */

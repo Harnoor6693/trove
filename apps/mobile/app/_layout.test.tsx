@@ -254,6 +254,6 @@ describe('one QueryClient', () => {
       return Array.from({ length: count }, () => path.relative(root, file));
     });
 
-    expect(constructions).toEqual(['app/_layout.tsx']);
+    expect(constructions).toEqual(['src/api/queryClient.ts']);
   });
 });

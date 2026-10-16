@@ -1,5 +1,7 @@
 # Inventory — CI, integration tests, specs, misc tooling
 
+> **Historical record, 2026-09-03.** CI and test inventory of the pre-rebuild repository at `6a8b3cf` (branch `rebuild`, since deleted). Branch names and workflow descriptions are not current. `03-REMEDIATION-PLAN.md` is in the private archive and not published. Current state: `docs-site/guide/architecture.md`.
+
 All paths repo-relative. Verified against source on 2026-09-03. Prior verified findings
 referenced as A1-A12, M2, M10, N3, N7 come from `docs/recovery/01-FINDINGS.md` (section O
 supersedes earlier sections); every one is re-verified against this checkout's actual source

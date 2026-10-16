@@ -1,7 +1,10 @@
 # ADR-0010: AES-256-GCM Field-Level Encryption for Sensitive Credentials
 
 **Date**: 2026-04-27  
-**Status**: accepted  
+**Status**: accepted (amended 2026-10-16, see note)
+
+> Update 2026-10-16: ciphertext is now stored as `v1:` + Base64(IV || ciphertext || tag); unprefixed values and other versions are rejected. The key is 64 hex characters or base64 of 32 bytes, checked at startup. Changing `TROVE_ENCRYPTION_KEY` does NOT rotate: existing values become undecryptable until a re-encrypt migration exists (the version prefix only prepares for one). `FieldEncryptionService` now also protects the AI API key, coach conversation and insight content, TOTP secrets, webhook subscription secrets, household invite tokens, the SimpleFIN setup exchange and the OIDC state cookie, so decryption is not limited to `SyncOrchestrator`. `config_encrypted` is nullable. There are no separate services sharing the key. The original text below is kept, except that its two claims about key rotation (marked "corrected 2026-10-16") are fixed in place.  
+
 **Deciders**: Security team
 
 ## Context
@@ -37,7 +40,7 @@ Use AES-256-GCM (Advanced Encryption Standard with 256-bit key in Galois/Counter
 - Fresh IV per encryption ensures identical plaintexts produce different ciphertexts (semantic security)
 - No external dependency; JCE provides GCM support natively
 - Encryption/decryption are fast (AES is hardware-accelerated on modern CPUs)
-- Key rotation is simple (redeploy with new `TROVE_ENCRYPTION_KEY`)
+- ~~Key rotation is simple (redeploy with new `TROVE_ENCRYPTION_KEY`)~~ (corrected 2026-10-16: there is no rotation. Redeploying with a new `TROVE_ENCRYPTION_KEY` makes every stored credential, TOTP secret and other encrypted value undecryptable, and users must re-enter their bank credentials and re-enrol TOTP. A re-encrypt migration is future work; the `v1:` prefix only prepares for it)
 
 ### Negative
 - Encryption key must be stored in environment variables (shared across all services; larger blast radius if exposed)
@@ -46,7 +49,7 @@ Use AES-256-GCM (Advanced Encryption Standard with 256-bit key in Galois/Counter
 - IV must be stored in plaintext alongside ciphertext (but IV reuse is prevented by random generation per call)
 
 ### Risks
-- **Key exposure**: If `TROVE_ENCRYPTION_KEY` environment variable is compromised, all encrypted credentials are compromised. Mitigated by: (1) strict access controls on environment variables in CI/CD pipeline, (2) regular key rotation, (3) audit logs of who accessed environment variables
+- **Key exposure**: If `TROVE_ENCRYPTION_KEY` environment variable is compromised, all encrypted credentials are compromised. Mitigated by: (1) strict access controls on environment variables in CI/CD pipeline, (2) ~~regular key rotation~~ (corrected 2026-10-16: not available, see Positive above; rotate only on suspected exposure and accept that stored values must be re-entered), (3) audit logs of who accessed environment variables
 - **IV reuse with same key**: If IV is reused for two encryptions with the same key, GCM security is broken. Mitigated by: (1) using `SecureRandom.nextBytes()` to generate fresh IV per call, (2) never reusing IV even across different processes
 - **Key derivation from password**: If key is derived from a user password, weak passwords weaken encryption. Mitigated by: (1) using externally-generated random keys (not password-derived), (2) validating key format and length at startup
 - **Decryption without verification**: If authentication tag is ignored during decryption, tampering is undetected. Mitigated by: (1) using JCE's built-in GCM verification (always verified), (2) catching `AEADBadTagException` and failing loudly

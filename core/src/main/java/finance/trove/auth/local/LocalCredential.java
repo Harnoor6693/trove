@@ -92,8 +92,4 @@ public class LocalCredential {
         this.failedAttempts = 0;
         this.lockedUntil = null;
     }
-
-    public boolean isLockedAt(Instant now) {
-        return lockedUntil != null && lockedUntil.isAfter(now);
-    }
 }

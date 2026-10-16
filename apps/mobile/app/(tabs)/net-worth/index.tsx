@@ -14,9 +14,13 @@ import { toApiFailure } from '@api/errors';
 import { parseDecimal, useUserFormat, type UserFormat } from '@lib/useUserFormat';
 import { useNetWorthSeries, useTakeNetWorthSnapshot } from '@hooks/useNetWorth';
 import type { NetWorthRange, NetWorthSeries } from '@api/types';
+import { localDateIso } from '@lib/localDate';
 
 /**
- * `snapshotDate` is a plain calendar date (`YYYY-MM-DD`, §12300). Parsed as
+ * `snapshotDate` is a plain calendar date (`format: date`, `YYYY-MM-DD`; see
+ * `NetWorthPoint.snapshotDate` in openapi/trove-core.yaml, and
+ * `NetWorthSnapshotResponse.snapshotDate`, which the contract describes as a
+ * local date). Parsed as
  * local midnight — same convention `useUserFormat`'s own `date()` uses — so
  * the chart's x-axis is a real timeline rather than an array index. Two
  * currencies with different history lengths (points is "oldest first,
@@ -27,12 +31,7 @@ function dayTimestamp(snapshotDate: string): number {
   return new Date(`${snapshotDate}T00:00:00`).getTime();
 }
 
-/**
- * The Net Worth tab's landing screen: one line per currency, never blended
- * (F2 — there is no exchange rate anywhere in this product). A household
- * holding both CAD and USD positions sees two lines and two totals, not one
- * converted figure.
- */
+/** Range choices for the series query. */
 const RANGES: NetWorthRange[] = ['3M', '6M', '1Y', 'ALL'];
 
 /** Colours assigned to each currency's line, in series order — this product supports at most CAD+USD. */
@@ -40,6 +39,12 @@ function lineColorFor(index: number, theme: ReturnType<typeof useTheme>): string
   return index === 0 ? theme.sage : theme.blue;
 }
 
+/**
+ * The Net Worth tab's landing screen: one line per currency, never blended
+ * (F2 — there is no exchange rate anywhere in this product). A household
+ * holding both CAD and USD positions sees two lines and two totals, not one
+ * converted figure.
+ */
 export default function NetWorthScreen() {
   const theme = useTheme();
   const format = useUserFormat();
@@ -186,9 +191,7 @@ function NetWorthChart({
             />
             <VictoryAxis
               scale={{ x: 'time' }}
-              tickFormat={(t: number) =>
-                format.date(new Date(t).toISOString().slice(0, 10), 'short')
-              }
+              tickFormat={(t: number) => format.date(localDateIso(new Date(t)), 'short')}
             />
             <VictoryLine
               data={one.points.map((point) => ({

@@ -20,6 +20,7 @@ import { create } from 'zustand'
 import { ApiError, setSessionExpiredHandler } from '@api/client'
 import { getMe, logout as logoutRequest } from '@api/auth'
 import type { MeResponse } from '@api/types'
+import { queryClient } from '../queryClient'
 
 export type AuthStatus = 'hydrating' | 'anonymous' | 'authenticated' | 'expired'
 
@@ -109,6 +110,20 @@ export const useAuthStore = create<AuthState>()((set) => ({
  */
 setSessionExpiredHandler(() => {
   useAuthStore.setState({ status: 'expired', user: null })
+})
+
+/**
+ * Household data must not outlive the session that fetched it. Every way a
+ * session ends (sign-out, expiry) passes through here, so the next person to
+ * sign in on this tab starts with an empty cache.
+ */
+useAuthStore.subscribe((state, prev) => {
+  if (
+    prev.status === 'authenticated' &&
+    (state.status === 'anonymous' || state.status === 'expired')
+  ) {
+    queryClient.clear()
+  }
 })
 
 /** Test seam — resets the coalescing promise between cases. */

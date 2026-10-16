@@ -60,15 +60,14 @@ export const AUTH_MODE_HEADER = 'X-Trove-Auth-Mode';
 export const AUTH_MODE = 'bearer';
 
 /**
- * The header `CsrfRequiresHeaderFilter` demands (§1.5 / contract point 9).
+ * The header `CsrfRequiresHeaderFilter` requires on cookie-authenticated
+ * mutations (§1.5 / contract point 9).
  *
- * Bearer requests are supposed to skip that filter, so strictly this is
- * redundant — but only once the server has been changed to skip it, and the
- * one mutating call mobile makes *before* it holds a bearer token is
- * `POST /v1/auth/login` itself, where the server has no `trove.authSource`
- * attribute to switch on. Sending the header costs nothing, matches what
- * `apps/web` sends on every request, and removes a whole class of 403 at
- * integration time.
+ * The server does not require it for bearer calls: the filter only enforces
+ * the header when the request authenticated through the cookie
+ * (`AuthSource.COOKIE`), and an anonymous bearer-mode `POST /v1/auth/login`
+ * carries no `AuthSource` at all. It is sent anyway because it costs nothing
+ * and matches what `apps/web` sends on every request.
  */
 export const REQUESTED_WITH_HEADER = 'X-Requested-With';
 export const REQUESTED_WITH = 'XMLHttpRequest';
@@ -184,10 +183,11 @@ async function endSession(reason: SessionEndReason): Promise<void> {
  * End the session from a call that does **not** go through the response
  * interceptor below.
  *
- * There is exactly one such call in this app — the SSE stream in `sse.ts`,
- * which has to be a `fetch`/`XMLHttpRequest` because axios cannot hand back a
- * body incrementally. It has to reach the same three endings the interceptor
- * reaches (`REFRESH_REJECTED`, `NO_REFRESH_TOKEN`, `UNAUTHORIZED`), or the
+ * There is exactly one such call in this app — the Coach completion stream in
+ * `coach.ts`, which goes through the `sse.ts` transport (an `XMLHttpRequest`)
+ * because axios cannot hand back a body incrementally. It has to reach the
+ * same three endings the interceptor reaches (`REFRESH_REJECTED`,
+ * `NO_REFRESH_TOKEN`, `UNAUTHORIZED`), or the
  * auth surface behaves differently depending on which transport made the
  * call: a member whose refresh token is gone would sit on an authenticated UI
  * whose every request 401s, because `refreshAccessToken` rejects *before* its
@@ -203,13 +203,17 @@ export function endSessionOutsideInterceptor(reason: SessionEndReason): Promise<
 
 // --- the instance ----------------------------------------------------------
 
-export const api: AxiosInstance = axios.create({ timeout: 15_000 });
+const DEFAULT_TIMEOUT_MS = 15_000;
+/** A camera JPEG or a household export over weak cellular outlasts 15 s (B5-05). */
+const TRANSFER_TIMEOUT_MS = 120_000;
+
+export const api: AxiosInstance = axios.create({ timeout: DEFAULT_TIMEOUT_MS });
 
 /**
  * A bare instance for the refresh call itself. Using `api` would put the
  * refresh through the 401 interceptor that is currently running it.
  */
-const refreshClient: AxiosInstance = axios.create({ timeout: 15_000 });
+const refreshClient: AxiosInstance = axios.create({ timeout: DEFAULT_TIMEOUT_MS });
 
 function resolveBaseUrl(): string {
   const base = getBaseUrl();
@@ -219,6 +223,12 @@ function resolveBaseUrl(): string {
 
 api.interceptors.request.use((config) => {
   config.baseURL = resolveBaseUrl();
+  // Uploads and file downloads get a longer budget unless the caller set one.
+  const isTransfer =
+    config.data instanceof FormData ||
+    config.responseType === 'arraybuffer' ||
+    config.responseType === 'text';
+  if (isTransfer && config.timeout === DEFAULT_TIMEOUT_MS) config.timeout = TRANSFER_TIMEOUT_MS;
   const headers = AxiosHeaders.from(config.headers);
   // Mobile is bearer-mode, always and explicitly (§1.5). The header selects
   // the mode on `/v1/auth/login`, and on every other route it is what tells
@@ -269,11 +279,15 @@ export function refreshAccessToken(): Promise<string> {
       await setSession(pair, user);
       return pair.accessToken;
     } catch (err) {
-      // A rejected refresh is terminal: the token was stale, already rotated,
-      // or its family was revoked by the server's reuse detection. There is no
-      // second attempt that could succeed.
+      // Only a definitive refusal is terminal: the token was stale, already
+      // rotated, or its family was revoked by the server's reuse detection.
+      // A network error, timeout or 5xx says nothing about the token, so the
+      // stored session is kept and the caller can simply retry (B5-01).
       logError('AUTH_REFRESH_FAILED', err);
-      await endSession('REFRESH_REJECTED');
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+      if (status === 400 || status === 401 || status === 403) {
+        await endSession('REFRESH_REJECTED');
+      }
       throw err;
     } finally {
       refreshInFlight = null;

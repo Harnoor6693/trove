@@ -41,14 +41,18 @@ import org.springframework.beans.factory.annotation.Autowired;
  * {@link #aHostThatRebindsToAPrivateAddressIsRefusedAtDeliveryTime()} is that exact sequence, and
  * it is why {@code OutboundUrlPolicy} takes a {@link HostResolver} in its second constructor.
  *
- * <h2>Every address in this file is inside 192.0.2.0/24</h2>
- * TEST-NET-1: reserved by RFC 5737 for documentation, routed nowhere, and answered by nobody. It
- * is public as far as {@code OutboundUrlPolicy} is concerned — it is not private, it is simply not
- * a destination — which is exactly what a delivery test needs. An earlier version of this file
- * targeted a real, routable host belonging to somebody else, so {@code mvn verify} made
- * unsolicited HTTPS requests to a third party on every run. No test here may name a dialable
- * address, and {@link #everyAddressInThisFileIsReserved()} reads this file back to keep it that
- * way.
+ * <h2>Every target in this file is inside 2d00::/8</h2>
+ * Global unicast that IANA has not delegated to any regional registry (the IANA IPv6 Global
+ * Unicast Address Assignments registry lists {@code 2d00::/8} as RESERVED), so nobody announces
+ * it, nothing routes to it and nobody answers on it. It is public as far as
+ * {@code OutboundUrlPolicy} is concerned: RFC 4291 §2.4 says to treat unallocated space inside
+ * {@code 2000::/3} as global unicast, so the policy allows it, which is exactly what a delivery
+ * test needs. RFC 5737's TEST-NET-1 used to play this part; the IANA IPv4 special-purpose
+ * registry marks it not globally reachable and the policy now refuses it. An
+ * earlier version of this file targeted a real, routable host belonging to somebody else, so
+ * {@code mvn verify} made unsolicited HTTPS requests to a third party on every run. No test here
+ * may name a dialable address, and {@link #everyAddressInThisFileIsReserved()} reads this file
+ * back to keep it that way.
  */
 class WebhookDeliveryIT extends NotificationSupport {
 
@@ -90,7 +94,7 @@ class WebhookDeliveryIT extends NotificationSupport {
                 return InetAddress.getAllByName(host);
             }
             return firstAnswerUsed.compareAndSet(false, true)
-                ? new InetAddress[] {InetAddress.getByName("192.0.2.9")}
+                ? new InetAddress[] {InetAddress.getByName("2d00::9")}
                 : new InetAddress[] {InetAddress.getByName("169.254.169.254")};
         }
     }
@@ -151,7 +155,7 @@ class WebhookDeliveryIT extends NotificationSupport {
         // database connection for up to twenty seconds per delivery. Reading the row back through
         // a separate statement after claimDue returns proves the claim committed on its own — if
         // the three steps shared one transaction, nothing outside it could see IN_FLIGHT.
-        UUID subscriptionId = subscriptionFor("https://192.0.2.1/hook");
+        UUID subscriptionId = subscriptionFor("https://[2d00::1]/hook");
         UUID deliveryId = realDeliveries
             .scheduleDelivery(subscriptionId, "budget.threshold_crossed", "{}")
             .orElseThrow();
@@ -173,7 +177,7 @@ class WebhookDeliveryIT extends NotificationSupport {
     @Test
     @DisplayName("A claimed row is not claimed twice")
     void anInFlightRowIsNotReclaimed() {
-        UUID subscriptionId = subscriptionFor("https://192.0.2.1/hook");
+        UUID subscriptionId = subscriptionFor("https://[2d00::1]/hook");
         UUID deliveryId = realDeliveries.scheduleDelivery(subscriptionId, "sync.completed", "{}")
             .orElseThrow();
 
@@ -187,9 +191,31 @@ class WebhookDeliveryIT extends NotificationSupport {
     }
 
     @Test
+    @DisplayName("B3-01: a row a crash left IN_FLIGHT is claimed again once it is stale")
+    void aStaleInFlightRowIsReclaimed() {
+        UUID subscriptionId = subscriptionFor("https://[2d00::1]/hook");
+        UUID deliveryId = realDeliveries.scheduleDelivery(subscriptionId, "sync.completed", "{}")
+            .orElseThrow();
+        store.claimDue(Instant.now(), 50);
+        // The process died between the claim and the outcome: nothing will ever write this row
+        // again, and the stale window is far past the twenty seconds one call can take.
+        jdbcTemplate.update("UPDATE webhook_delivery_log SET updated_at = ? WHERE id = ?",
+            java.sql.Timestamp.from(Instant.now()
+                .minus(WebhookDeliveryStore.STALE_IN_FLIGHT).minusSeconds(60)),
+            deliveryId);
+
+        List<WebhookDeliveryLog> again = store.claimDue(Instant.now(), 50);
+
+        assertThat(again).extracting(WebhookDeliveryLog::getId)
+            .as("a crash or a deploy between claim and outcome must not drop the event for ever")
+            .contains(deliveryId);
+        assertThat(deliveryRow(deliveryId).get("status")).isEqualTo("IN_FLIGHT");
+    }
+
+    @Test
     @DisplayName("A deleted subscription abandons its queued delivery rather than retrying it")
     void aDeletedSubscriptionAbandonsTheDelivery() {
-        UUID subscriptionId = subscriptionFor("https://192.0.2.1/hook");
+        UUID subscriptionId = subscriptionFor("https://[2d00::1]/hook");
         UUID deliveryId = realDeliveries.scheduleDelivery(subscriptionId, "sync.completed", "{}")
             .orElseThrow();
         WebhookDeliveryLog claimed = store.find(deliveryId);
@@ -207,7 +233,7 @@ class WebhookDeliveryIT extends NotificationSupport {
     @Test
     @DisplayName("A disabled subscription queues nothing at all")
     void aDisabledSubscriptionQueuesNothing() {
-        UUID subscriptionId = subscriptionFor("https://192.0.2.1/hook");
+        UUID subscriptionId = subscriptionFor("https://[2d00::1]/hook");
         jdbcTemplate.update("UPDATE webhook_subscription SET enabled = false WHERE id = ?",
             subscriptionId);
 
@@ -223,7 +249,7 @@ class WebhookDeliveryIT extends NotificationSupport {
         // The seam collapse step 16 calls. It filters here rather than in the listener so that
         // every producer gets the same rule without repeating it.
         WebhookSubscription narrow = subscriptions.save(new WebhookSubscription(member.userId(),
-            "https://192.0.2.1/hook", encryption.encrypt(SECRET),
+            "https://[2d00::1]/hook", encryption.encrypt(SECRET),
             List.of("budget.threshold_crossed")));
 
         assertThat(realDeliveries.scheduleDelivery(narrow.getId(), "sync.completed", "{}"))
@@ -236,11 +262,11 @@ class WebhookDeliveryIT extends NotificationSupport {
     @Test
     @DisplayName("An unreachable receiver is FAILED with a reason and a scheduled retry")
     void anUnreachableReceiverIsRetried() {
-        // The refusal here comes from the NETWORK rather than from the policy (TEST-NET-1 is
+        // The refusal here comes from the NETWORK rather than from the policy (2d00::/8 is
         // routed nowhere but is not on any block list), which is the case this asserts: an
         // unreachable receiver produces a RETRY rather than an abandonment. Worst case it costs
         // the ten-second connect timeout §2.8 names.
-        UUID subscriptionId = subscriptionFor("https://192.0.2.1/hook");
+        UUID subscriptionId = subscriptionFor("https://[2d00::1]/hook");
         UUID deliveryId = realDeliveries.scheduleDelivery(subscriptionId, "sync.completed", "{}")
             .orElseThrow();
 
@@ -266,21 +292,27 @@ class WebhookDeliveryIT extends NotificationSupport {
         // would notice.
         String payload = "{\"event\":\"sync.completed\",\"accountId\":\"" + UUID.randomUUID()
             + "\"}";
-        UUID subscriptionId = subscriptionFor("https://192.0.2.1/hook");
+        UUID subscriptionId = subscriptionFor("https://[2d00::1]/hook");
         String storedCipher = jdbcTemplate.queryForObject(
             "SELECT secret_encrypted FROM webhook_subscription WHERE id = ?", String.class,
             subscriptionId);
 
-        String fromStore = WebhookSignature.sign(encryption.decrypt(storedCipher),
-            payload.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        byte[] body = payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        String deliveryId = UUID.randomUUID().toString();
+        long timestamp = Instant.now().getEpochSecond();
 
-        assertThat(fromStore).isEqualTo(WebhookSignature.sign(SECRET,
-            payload.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
-        assertThat(fromStore).startsWith("sha256=");
+        String fromStore = WebhookSignature.sign(encryption.decrypt(storedCipher), deliveryId,
+            timestamp, body);
+
+        assertThat(StandardWebhooksReceiver.accepts(SECRET, deliveryId,
+            Long.toString(timestamp), fromStore, body, Instant.now()))
+            .as("a receiver holding the secret the member typed verifies what the stored, "
+                + "encrypted copy signs")
+            .isTrue();
     }
 
     @Test
-    @DisplayName("No address in this file belongs to anybody: they are all TEST-NET-1")
+    @DisplayName("No address in this file belongs to anybody: they are all in 2d00::/8")
     void everyAddressInThisFileIsReserved() throws Exception {
         // The rule the class javadoc states, enforced rather than asked for. Read from the source
         // tree the way SourceConventionTest resolves it — from the compiled output's location, so
@@ -293,15 +325,22 @@ class WebhookDeliveryIT extends NotificationSupport {
 
         List<String> dialable = Pattern.compile("\\b(\\d{1,3}(?:\\.\\d{1,3}){3})\\b")
             .matcher(text).results().map(match -> match.group(1)).distinct()
-            .filter(address -> !address.startsWith("192.0.2."))
             // The cloud metadata address the rebind test REFUSES. Naming it is the point of that
             // test; nothing ever connects to it, because the policy stops the delivery first.
             .filter(address -> !"169.254.169.254".equals(address))
             .toList();
+        List<String> ipv6Targets = Pattern
+            .compile("(?:\\[|getByName\\(\")([0-9a-fA-F:]*:[0-9a-fA-F:]*)").matcher(text)
+            .results().map(match -> match.group(1)).distinct()
+            .filter(address -> !address.startsWith("2d00:"))
+            .toList();
 
         assertThat(dialable)
             .as("a test that dials an address somebody owns makes `mvn verify` send unsolicited "
-                + "traffic to a third party; every target here belongs to RFC 5737's TEST-NET-1")
+                + "traffic to a third party; every target here is in undelegated 2d00::/8")
+            .isEmpty();
+        assertThat(ipv6Targets)
+            .as("every IPv6 target here is in 2d00::/8, which IANA has delegated to nobody")
             .isEmpty();
     }
 
@@ -317,7 +356,7 @@ class WebhookDeliveryIT extends NotificationSupport {
     void thePayloadIsStoredForRetry() {
         String payload = Json.object("event", "sync.completed", "accountId",
             UUID.randomUUID().toString());
-        UUID subscriptionId = subscriptionFor("https://192.0.2.1/hook");
+        UUID subscriptionId = subscriptionFor("https://[2d00::1]/hook");
 
         UUID deliveryId = realDeliveries
             .scheduleDelivery(subscriptionId, "sync.completed", payload).orElseThrow();

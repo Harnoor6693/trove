@@ -64,6 +64,7 @@ public class TestBankSource implements BankSource {
     private volatile CountDownLatch release;
     private volatile LocalDate lastRequestedFrom;
     private volatile LocalDate lastRequestedTo;
+    private volatile Map<String, String> lastConfig;
 
     @Override
     public SourceKind sourceKind() {
@@ -76,6 +77,7 @@ public class TestBankSource implements BankSource {
         fetchCount.incrementAndGet();
         lastRequestedFrom = from;
         lastRequestedTo = to;
+        lastConfig = config;
 
         CountDownLatch started = fetchStarted;
         if (started != null) {
@@ -113,6 +115,12 @@ public class TestBankSource implements BankSource {
         fetchCount.set(0);
         lastRequestedFrom = null;
         lastRequestedTo = null;
+        lastConfig = null;
+    }
+
+    /** The configuration the last fetch was handed. */
+    public Map<String, String> lastConfig() {
+        return lastConfig;
     }
 
     /** What the next fetch returns. */

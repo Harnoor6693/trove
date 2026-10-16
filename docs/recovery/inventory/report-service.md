@@ -1,5 +1,7 @@
 # Inventory: services/report-service
 
+> **Historical record, 2026-09-03.** Inventory of the pre-rebuild code, since removed; the computed-GST export described here was replaced by a categorised CSV/PDF export. Current state: `docs-site/guide/architecture.md`.
+
 Audited against commit state as of 2026-09-03 (working tree; `pom.xml` was observed to be
 edited by a concurrent build process mid-audit — a Jetty version property was
 parameterized; no dependency behavior changes were made, so findings below are unaffected).

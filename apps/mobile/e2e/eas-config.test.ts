@@ -54,7 +54,7 @@ describe('eas.json profile validation', () => {
     expect(eas.build.production.autoIncrement).toBe(true);
   });
 
-  // v1.0 is sideload-only (signed APK per release + TestFlight/AltStore).
+  // v1.0 is sideload-only (a signed Android APK per release; no iOS binary is published).
   // Every profile, production included, is internal distribution.
   it('marks every profile as internal-distribution', () => {
     expect(eas.build.development.distribution).toBe('internal');
@@ -77,5 +77,44 @@ describe('eas.json profile validation', () => {
     expect(eas.submit).toBeUndefined();
     expect(raw).not.toMatch(/serviceAccountKeyPath/);
     expect(raw).not.toMatch(/appleId|ascAppId|appleTeamId/);
+  });
+
+  // The Release workflow installs a pinned eas-cli; eas.json refuses to run
+  // under an older one (`cli.version`), so a stale pin fails the APK job on the
+  // first tag and blocks the GitHub Release.
+  describe('release workflow', () => {
+    const release = fs.readFileSync(
+      path.join(__dirname, '..', '..', '..', '.github', 'workflows', 'release.yml'),
+      'utf-8'
+    );
+
+    const parse = (v: string): number[] => v.split('.').map(Number);
+    const atLeast = (have: number[], min: number[]): boolean => {
+      for (let i = 0; i < 3; i += 1) {
+        if (have[i] !== min[i]) return have[i] > min[i];
+      }
+      return true;
+    };
+
+    it('pins an eas-cli that satisfies eas.json cli.version', () => {
+      const constraint = /^>=\s*(\d+\.\d+\.\d+)$/.exec(String(eas.cli.version));
+      expect(constraint).not.toBeNull();
+      const pin = /npm install -g eas-cli@(\d+\.\d+\.\d+)\b/.exec(release);
+      expect(pin).not.toBeNull();
+      expect(atLeast(parse(pin![1]), parse(constraint![1]))).toBe(true);
+    });
+
+    it('pushes the :latest image tag only for stable tags', () => {
+      const latestLines = release
+        .split('\n')
+        .filter((l) => l.includes(':latest') && !l.trim().startsWith('#'));
+      expect(latestLines).toHaveLength(1);
+      // The one `:latest` echo sits directly under the pre-release guard
+      // (a tag containing `-`, the rule the GitHub Release uses too).
+      expect(release).toMatch(
+        /if \[\[ "\$\{REF_NAME\}" != \*-\* \]\]; then echo "\$\{IMAGE\}:latest"; fi/
+      );
+      expect(release).toMatch(/tags: \$\{\{ env\.IMAGE_TAGS \}\}/);
+    });
   });
 });

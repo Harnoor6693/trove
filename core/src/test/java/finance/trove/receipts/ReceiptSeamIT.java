@@ -34,13 +34,13 @@ import org.springframework.beans.factory.annotation.Autowired;
  * removing the flag from either listener makes these assertions fail rather than pass for the
  * wrong reason.
  *
- * <p>The webhook target is an unroutable TEST-NET-1 literal, exactly as {@code WebhookSeamIT}
+ * <p>The webhook target is an unroutable {@code 2d00::/8} literal, exactly as {@code WebhookSeamIT}
  * uses: the listener SCHEDULES and nothing dials out.
  */
 class ReceiptSeamIT extends BudgetTestSupport {
 
-    /** A public IPv4 literal the outbound policy accepts and nothing ever reaches. */
-    private static final String TARGET = "https://192.0.2.1/trove-receipt-hook";
+    /** A public IPv6 literal the outbound policy accepts and nothing ever reaches. */
+    private static final String TARGET = "https://[2d00::1]/trove-receipt-hook";
 
     private static final String SECRET = "a-long-enough-webhook-secret";
 

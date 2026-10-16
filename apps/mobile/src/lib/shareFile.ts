@@ -12,9 +12,9 @@
  * On Android the share target (Drive, Gmail, …) runs in Trove's own task with
  * its result sent back to Trove's activity, so `shareAsync` settles only when
  * the member is back in Trove — the target can still read the file while it
- * is open (observed on the Pixel_5_API_36 AVD, 29-MOBILE-FILES.md "Review
- * fixes"). An app killed mid-share skips `finally`; `sweepStaleExports` at
- * launch and before every share removes that leftover.
+ * is open (observed on the Pixel_5_API_36 emulator). An app killed mid-share
+ * skips `finally`; `sweepStaleExports` at launch and before every share
+ * removes that leftover.
  *
  * ponytail: the whole file is held in memory once. Streaming via
  * `File.downloadFileAsync` is the upgrade path if archives outgrow memory,

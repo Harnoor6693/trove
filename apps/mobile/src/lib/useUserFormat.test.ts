@@ -158,6 +158,42 @@ describe('parseDecimal is strict about what counts as an amount', () => {
   });
 });
 
+describe('relative', () => {
+  const NOW = Date.parse('2026-10-15T12:00:00Z');
+
+  it('says how long ago an instant was, in the largest whole unit', () => {
+    expect(CANADIAN.relative('2026-10-15T11:59:40Z', NOW)).toBe('just now');
+    expect(CANADIAN.relative('2026-10-15T11:55:00Z', NOW)).toBe('5 minutes ago');
+    expect(CANADIAN.relative('2026-10-15T09:00:00Z', NOW)).toBe('3 hours ago');
+    expect(CANADIAN.relative('2026-10-14T09:00:00Z', NOW)).toBe('yesterday');
+    expect(CANADIAN.relative('2026-10-05T12:00:00Z', NOW)).toBe('10 days ago');
+    expect(CANADIAN.relative('2024-10-01T12:00:00Z', NOW)).toBe('2 years ago');
+  });
+
+  it('says the same thing on an engine without Intl.RelativeTimeFormat (Hermes)', () => {
+    // Hermes implements Collator, DateTimeFormat and NumberFormat only; this
+    // proves the fallback reads like the Intl path the Jest runtime takes.
+    const intl = Intl as { RelativeTimeFormat?: typeof Intl.RelativeTimeFormat };
+    const original = intl.RelativeTimeFormat;
+    delete intl.RelativeTimeFormat; // simulating an engine that lacks the constructor
+    try {
+      expect(CANADIAN.relative('2026-10-15T11:59:40Z', NOW)).toBe('just now');
+      expect(CANADIAN.relative('2026-10-15T11:59:00Z', NOW)).toBe('1 minute ago');
+      expect(CANADIAN.relative('2026-10-15T09:00:00Z', NOW)).toBe('3 hours ago');
+      expect(CANADIAN.relative('2026-10-14T09:00:00Z', NOW)).toBe('yesterday');
+      expect(CANADIAN.relative('2026-10-05T12:00:00Z', NOW)).toBe('10 days ago');
+      expect(CANADIAN.relative('2026-10-15T15:00:00Z', NOW)).toBe('in 3 hours');
+    } finally {
+      intl.RelativeTimeFormat = original;
+    }
+  });
+
+  it('shows the placeholder rather than a wrong value for an unparseable instant', () => {
+    expect(CANADIAN.relative('soon', NOW)).toBe(UNKNOWN_VALUE);
+    expect(CANADIAN.relative(null, NOW)).toBe(UNKNOWN_VALUE);
+  });
+});
+
 /**
  * The hook's job on top of `createUserFormat` is choosing *where* the three
  * inputs come from. `/v1/me/preferences` is the write surface, so an edit in

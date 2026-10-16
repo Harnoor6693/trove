@@ -18,7 +18,7 @@ import java.util.UUID;
  *
  * <p>The transactions a detection was built from are deliberately NOT here. They live in
  * {@code subscription_transaction} (V29) as a real referential link; no route in plan §4.8 asks
- * for them, and a list of thirteen months of ids on every row of a list response would be paid for
+ * for them, and a list of two years of ids on every row of a list response would be paid for
  * by every client on every render.
  *
  * @param createdBy the member the detection run was attributed to, for audit; never the scope

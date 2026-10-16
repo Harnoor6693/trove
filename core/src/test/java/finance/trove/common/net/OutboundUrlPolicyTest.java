@@ -2,13 +2,16 @@ package finance.trove.common.net;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -99,7 +102,8 @@ class OutboundUrlPolicyTest {
             });
 
             assertThatThrownBy(() -> failing.check("https://nowhere.example/x"))
-                .isInstanceOf(OutboundUrlPolicyException.class).hasMessageContaining("not resolve");
+                .isInstanceOf(OutboundUrlPolicyException.class)
+                .hasMessageContaining("nowhere.example").hasMessageContaining("must resolve");
         }
 
         @Test
@@ -150,6 +154,26 @@ class OutboundUrlPolicyTest {
             "::,                 unspecified",
             "::ffff:127.0.0.1,   loopback",
             "::0.0.0.2,          IPv4-compatible",
+            // Deprecated (RFC 3879), not RFC 1918: its own reason, still lifted by the opt-in
+            "fec0::1,            site-local",
+            "feff:ffff::1,       site-local",
+            // B3-11: IPv6 transition prefixes carry an IPv4 address the network may route to
+            "64:ff9b::7f00:1,                       loopback",
+            "64:ff9b::a00:1,                        private",
+            "2002:c0a8:101::1,                      private",
+            "::ffff:0:a00:1,                        private",
+            "::ffff:0:7f00:1,                       loopback",
+            "2600::5efe:c0a8:101,                   private",
+            "2600::200:5efe:a00:1,                  private",
+            "2002:7f00:1::1,                        loopback",
+            "2001:0:4136:e378:8000:63bf:f5ff:fffe,  private",
+            // An ISATAP identifier does not hide the range or the other format around it
+            "fe80::5efe:808:808,                    link-local",
+            "fe80::200:5efe:808:808,                link-local",
+            "ff02::5efe:808:808,                    multicast",
+            "2002:a9fe:a9fe::5efe:808:808,          instance-metadata",
+            "2001:0:4136:e378:0:5efe:5601:5601,     instance-metadata",
+            "2002:a00:1::5efe:808:808,              private",
         })
         @DisplayName("every range gap P2-10 and §9 risk 9 name is blocked, with a reason")
         void everyBlockedRangeIsRefused(String address, String expectedReason)
@@ -185,12 +209,31 @@ class OutboundUrlPolicyTest {
         @ValueSource(strings = {
             "93.184.216.34", "8.8.8.8", "1.1.1.1", "172.32.0.1", "100.63.255.255",
             "100.128.0.1", "192.0.1.1", "198.20.0.1", "2606:2800:220:1:248:1893:25c8:1946",
-            "2001:4860:4860::8888",
+            "2001:4860:4860::8888", "64:ff9b::808:808", "2002:808:808::1",
+            "::ffff:0:808:808", "2001:4860::5efe:808:808", "2600::5efe:808:808",
+            "2001:0:4136:e378:8000:63bf:f7f7:f7f7",
+            // The IANA special-purpose registry marks these 2001::/23 blocks globally
+            // reachable, so they stay allowed: anycast, AMT, AS112, ORCHIDv2 and DETs
+            "2001:1::1", "2001:1::2", "2001:1::3", "2001:3::1", "2001:4:112::1",
+            "2001:20::1", "2001:2f:ffff::1", "2001:30::1", "2001:3f:ffff::1",
+            // Unallocated but inside 2000::/3: RFC 4291 §2.4 says treat it as global unicast
+            "2000::1", "3ffe::1", "2d00::1",
+            // The IANA IPv4 special-purpose registry marks these globally reachable: the PCP and
+            // TURN anycast addresses inside 192.0.0.0/24, AS112-v4, AMT, AS112 direct delegation
+            "192.0.0.9", "192.0.0.10", "64:ff9b::c000:9", "192.31.196.1", "192.52.193.1",
+            "192.175.48.1",
+            // One address either side of each IPv4 range that is not globally reachable
+            "191.255.255.255", "192.0.1.0", "192.0.1.255", "192.0.3.0", "192.88.98.255",
+            "192.88.100.0", "198.17.255.255", "198.20.0.0", "198.51.99.255", "198.51.101.0",
+            "203.0.112.255", "203.0.114.0",
         })
         @DisplayName("a genuinely public address on either family is allowed")
         void publicAddressesAreAllowed(String address) throws UnknownHostException {
             assertThat(OutboundUrlPolicy.blockReason(InetAddress.getByName(address))).isNull();
             assertThat(policy(false, address).check("https://good.example/x").host())
+                .isEqualTo("good.example");
+            assertThat(policy(true, address).check("http://good.example/x", true).host())
+                .as("the opt-in only widens; it never narrows a public address")
                 .isEqualTo("good.example");
         }
 
@@ -201,7 +244,35 @@ class OutboundUrlPolicyTest {
 
             assertThatThrownBy(() -> policy.check("https://mixed.example/x"))
                 .isInstanceOf(OutboundUrlPolicyException.class)
-                .hasMessageContaining("private");
+                .hasMessageContaining("mixed.example");
+        }
+
+        @Test
+        @DisplayName("B3-10: loopback, private, metadata and unresolvable hosts are refused alike")
+        void everyAddressRefusalReadsTheSame() {
+            // The refusal goes back to any member. A message that named the range, or said
+            // "does not resolve", told them which internal names exist and what class of address
+            // each one has: a reconnaissance tool. The detail goes to the server log only.
+            OutboundUrlPolicy unresolvable =
+                new OutboundUrlPolicy(new EgressProperties(false), host -> {
+                    throw new UnknownHostException(host);
+                });
+            List<String> messages = Stream.of(
+                    catchThrowable(() -> policy(false, "127.0.0.1").check("https://h.example/x")),
+                    catchThrowable(() -> policy(false, "10.1.2.3").check("https://h.example/x")),
+                    catchThrowable(() -> policy(false, "169.254.169.254")
+                        .check("https://h.example/x")),
+                    catchThrowable(() -> unresolvable.check("https://h.example/x")))
+                .map(refusal -> {
+                    assertThat(refusal).isInstanceOf(OutboundUrlPolicyException.class);
+                    return refusal.getMessage();
+                })
+                .toList();
+
+            assertThat(messages).as("one generic message for every address refusal")
+                .containsOnly(messages.get(0));
+            assertThat(messages.get(0)).contains("h.example")
+                .doesNotContain("loopback", "private", "metadata", "not resolve");
         }
 
         @Test
@@ -266,15 +337,195 @@ class OutboundUrlPolicyTest {
             "169.254.169.254,   instance-metadata",
             "169.254.1.1,       link-local",
             "fe80::1,           link-local",
+            "64:ff9b::a9fe:a9fe, instance-metadata",
+            "2002:a9fe:a9fe::1, instance-metadata",
+            "::a9fe:a9fe,       instance-metadata",
+            "::2,               0.0.0.0/8",
+            "::ff,              0.0.0.0/8",
+            "64:ff9b:1::1,      local-use NAT64",
+            "64:ff9b:1:ffff::a9fe:a9fe, local-use NAT64",
+            "64:ff9b:1::a00:1,  local-use NAT64",
+            "::ffff:0:a9fe:a9fe, instance-metadata",
+            "2600::5efe:a9fe:a9fe, instance-metadata",
+            "2600::200:5efe:a9fe:a9fe, instance-metadata",
+            "2600::5efe:e000:1, multicast",
+            "::169.254.1.1,     link-local",
+            "::6464:64c8,       instance-metadata",
+            "::0.1.2.3,         0.0.0.0/8",
+            "::e000:1,          multicast",
+            "100.100.100.200,   instance-metadata",
+            "fd00:ec2::254,     instance-metadata",
+            // The other clouds' IPv6 metadata (and EKS credential) endpoints, all inside the
+            // ULA range the opt-in lifts
+            "fd00:ec2::23,      instance-metadata",
+            "fd20:ce::254,      instance-metadata",
+            "fd00:c1::a9fe:a9fe, instance-metadata",
+            "fd00:a9fe:a9fe::1, instance-metadata",
+            "fd00:42::42,       instance-metadata",
+            // IANA special-purpose registry: not globally reachable, so never a LAN model
+            "100::1,                      discard-only",
+            "100::ffff:ffff:ffff:ffff,    discard-only",
+            "100:0:0:1::1,                dummy",
+            "2001:2::1,                   benchmarking",
+            "2001:2:0:ffff::1,            benchmarking",
+            "2001:10::1,                  ORCHID",
+            "2001:1f:ffff::1,             ORCHID",
+            "2001:db8::1,                 documentation",
+            "2001:db8::5efe:808:808,      documentation",
+            "2001:db8::5efe:c0a8:101,     documentation",
+            "3fff::1,                     documentation",
+            "3fff:fff:ffff::1,            documentation",
+            "5f00::1,                     SRv6",
+            // The IPv4 registry, the same rule: not globally reachable, so never a LAN model.
+            // 192.0.0.0/24 is not globally reachable unless a more specific entry says so
+            "192.0.0.0,                   protocol-assignment",
+            "192.0.0.1,                   protocol-assignment",
+            "192.0.0.7,                   protocol-assignment",
+            "192.0.0.8,                   protocol-assignment",
+            "192.0.0.11,                  protocol-assignment",
+            "192.0.0.170,                 protocol-assignment",
+            "192.0.0.171,                 protocol-assignment",
+            "192.0.0.255,                 protocol-assignment",
+            "192.0.2.0,                   documentation",
+            "192.0.2.255,                 documentation",
+            "198.51.100.0,                documentation",
+            "198.51.100.255,              documentation",
+            "203.0.113.0,                 documentation",
+            "203.0.113.255,               documentation",
+            "198.18.0.0,                  benchmarking",
+            "198.19.255.255,              benchmarking",
+            "192.88.99.0,                 6to4 relay",
+            "192.88.99.1,                 6to4 relay",
+            "192.88.99.2,                 6to4 relay",
+            "192.88.99.255,               6to4 relay",
+            "64:ff9b::c000:201,           documentation",
+            "2002:cb00:7101::1,           documentation",
+            "::ffff:0:c612:1,             benchmarking",
+            // 2001::/23 is not globally reachable unless a more specific entry says so
+            "2001:1::4,                   2001::/23",
+            "2001:4::1,                   2001::/23",
+            "2001:4:113::1,               2001::/23",
+            "2001:5::1,                   2001::/23",
+            "2001:40::1,                  2001::/23",
+            "2001:1ff:ffff::1,            2001::/23",
+            // Reserved by the IETF: outside 2000::/3 and none of the named ranges
+            "::ffff:1:a9fe:a9fe,          reserved",
+            "::1:0:0:1,                   reserved",
+            "1::1,                        reserved",
+            "64:ff9b:2::1,                reserved",
+            "64:ff9b:0:1::a00:1,          reserved",
+            "100:0:0:2::1,                reserved",
+            "4000::1,                     reserved",
+            "e000::1,                     reserved",
+            "fe00::1,                     reserved",
+            "fec0::5efe:a9fe:a9fe,        instance-metadata",
+            "0.0.0.0,           unspecified",
+            "::,                unspecified",
+            "0.1.2.3,           0.0.0.0/8",
+            "224.0.0.1,         multicast",
+            "239.255.255.250,   multicast",
+            "ff02::1,           multicast",
+            "240.0.0.1,         reserved",
+            "255.255.255.255,   reserved",
+            "::ffff:0.0.0.0,    unspecified",
+            // Native IPv6 ranges are judged before any IPv4 an address carries, and every
+            // format an address matches is judged: an ISATAP identifier hides neither
+            "fe80::5efe:808:808,                link-local",
+            "fe80::5efe:808:808%1,              link-local",
+            "fe80::200:5efe:808:808,            link-local",
+            "fe80::5efe:a9fe:a9fe,              link-local",
+            "ff02::5efe:808:808,                multicast",
+            "2002:a9fe:a9fe::5efe:808:808,      instance-metadata",
+            "2001:0:4136:e378:0:5efe:5601:5601, instance-metadata",
+            "64:ff9b:1:a00:0:5efe:808:808,      local-use NAT64",
+            "64:ff9b:1::5efe:808:808,           local-use NAT64",
         })
-        @DisplayName("the opt-in widens to LAN and loopback, never to link-local or metadata")
-        void theOptInNeverReachesLinkLocal(String address, String expectedReason) {
+        @DisplayName("the opt-in widens to LAN and loopback, never to link-local, metadata, "
+            + "unspecified, multicast or reserved ranges")
+        void theOptInNeverReachesLinkLocal(String address, String expectedReason)
+            throws UnknownHostException {
+            assertThat(OutboundUrlPolicy.unconditionalBlockReason(InetAddress.getByName(address)))
+                .contains(expectedReason);
             assertThatThrownBy(() ->
                 policy(true, address).check("http://ollama.lan:11434/v1", true))
                 .as("TROVE_EGRESS_ALLOW_PRIVATE plus a member's own opt-in must not be a way to "
                     + "read this host's cloud credentials")
                 .isInstanceOf(OutboundUrlPolicyException.class)
-                .hasMessageContaining(expectedReason);
+                .hasMessageContaining("ollama.lan");
+            assertThatThrownBy(() -> policy(false, address).check("https://evil.example/x"))
+                .as("always refused means refused under the default policy too")
+                .isInstanceOf(OutboundUrlPolicyException.class)
+                .hasMessageContaining("evil.example");
+        }
+
+        @Test
+        @DisplayName("a zone-scoped literal, [fe80::5efe:808:808%lo0], is still link-local")
+        void aScopedLinkLocalIsatapLiteralIsRefusedWithBothKeys() throws UnknownHostException {
+            // The interface name is resolved by the OS, so the stub stands in with a numeric
+            // zone: the policy judges the bytes, and the zone does not change them.
+            Inet6Address scoped = Inet6Address.getByAddress(null,
+                InetAddress.getByName("fe80::5efe:808:808").getAddress(), 1);
+            List<String> asked = new ArrayList<>();
+            OutboundUrlPolicy policy = new OutboundUrlPolicy(new EgressProperties(true), host -> {
+                asked.add(host);
+                return new InetAddress[] {scoped};
+            });
+
+            assertThatThrownBy(() -> policy.check("http://[fe80::5efe:808:808%lo0]:11434/v1", true))
+                .isInstanceOf(OutboundUrlPolicyException.class);
+            assertThat(asked).containsExactly("fe80::5efe:808:808%lo0");
+        }
+
+        @ParameterizedTest(name = "{0} is a private target the opt-in does lift")
+        @ValueSource(strings = {"10.1.2.3", "192.168.1.50", "127.0.0.1", "::1", "100.64.0.1",
+            "100.100.100.199", "fd12:3456::1", "fd00:ec2::253",
+            "::ffff:0:a00:1", "2600::5efe:c0a8:101", "2002:a00:1::5efe:808:808",
+            "fec0::1", "64:ff9b::a00:1", "::a00:1"})
+        @DisplayName("RFC 1918, loopback, CGNAT and ULA stay reachable with both keys")
+        void theOptInStillLiftsPrivateRanges(String address) {
+            assertThat(policy(true, address).check("http://ollama.lan:11434/v1", true).port())
+                .isEqualTo(11434);
+        }
+
+        @Test
+        @DisplayName("an IPv4-compatible ::a9fe:a9fe cannot slip past the always-blocked set via the opt-in")
+        void anIpv4CompatibleMetadataAddressIsRefusedEndToEndWithBothKeys() {
+            assertThatThrownBy(() -> policy(true, "::a9fe:a9fe")
+                .check("http://ollama.lan:11434/v1", true))
+                .isInstanceOf(OutboundUrlPolicyException.class);
+        }
+
+        @Test
+        @DisplayName("::1 is still plain IPv6 loopback, which the opt-in lifts")
+        void ipv6LoopbackIsNotMistakenForAnEmbeddedIpv4() {
+            assertThat(policy(true, "::1").check("http://ollama.lan:11434/v1", true).port())
+                .isEqualTo(11434);
+        }
+
+        @Test
+        @DisplayName("both keys accept IPv4-compatible and IPv4-mapped forms; the IPv4 is judged")
+        void theOptInAcceptsIpv4CompatibleAndMappedForms() throws UnknownHostException {
+            // What the docs list as the third thing the opt-in lifts: the default policy refuses
+            // these two forms outright, while the always-refused check judges the IPv4 inside.
+            byte[] mappedBytes = new byte[16];
+            mappedBytes[10] = (byte) 0xFF;
+            mappedBytes[11] = (byte) 0xFF;
+            mappedBytes[12] = 8;
+            mappedBytes[13] = 8;
+            mappedBytes[14] = 8;
+            mappedBytes[15] = 8;
+            InetAddress mapped = Inet6Address.getByAddress("mapped.example", mappedBytes, 0);
+            InetAddress compatible = InetAddress.getByName("::808:808");
+
+            for (InetAddress address : List.of(compatible, mapped)) {
+                assertThat(OutboundUrlPolicy.blockReason(address))
+                    .as("the default policy refuses %s for its form", address)
+                    .isNotNull();
+                OutboundUrlPolicy policy = new OutboundUrlPolicy(new EgressProperties(true),
+                    host -> new InetAddress[] {address});
+                assertThat(policy.check("http://ollama.lan:11434/v1", true).ip())
+                    .isEqualTo(address);
+            }
         }
 
         @Test

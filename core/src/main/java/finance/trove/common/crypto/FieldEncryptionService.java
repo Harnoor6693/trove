@@ -30,7 +30,9 @@ import org.springframework.stereotype.Service;
  *       The source format was bare base64, which makes key rotation impossible: nothing in a
  *       stored value says which key encrypted it, so a rotation has to re-encrypt every row in
  *       one transaction or lose the ones it misses. With a version prefix, a future {@code v2}
- *       key can be introduced and rows migrated lazily on next read (gap P5-27).</li>
+ *       key could be introduced and the rows moved by a re-encrypt migration (gap P5-27). That
+ *       migration does not exist yet: changing {@code TROVE_ENCRYPTION_KEY} orphans every
+ *       stored value.</li>
  *   <li><strong>Key from configuration, validated at startup.</strong> The key is bound from
  *       {@code trove.crypto.key} ({@code TROVE_ENCRYPTION_KEY}) and checked in the constructor,
  *       so a missing or malformed key fails the context refresh with a sentence an operator can
@@ -182,9 +184,14 @@ public class FieldEncryptionService {
     }
 
     /**
-     * The version prefix of {@code value}, or {@code null} if it carries none. Used by the lazy
-     * rotation path: a row whose version is older than {@link #CURRENT_VERSION} is decrypted with
-     * the old key and rewritten with the current one.
+     * The version prefix of {@code value}, or {@code null} if it carries none.
+     *
+     * <p>Nothing in production code calls this yet, and there is no rotation path: this service
+     * holds exactly one key and {@link #decrypt} rejects every version but
+     * {@link #CURRENT_VERSION}. Changing {@code TROVE_ENCRYPTION_KEY} therefore does not rotate
+     * anything; every stored value becomes undecryptable. The prefix only makes a future
+     * re-encrypt migration possible, which could use this method to tell which rows still carry
+     * an older version.
      */
     public String versionOf(String value) {
         if (value == null) {

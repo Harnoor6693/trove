@@ -4,7 +4,7 @@ on:
   push:
     branches: [master, develop, canary]
   pull_request:
-    branches: [master, develop]
+    branches: [master, develop, canary]
   schedule:
     - cron: '0 2 * * 1'  # Weekly Monday 02:00 UTC
   workflow_dispatch:

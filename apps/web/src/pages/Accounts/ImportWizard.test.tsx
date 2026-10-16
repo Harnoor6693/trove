@@ -153,6 +153,26 @@ describe('ImportWizard', () => {
     expect(await within(card).findByText('Undone')).toBeInTheDocument()
   })
 
+  /**
+   * F1-B7: there is no list-imports endpoint, so after a reload no batch can be
+   * found again. The copy must promise undo only as long as it really lasts.
+   */
+  it('promises undo only until the member leaves the page (F1-B7)', async () => {
+    authenticate()
+    const user = userEvent.setup()
+    const wizard = await openPreview(user)
+
+    await user.click(screen.getByRole('radio', { name: /dd\/MM\/yyyy/ }))
+    await user.click(within(wizard).getByRole('button', { name: /import 2 transactions/i }))
+    const done = await screen.findByTestId('import-done')
+    expect(done.textContent).not.toMatch(/as long as the file is kept/i)
+    expect(done.textContent).toMatch(/until you leave this page/i)
+
+    await user.click(screen.getByRole('button', { name: /^done$/i }))
+    const card = await screen.findByTestId('committed-imports')
+    expect(card.textContent).toMatch(/until you leave this page/i)
+  })
+
   it('renders a 413 as the upload refusal it is, and imports nothing', async () => {
     authenticate()
     mswState.uploadTooLarge = true

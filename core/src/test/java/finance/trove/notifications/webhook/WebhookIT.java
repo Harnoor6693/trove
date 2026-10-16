@@ -31,8 +31,12 @@ import tools.jackson.databind.JsonNode;
  */
 class WebhookIT extends NotificationSupport {
 
-    /** A public IPv4 literal. Nothing connects to it; the policy only has to accept it. */
-    private static final String PUBLIC_TARGET = "https://192.0.2.1/trove-hook";
+    /**
+     * A public IPv6 literal. Nothing connects to it; the policy only has to accept it. It is in
+     * {@code 2d00::/8}, global unicast that IANA has not delegated to any registry, so nobody
+     * routes it (see {@code WebhookDeliveryIT}).
+     */
+    private static final String PUBLIC_TARGET = "https://[2d00::1]/trove-hook";
 
     private static final String SECRET = "a-long-enough-webhook-secret";
 
@@ -119,7 +123,7 @@ class WebhookIT extends NotificationSupport {
     @Test
     @DisplayName("Plain http is refused with outbound-url-rejected")
     void plainHttpIsRefused() {
-        HttpResponse<String> response = create("http://192.0.2.1/hook", SECRET, List.of());
+        HttpResponse<String> response = create("http://[2d00::1]/hook", SECRET, List.of());
 
         assertThat(response.statusCode()).isEqualTo(400);
         assertThat(Json.errorCode(response.body())).isEqualTo("outbound-url-rejected");
