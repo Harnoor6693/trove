@@ -13,6 +13,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.zip.ZipEntry;
@@ -188,7 +189,8 @@ class DataExportIT extends LedgerSupport {
                 "savings-goals.json", "subscriptions.json", "net-worth-snapshots.json",
                 "assets.json", "liabilities.json", "receipts.json",
                 "coach-conversations.json", "tax-line-mappings.json",
-                "notification-preferences.json");
+                "notification-preferences.json", "profile.json", "webhooks.json",
+                "notifications.json", "coach-insights.json", "subscription-alerts.json");
 
         JsonNode manifest = objectMapper.readTree(entries.get("manifest.json"));
         assertThat(manifest.path("schemaVersion").asInt()).isEqualTo(1);
@@ -223,6 +225,43 @@ class DataExportIT extends LedgerSupport {
         assertThat(new String(entries.get("receipts.json"), StandardCharsets.UTF_8))
             .as("receipts are metadata only: no storage key ever leaves the server")
             .doesNotContain("receipts/" + member.householdId());
+    }
+
+    @Test
+    @DisplayName("The member's own profile and webhooks are exported; the signing secret and a "
+        + "mate's profile are not")
+    void theProfileAndWebhooksAreTheMembersOwnWithoutTheSecret() {
+        Session member = inviteAndRegister(admin, "data-export-profile");
+        String target = "https://[2d00::1]/trove-export-hook";
+        String secret = "export-webhook-secret-" + UUID.randomUUID();
+        HttpResponse<String> subscribed = postJson(appUrl("/v1/webhooks"),
+            Json.object("targetUrl", target, "secret", secret, "eventTypes",
+                List.of("budget.threshold_crossed")),
+            "Authorization", "Bearer " + member.accessToken());
+        assertThat(subscribed.statusCode()).as("%s", subscribed.body()).isEqualTo(201);
+
+        Map<String, byte[]> entries = archiveOf(member, startAndComplete(member));
+
+        StringBuilder whole = new StringBuilder();
+        for (byte[] bytes : entries.values()) {
+            whole.append(new String(bytes, StandardCharsets.UTF_8));
+        }
+        assertThat(whole.toString())
+            .as("the webhook secret is write-only: no response carries it, and an archive is one")
+            .doesNotContain(secret);
+        JsonNode webhooks = objectMapper.readTree(entries.get("webhooks.json"));
+        assertThat(webhooks.size()).isEqualTo(1);
+        assertThat(webhooks.get(0).path("targetUrl").asString()).isEqualTo(target);
+        assertThat(webhooks.get(0).has("secretEncrypted")).isFalse();
+        assertThat(webhooks.get(0).has("hasSecret")).isFalse();
+
+        JsonNode profile = objectMapper.readTree(entries.get("profile.json"));
+        assertThat(profile.path("id").asString()).isEqualTo(member.userId().toString());
+        assertThat(profile.path("email").asString()).isEqualToIgnoringCase(member.email());
+        assertThat(new String(entries.get("profile.json"), StandardCharsets.UTF_8))
+            .as("the household's administrator is a mate of this member, and their users row is "
+                + "not this member's data")
+            .doesNotContainIgnoringCase(admin.email());
     }
 
     @Test

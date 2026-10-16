@@ -4,6 +4,8 @@ import finance.trove.accounts.ConnectedAccount;
 import finance.trove.accounts.ConnectedAccountRepository;
 import finance.trove.ai.chat.CoachConversationService;
 import finance.trove.ai.chat.dto.CoachMessageResponse;
+import finance.trove.ai.insight.InsightService;
+import finance.trove.ai.insight.dto.InsightResponse;
 import finance.trove.budgets.envelope.Envelope;
 import finance.trove.budgets.envelope.EnvelopeRepository;
 import finance.trove.budgets.goal.SavingsGoal;
@@ -22,16 +24,24 @@ import finance.trove.networth.Liability;
 import finance.trove.networth.LiabilityRepository;
 import finance.trove.networth.NetWorthSnapshot;
 import finance.trove.networth.NetWorthSnapshotRepository;
+import finance.trove.notifications.inapp.InAppNotification;
+import finance.trove.notifications.inapp.InAppNotificationRepository;
 import finance.trove.notifications.preference.NotificationPreference;
 import finance.trove.notifications.preference.NotificationPreferenceRepository;
+import finance.trove.notifications.webhook.WebhookSubscription;
+import finance.trove.notifications.webhook.WebhookSubscriptionRepository;
 import finance.trove.receipts.receipt.LineItem;
 import finance.trove.receipts.receipt.Receipt;
 import finance.trove.receipts.receipt.ReceiptImage;
 import finance.trove.receipts.receipt.ReceiptRepository;
+import finance.trove.subscriptions.alert.SubscriptionAlert;
+import finance.trove.subscriptions.alert.SubscriptionAlertRepository;
 import finance.trove.subscriptions.subscription.DetectedSubscription;
 import finance.trove.subscriptions.subscription.SubscriptionRepository;
 import finance.trove.taxexport.TaxLineMapping;
 import finance.trove.taxexport.TaxLineMappingRepository;
+import finance.trove.users.User;
+import finance.trove.users.UserRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
@@ -40,6 +50,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -69,6 +82,21 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li><strong>Coach conversations</strong> through {@link CoachConversationService#page}, which
  *       is the one place a stored turn is decrypted and only ever for the member who owns it. This
  *       class holds no encryption key.</li>
+ *   <li><strong>Coach insights</strong> through {@link InsightService#page}, for the same reason:
+ *       the weekly note is decrypted there, never here.</li>
+ *   <li><strong>The member's own profile</strong> — their {@code users} row, looked up by their
+ *       id within their household, so a household mate's row never joins it — with no deletion
+ *       stamp.</li>
+ *   <li><strong>Webhook subscriptions</strong> without their signing secret, and without saying
+ *       whether one is set. The target URL is exported as stored, and a URL can carry an
+ *       embedded token, which is one more reason the archive is sensitive.</li>
+ *   <li><strong>The notification inbox</strong> whole, dismissed notifications included, and the
+ *       household's <strong>subscription alerts</strong>.</li>
+ *   <li><strong>No secret of any kind.</strong> No webhook secret, no password hash, no TOTP
+ *       secret, no refresh token, no AI key ({@code ai_settings}) and no
+ *       {@code configEncrypted}. Delivery logs ({@code notification_log},
+ *       {@code webhook_delivery_log}) are not exported either: they are operational records of
+ *       what the server sent, not data the member entered.</li>
  *   <li><strong>No computed figure of any kind.</strong> Every amount is the member's own stored
  *       value at the ledger's four-decimal scale, as a decimal STRING, carrying its own currency
  *       on its own row. No conversion, no rate, no blended total (owner decision 2, §9 risk 15) —
@@ -78,7 +106,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <h2>One read-only transaction</h2>
  * {@code Receipt} owns its images and line items as EAGER collections, and the coach page decrypts
  * inside its own read. Collecting the JSON datasets inside one read-only transaction makes them a
- * consistent picture of one moment rather than fourteen pictures of fourteen different ones.
+ * consistent picture of one moment rather than nineteen pictures of nineteen different ones.
  * {@code DataExportGenerationService} calls this inside its own REPEATABLE_READ read-only
  * transaction, which this one joins, and reads {@code transactions.csv} in the same transaction,
  * so the CSV and the JSON datasets are one snapshot. Called outside such a transaction it is a
@@ -111,6 +139,11 @@ public class DataExportCollector {
     private final CoachConversationService coach;
     private final NotificationPreferenceRepository notificationPreferences;
     private final TaxLineMappingRepository taxLines;
+    private final UserRepository users;
+    private final WebhookSubscriptionRepository webhooks;
+    private final InAppNotificationRepository inbox;
+    private final InsightService insights;
+    private final SubscriptionAlertRepository subscriptionAlerts;
 
     @SuppressWarnings("checkstyle:ParameterNumber")
     public DataExportCollector(ConnectedAccountRepository accounts, CategoryRepository categories,
@@ -121,7 +154,10 @@ public class DataExportCollector {
                                LiabilityRepository liabilities, ReceiptRepository receipts,
                                CoachConversationService coach,
                                NotificationPreferenceRepository notificationPreferences,
-                               TaxLineMappingRepository taxLines) {
+                               TaxLineMappingRepository taxLines, UserRepository users,
+                               WebhookSubscriptionRepository webhooks,
+                               InAppNotificationRepository inbox, InsightService insights,
+                               SubscriptionAlertRepository subscriptionAlerts) {
         this.accounts = accounts;
         this.categories = categories;
         this.merchantRules = merchantRules;
@@ -136,6 +172,11 @@ public class DataExportCollector {
         this.coach = coach;
         this.notificationPreferences = notificationPreferences;
         this.taxLines = taxLines;
+        this.users = users;
+        this.webhooks = webhooks;
+        this.inbox = inbox;
+        this.insights = insights;
+        this.subscriptionAlerts = subscriptionAlerts;
     }
 
     /**
@@ -172,6 +213,14 @@ public class DataExportCollector {
         datasets.put("tax-line-mappings.json",
             map(taxLines.findAllByUserId(userId), DataExportCollector::taxLineMapping));
         datasets.put("notification-preferences.json", notificationPreferences(userId));
+        datasets.put("profile.json", profile(userId, householdId));
+        datasets.put("webhooks.json", map(webhooks.findAllByUserIdOrderByCreatedAtAsc(userId),
+            DataExportCollector::webhook));
+        datasets.put("notifications.json", notifications(userId));
+        datasets.put("coach-insights.json", coachInsights(userId));
+        datasets.put("subscription-alerts.json",
+            map(subscriptionAlerts.findAllByHouseholdId(householdId),
+                DataExportCollector::subscriptionAlert));
         return datasets;
     }
 
@@ -484,6 +533,146 @@ public class DataExportCollector {
         out.put("syncFailureAlertEnabled", row.isSyncFailureAlertEnabled());
         out.put("budgetAlertThresholdPercent", (int) row.getBudgetAlertThresholdPercent());
         out.put("updatedAt", text(row.getUpdatedAt()));
+        return out;
+    }
+
+    /**
+     * The member's own {@code users} row, and only theirs: looked up by their id within their
+     * household, never by the household, so a household mate's profile cannot join it. An empty
+     * map when the row is not there.
+     *
+     * <p>Named fields only. No {@code deletedAt} or {@code deletedBy}: they describe an erasure
+     * in progress, not the member. {@code users} holds no credential — the password hash, the
+     * TOTP secret and the refresh tokens live in tables of their own that nothing here reads.
+     */
+    private Map<String, Object> profile(UUID userId, UUID householdId) {
+        return users.findByIdAndHouseholdId(userId, householdId)
+            .map(DataExportCollector::profile)
+            .orElseGet(LinkedHashMap::new);
+    }
+
+    static Map<String, Object> profile(User row) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("id", id(row.getId()));
+        out.put("householdId", id(row.getHouseholdId()));
+        out.put("role", name(row.getRole()));
+        out.put("email", row.getEmail());
+        out.put("displayName", row.getDisplayName());
+        out.put("currency", name(row.getCurrency()));
+        out.put("country", name(row.getCountry()));
+        out.put("timezone", row.getTimezone());
+        out.put("locale", row.getLocale());
+        out.put("region", row.getRegion());
+        out.put("onboardingCompleted", row.isOnboardingCompleted());
+        out.put("active", row.isActive());
+        out.put("createdAt", text(row.getCreatedAt()));
+        out.put("updatedAt", text(row.getUpdatedAt()));
+        return out;
+    }
+
+    /**
+     * One webhook subscription, WITHOUT its signing secret.
+     *
+     * <p>The secret is write-only (V34): no response carries it in any form, and this map does not
+     * even say whether one is set. {@code getSecretEncrypted} is never called here. The target
+     * URL is written as stored, and a URL can carry a token in its path or query, which is one
+     * reason the archive is sensitive.
+     */
+    static Map<String, Object> webhook(WebhookSubscription row) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("id", id(row.getId()));
+        out.put("targetUrl", row.getTargetUrl());
+        out.put("enabled", row.isEnabled());
+        out.put("eventTypes", List.copyOf(row.getEventTypes()));
+        out.put("createdAt", text(row.getCreatedAt()));
+        out.put("updatedAt", text(row.getUpdatedAt()));
+        return out;
+    }
+
+    /**
+     * The member's whole inbox, newest first, dismissed notifications included: dismissing hides
+     * a row from the inbox, it does not delete it. Read a page at a time like the coach history,
+     * and every page is read. The id breaks ties on {@code createdAt}, so no row falls between
+     * two pages.
+     */
+    private List<Map<String, Object>> notifications(UUID userId) {
+        Sort newestFirst = Sort.by(Sort.Direction.DESC, "createdAt", "id");
+        List<Map<String, Object>> out = new ArrayList<>();
+        int pageNumber = 0;
+        Page<InAppNotification> page;
+        do {
+            page = inbox.findAllByUserId(userId,
+                PageRequest.of(pageNumber, COACH_PAGE_SIZE, newestFirst));
+            for (InAppNotification row : page.getContent()) {
+                out.add(notification(row));
+            }
+            pageNumber++;
+        } while (!page.getContent().isEmpty()
+            && (long) pageNumber * COACH_PAGE_SIZE < page.getTotalElements());
+        return out;
+    }
+
+    private static Map<String, Object> notification(InAppNotification row) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("id", id(row.getId()));
+        out.put("type", name(row.getType()));
+        out.put("title", row.getTitle());
+        out.put("body", row.getBody());
+        out.put("actionUrl", row.getActionUrl());
+        out.put("read", row.isRead());
+        out.put("dismissed", row.isDismissed());
+        out.put("createdAt", text(row.getCreatedAt()));
+        out.put("readAt", text(row.getReadAt()));
+        out.put("dismissedAt", text(row.getDismissedAt()));
+        return out;
+    }
+
+    /**
+     * The member's weekly coach notes, newest week first.
+     *
+     * <p>Read through {@link InsightService#page}, which owns the decryption and reads only this
+     * member's rows. This class never touches {@code CoachInsight.contentEncrypted}.
+     */
+    private List<Map<String, Object>> coachInsights(UUID userId) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        int pageNumber = 0;
+        PagedResult<InsightResponse> page;
+        do {
+            page = insights.page(userId, pageNumber, COACH_PAGE_SIZE);
+            for (InsightResponse insight : page.content()) {
+                out.add(coachInsight(insight));
+            }
+            pageNumber++;
+        } while (!page.content().isEmpty()
+            && (long) pageNumber * COACH_PAGE_SIZE < page.totalElements());
+        return out;
+    }
+
+    private static Map<String, Object> coachInsight(InsightResponse insight) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("id", id(insight.id()));
+        out.put("weekStart", text(insight.weekStart()));
+        out.put("content", insight.content());
+        out.put("delivered", insight.delivered());
+        out.put("createdAt", text(insight.createdAt()));
+        out.put("deliveredAt", text(insight.deliveredAt()));
+        return out;
+    }
+
+    /**
+     * One subscription alert. The household's, like the subscription it is about;
+     * {@code attributedTo} is the member the detection run was attributed to, and is null once
+     * that member has left (V30's ON DELETE SET NULL).
+     */
+    private static Map<String, Object> subscriptionAlert(SubscriptionAlert row) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("id", id(row.getId()));
+        out.put("subscriptionId", id(row.getSubscriptionId()));
+        out.put("attributedTo", id(row.getUserId()));
+        out.put("alertType", name(row.getAlertType()));
+        out.put("alertMessage", row.getAlertMessage());
+        out.put("read", row.isRead());
+        out.put("createdAt", text(row.getCreatedAt()));
         return out;
     }
 
