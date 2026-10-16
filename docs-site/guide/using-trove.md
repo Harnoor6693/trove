@@ -86,9 +86,13 @@ Administrators create and revoke invites here. Other members see a short note in
 
 **Export everything** builds a ZIP file in the background. It holds the household's ledger
 (transactions as CSV, and JSON files for accounts, categories, rules, budgets, goals,
-subscriptions, net-worth records, receipts, coach conversations and notification
-preferences) and a manifest. Receipts are included as details, not images; download the
-images one at a time from the Receipts screen. The archive stays downloadable for 24 hours,
+subscriptions, subscription alerts, net-worth records and receipts), your own profile,
+webhooks, notification inbox, coach conversations, coach insights, tax-line mappings and
+notification preferences, and a manifest. Receipts are included as details, not images;
+download the images one at a time from the Receipts screen. No password, second-factor
+secret, AI key or webhook signing secret is ever included, but a webhook's target URL is
+exported as you entered it, and some services put a token in that URL, so keep the archive
+somewhere safe. The archive stays downloadable for 24 hours,
 and you can start one export a day. Trove asks for your password, and a code if you use
 two-factor authentication.
 
