@@ -44,6 +44,22 @@ function buildTree(categories: CategoryResponse[]): CategoryNode[] {
   return roots;
 }
 
+/** The ids of `rootId` and everything below it, so a re-parent picker can leave them out. */
+function subtreeIds(categories: CategoryResponse[], rootId: string): Set<string> {
+  const ids = new Set<string>([rootId]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const c of categories) {
+      if (c.parentId !== null && ids.has(c.parentId) && !ids.has(c.id)) {
+        ids.add(c.id);
+        grew = true;
+      }
+    }
+  }
+  return ids;
+}
+
 /**
  * `/v1/categories*` — the household's category tree: every system category
  * (seeded, read-only) plus this household's own. A system category
@@ -222,10 +238,11 @@ function CategoryForm({
   const failure: ApiFailure | null =
     pending.error == null ? null : toApiFailure(pending.error, 'Could not save that category.');
 
-  // A category cannot pick itself as its parent, so the picker leaves it out.
-  // Choosing one of its own descendants would make it its own ancestor; the
-  // picker does not filter those, and the server answers 400 `validation-error`.
-  const parentChoices = categories.filter((c) => c.id !== category?.id);
+  // A category cannot be its own parent, and choosing one of its descendants
+  // would make it its own ancestor (the server answers 400 `validation-error`),
+  // so the picker leaves out the category and everything below it.
+  const excluded = category === undefined ? null : subtreeIds(categories, category.id);
+  const parentChoices = categories.filter((c) => excluded === null || !excluded.has(c.id));
 
   const submit = () => {
     const body = { name: name.trim(), parentId, icon: icon.trim() === '' ? null : icon.trim() };
