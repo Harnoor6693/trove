@@ -113,6 +113,77 @@ class EnvelopeSpendServiceIT extends BudgetTestSupport {
         assertSpentEqualsTheSqlSum();
     }
 
+    private void disconnect(String account) {
+        HttpResponse<String> deleted = exchange("DELETE", appUrl("/v1/accounts/" + account), null,
+            "Authorization", "Bearer " + member.accessToken());
+        assertThat(deleted.statusCode()).as(deleted.body()).isEqualTo(200);
+    }
+
+    @Test
+    @DisplayName("G2: disconnecting an account takes its rows out of spent")
+    void disconnectingAnAccountRecomputesSpent() {
+        spend("60.00", "2026-09-05", "DEBIT", groceries);
+        assertThat(storedSpent(envelopeId)).isEqualByComparingTo(new BigDecimal("60.0000"));
+
+        disconnect(accountId);
+
+        assertThat(storedSpent(envelopeId))
+            .as("the cascade removed the rows; nothing else rewrites the stored figure")
+            .isEqualByComparingTo(BigDecimal.ZERO);
+        assertSpentEqualsTheSqlSum();
+    }
+
+    @Test
+    @DisplayName("G2: disconnecting an account counts a freed transfer partner again")
+    void disconnectingAnAccountRecountsAFreedPartner() {
+        String other = createManualAccount(member, "Card " + UUID.randomUUID());
+        String debit = createManualTransaction(member, other, "60.00", "2026-09-25", "DEBIT",
+            "CARD PAYMENT " + UUID.randomUUID()).path("id").asString();
+        patchJson(appUrl("/v1/transactions/" + debit), Json.object("categoryId", groceries),
+            "Authorization", "Bearer " + member.accessToken());
+        String credit = createManualTransaction(member, accountId, "60.00", "2026-09-26",
+            "CREDIT", "PAYMENT RECEIVED " + UUID.randomUUID()).path("id").asString();
+        String group = UUID.randomUUID().toString();
+        for (String id : new String[] {debit, credit}) {
+            patchJson(appUrl("/v1/transactions/" + id), Json.object("transferGroupId", group),
+                "Authorization", "Bearer " + member.accessToken());
+        }
+        assertThat(storedSpent(envelopeId))
+            .as("a paired leg is a transfer, not spending")
+            .isEqualByComparingTo(BigDecimal.ZERO);
+
+        disconnect(accountId);
+
+        assertThat(storedSpent(envelopeId))
+            .as("its pair is gone, so the surviving leg is spending again")
+            .isEqualByComparingTo(new BigDecimal("60.0000"));
+        assertSpentEqualsTheSqlSum();
+    }
+
+    @Test
+    @DisplayName("G2: one disconnect recomputes every month and category the account touched")
+    void disconnectingAnAccountRecomputesEveryMonth() {
+        String octoberPeriod = createPeriodId(member, "2026-10-01");
+        String octoberEnvelope = createEnvelope(member, octoberPeriod, groceries, "400.00", "CAD")
+            .path("id").asString();
+        spend("60.00", "2026-09-05", "DEBIT", groceries);
+        spend("15.00", "2026-09-06", "DEBIT", groceries);
+        spend("25.00", "2026-10-03", "DEBIT", groceries);
+        String uncategorised = createManualTransaction(member, accountId, "9.00", "2026-10-04",
+            "DEBIT", "UNCATEGORISED " + UUID.randomUUID()).path("id").asString();
+        assertThat(uncategorised).isNotBlank();
+        assertThat(storedSpent(envelopeId)).isEqualByComparingTo(new BigDecimal("75.0000"));
+        assertThat(storedSpent(octoberEnvelope)).isEqualByComparingTo(new BigDecimal("25.0000"));
+
+        disconnect(accountId);
+
+        assertThat(storedSpent(envelopeId)).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(storedSpent(octoberEnvelope)).isEqualByComparingTo(BigDecimal.ZERO);
+        assertSpentEqualsTheSqlSum();
+        assertThat(storedSpent(octoberEnvelope))
+            .isEqualByComparingTo(sqlSpend(member.householdId(), groceries, "2026-10-01", "CAD"));
+    }
+
     @Test
     @DisplayName("B2-04: pairing a transfer, by the job or by PATCH, takes the leg out of spent")
     void transferPairingRecomputesSpent() {

@@ -3,14 +3,19 @@ package finance.trove.accounts;
 import finance.trove.accounts.dto.AccountRequest;
 import finance.trove.accounts.dto.AccountUpdateRequest;
 import finance.trove.common.domain.CurrencyCode;
+import finance.trove.common.events.TransactionCategorisedEvent;
 import finance.trove.common.exception.ConflictException;
 import finance.trove.common.exception.ResourceNotFoundException;
 import finance.trove.common.plugin.SourceKind;
 import finance.trove.common.time.UserClock;
 import finance.trove.users.UserRepository;
+import java.time.YearMonth;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,12 +35,14 @@ public class AccountService {
     private final ConnectedAccountRepository accounts;
     private final UserRepository users;
     private final UserClock clock;
+    private final ApplicationEventPublisher events;
 
     public AccountService(ConnectedAccountRepository accounts, UserRepository users,
-                          UserClock clock) {
+                          UserClock clock, ApplicationEventPublisher events) {
         this.accounts = accounts;
         this.users = users;
         this.clock = clock;
+        this.events = events;
     }
 
     @Transactional(readOnly = true)
@@ -193,13 +200,39 @@ public class AccountService {
      * <p>That cascade is the whole reason {@code DELETE /v1/transactions/{id}} refuses a synced
      * row: a fetched transaction removed on its own would simply be fetched again, so the honest
      * way to be rid of one is to be rid of the connection that produces it.
+     *
+     * <p><strong>Envelopes are recomputed (G2).</strong> The cascade is invisible to the
+     * application, and a budget envelope's {@code spent} is a stored figure rewritten only when a
+     * {@link TransactionCategorisedEvent} arrives, so without one the envelope would keep counting
+     * rows that no longer exist. Two sets of rows change: the account's own categorised rows
+     * (gone) and the categorised legs of its transfer partners on other accounts (unlinked by
+     * {@code freeTransferPartners}, so spending again). Both are read first, while they still
+     * exist and are still linked, and one event per category and month is published after the
+     * delete; the listener recomputes from the ledger as it stands once this commits. An unknown
+     * or foreign account is 404 and publishes nothing.
+     *
+     * @param userId the member disconnecting the account; the events need an actor
      */
     @Transactional
-    public void delete(UUID householdId, UUID accountId) {
+    public void delete(UUID householdId, UUID userId, UUID accountId) {
+        List<CategorisedRow> affected =
+            accounts.categorisedRowsAffectedByDisconnect(accountId, householdId);
         accounts.freeTransferPartners(accountId, householdId);
         if (accounts.deleteByIdAndHouseholdId(accountId, householdId) == 0) {
             throw ResourceNotFoundException.of("Account", accountId);
         }
+        Map<CategoryMonth, CategorisedRow> perCategoryAndMonth = new LinkedHashMap<>();
+        for (CategorisedRow row : affected) {
+            perCategoryAndMonth.putIfAbsent(
+                new CategoryMonth(row.categoryId(), YearMonth.from(row.date())), row);
+        }
+        perCategoryAndMonth.forEach((bucket, row) -> events.publishEvent(
+            new TransactionCategorisedEvent(householdId, userId, row.transactionId(),
+                bucket.categoryId(), bucket.categoryId(), bucket.month(), row.currency())));
+    }
+
+    /** What one envelope recompute covers; the listener keys on exactly this pair. */
+    private record CategoryMonth(UUID categoryId, YearMonth month) {
     }
 
     /** The scoped lookup every by-id route funnels through; empty is 404, never 403. */
