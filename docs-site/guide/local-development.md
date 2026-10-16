@@ -54,9 +54,18 @@ set -a; . ./.env; set +a   # core/.env, see below
 ../mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
-Copy `core/.env.example` to `core/.env` (it is safe to source in a shell). Its defaults match
-the Postgres container from step 1 and `SPRING_PROFILES_ACTIVE=dev`. The file also sets `TROVE_DATA_DIR=/data`; change it to a
-folder you can write to (or delete the line to use the `dev` default, `./target/trove-data`).
+Copy `core/.env.example` to `core/.env`. Its defaults match the Postgres container from step 1
+and `SPRING_PROFILES_ACTIVE=dev`. Two of its lines are production values that override the `dev`
+defaults, so delete them:
+
+```bash
+sed -i.bak -E '/^TROVE_(DATA_DIR|EGRESS_ALLOW_PRIVATE)=/d' .env
+```
+
+`TROVE_DATA_DIR=/data` is a folder a laptop cannot write (the `dev` default is
+`./target/trove-data`); `TROVE_EGRESS_ALLOW_PRIVATE=false` turns off the `dev` default of `true`,
+which a LAN Ollama at http://localhost:11434 needs. If you would rather keep a line, give it a
+real value (a writable folder, `true`).
 Then set what you need:
 
 ```bash
@@ -66,11 +75,11 @@ TROVE_ADMIN_PASSWORD=<a password>
 ```
 
 The `dev` profile (`core/src/main/resources/application-dev.yml`) points at
-`jdbc:postgresql://localhost:5432/trove` with user `trove` / password `trove` (all three
-overridable via `TROVE_DB_URL` / `TROVE_DB_USER` / `TROVE_DB_PASSWORD`) — matching the
-Postgres container started in step 1. It does **not** default `TROVE_JWT_SECRET` — export
-a real value (any random string; `openssl rand -hex 32` is fine for local use) or the app
-refuses to boot. `TROVE_ENCRYPTION_KEY` does default in `dev`, but only in `dev`.
+`jdbc:postgresql://localhost:5432/trove` with user `trove` / password `trove` (all three overridable
+via `TROVE_DB_URL` / `TROVE_DB_USER` / `TROVE_DB_PASSWORD`) — matching the Postgres container
+started in step 1. It does **not** default `TROVE_JWT_SECRET`: export a value of at least 32 bytes
+(`openssl rand -hex 32` is fine for local use) or the app refuses to boot. `TROVE_ENCRYPTION_KEY`
+has a default in `dev`, so leave it unset.
 
 ### First login
 

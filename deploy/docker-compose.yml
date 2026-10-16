@@ -135,9 +135,9 @@ services:
       # the JVM itself reads. JAVA_OPTS stays the operator-facing name.
       JAVA_TOOL_OPTIONS: ${JAVA_OPTS:--Xmx1280m -XX:+UseZGC}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
-      # Datasource — both the canonical names (plan 1.6) and Spring's own
-      # relaxed-binding names, so the container is correct whichever the
-      # application.yml placeholder ends up being.
+      # Datasource. Compose passes Spring's own names (SPRING_DATASOURCE_*); they override the
+      # ${TROVE_DB_*} placeholders in application.yml, which compose does not set. POSTGRES_* are
+      # passed for tooling only; the application does not read them.
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-trove}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-trove}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env - run ./trove bootstrap to generate it}
@@ -318,7 +318,7 @@ services:
     image: grafana/grafana:11.6.16
     profiles: ["monitoring"]
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in deploy/.env before enabling the monitoring profile - there is no default}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in deploy/.env - compose needs it even when the monitoring profile is off; ./trove bootstrap generates it}
       GF_SECURITY_DISABLE_GRAVATAR: "true"
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_ANALYTICS_REPORTING_ENABLED: "false"

@@ -59,7 +59,7 @@ of another household is 404.
 | `PUT` | `/v1/admin/users/{id}/role` | Make a member an `ADMIN`, or a `MEMBER` again. |
 | `POST` | `/v1/admin/users/{id}/unlock` | End every sign-in throttle on a member's account (not your own). |
 | `DELETE` | `/v1/admin/users/{id}/totp` | Remove a member's second factor, e.g. a lost phone (not your own; use `DELETE /v1/auth/totp` for that). |
-| `GET`/`POST` | `/v1/admin/invites` | List or create invite links. The create response (201) carries the only readable copy of the token. |
+| `GET`/`POST` | `/v1/admin/invites` | List or create invite links. The link (`token` and `url`) is returned on creation (201) and again by the list for as long as the invite is still usable; both are null once it is accepted, revoked or expired. |
 | `DELETE` | `/v1/admin/invites/{id}` | Withdraw an unredeemed invite. |
 | `GET`/`PUT` | `/v1/admin/settings` | Open registration, scheduled bank sync. |
 | `GET` | `/v1/audit` | Paged audit log of mutating requests (`ADMIN` only; kept 365 days). |

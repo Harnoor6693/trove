@@ -396,7 +396,7 @@ cmd_up() {
   compose build
 
   head1 "Pulling image-only services (traefik, postgres, socket proxy, ...)"
-  # --ignore-buildable skips trove-core and trove-web, which are built above.
+  # --ignore-buildable skips trove-core and web, which are built above.
   # Without it a stale cached tag (e.g. an old traefik:v3.7) is never refreshed.
   # Non-fatal here: a registry outage must not stop a restart that cached images can serve
   # (`./trove update` keeps the pull fatal, since refreshing is its whole job).
@@ -420,7 +420,8 @@ cmd_up() {
     say "  (the first request can take ~30 s while Let's Encrypt issues the certificate)"
   fi
   say "  sign in with TROVE_ADMIN_EMAIL / TROVE_ADMIN_PASSWORD from deploy/.env,"
-  say "  then change that password and delete it from the file."
+  say "  then change that password in Settings. Leave the TROVE_ADMIN_PASSWORD line in the file:"
+  say "  compose requires it, and it is ignored once any user exists."
 }
 
 # ═════════════════════════════════════════════════════════════════════════

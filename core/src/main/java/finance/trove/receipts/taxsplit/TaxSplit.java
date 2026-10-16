@@ -9,9 +9,10 @@ import java.math.BigDecimal;
  * <p>Exactly one group is non-zero for any real jurisdiction: {@code hst} alone in an HST province,
  * {@code gst} and {@code pst} together where both apply, {@code gst} alone elsewhere.
  *
- * <p><strong>This never leaves the receipt.</strong> The tax-time export carries the member's own
- * amounts and labels with no rate and no computed figure of any kind (§2.9, §4.12, open question
- * 1), and step 15's {@code TaxExportIT} greps the generated files for {@code gst} to hold that.
+ * <p><strong>This never reaches the tax export.</strong> The tax-time export carries the member's
+ * own amounts and labels with no rate and no computed figure of any kind (§2.9, §4.12, open
+ * question 1), and step 15's {@code TaxExportIT} greps the generated files for {@code gst} to hold
+ * that. The full data export's {@code receipts.json} does carry the stored split.
  */
 public record TaxSplit(BigDecimal gst, BigDecimal pst, BigDecimal hst) {
 

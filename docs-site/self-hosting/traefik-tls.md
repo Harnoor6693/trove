@@ -14,8 +14,9 @@ certificate storage (the `traefik_acme` volume, included in backups) and the per
 `.env` settings — is
 ["3. Domain and TLS"](https://github.com/Harnoor6693/trove/blob/canary/deploy/README.md#3-domain-and-tls)
 in `deploy/README.md`. This page intentionally does not duplicate it. To switch modes,
-edit `TROVE_TLS_MODE` in `deploy/.env` (plus `CF_DNS_API_TOKEN` for `acme-dns`) and run
-`./trove up`.
+edit `TROVE_TLS_MODE` in `deploy/.env` (plus `CF_DNS_API_TOKEN` for `acme-dns`, and
+`TROVE_HTTP_PORT`/`TROVE_HTTPS_PORT` for `off`), then run `./trove down && ./trove up` so Traefik
+restarts with the re-rendered static config. Data volumes are not touched.
 
 For what Traefik does and does not protect once traffic reaches it (rate limiting,
 security headers, what a compromised container could still reach), see

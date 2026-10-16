@@ -6341,7 +6341,7 @@ export interface components {
              * @example 2026-09-04
              */
             date: string;
-            /** @description Omitted or null means `DEBIT`. */
+            /** @description Omitted means `DEBIT`. */
             type?: components["schemas"]["TransactionType"];
             /**
              * @description Stored as `merchantName`, and what the categorisation pipeline matches on.
@@ -6459,10 +6459,10 @@ export interface components {
             incomeThisMonth: components["schemas"]["MoneyAmount"];
             netThisMonth: components["schemas"]["MoneyAmount"];
             /**
-             * @description One entry per currency that has at least one non-transfer
-             *     transaction dated from the first of the caller's current month
-             *     through the caller's today, ordered by currency code. Empty when
-             *     there are none.
+             * @description One entry per currency that has at least one transaction that is not
+             *     a paired internal-transfer leg, dated from the first of the caller's
+             *     current month through the caller's today, ordered by currency code.
+             *     Empty when there are none.
              *     An array rather than an object keyed by code, so a generated client
              *     gets a typed list instead of an index signature.
              */
@@ -7446,9 +7446,10 @@ export interface components {
         /**
          * @description Computed on every read from the envelope's amounts and where today falls
          *     inside the period's month, in the CALLER's own timezone. Never stored:
-         *     it depends on the clock, not on the row. `expectedSpend` is allocated
-         *     plus `rolloverAmount` multiplied by the elapsed fraction of the month,
-         *     and `remainingAmount` is that same sum less `spent`, floored at zero.
+         *     it depends on the clock, not on the row. `expectedSpend` is (`allocated` +
+         *     `rolloverAmount`) multiplied by the elapsed fraction of the month, and
+         *     `remainingAmount` is `allocated` + `rolloverAmount` less `spent`, floored
+         *     at zero.
          *
          *     For a month already over, the pace is 100 %; for one not yet begun it is
          *     0 %. The pre-collapse calculator used today's day-of-month whatever

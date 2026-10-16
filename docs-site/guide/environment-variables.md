@@ -33,8 +33,10 @@ read by the code that consumes them and cannot drift from it the same way.
   bank sync itself is off until an admin switches it on in Settings; the cron (daily 09:17
   UTC) is the only thing the variable controls.
 - **`SMTP_ENABLED` is off by default.** Leaving it off is a normal, fully-supported
-  configuration: notifications stay in-app only. See
-  [ADR-0011](https://github.com/Harnoor6693/trove/blob/canary/docs/adr/0011-threat-model.md) and `finance.trove.notifications`.
+  configuration: notifications stay in-app only and password resets are admin-issued links. See
+  the SMTP block in
+  [core/.env.example](https://github.com/Harnoor6693/trove/blob/canary/core/.env.example) and
+  `finance.trove.notifications.send.EmailChannel`.
 - **`TROVE_RECEIPT_QUOTA_MB` is per household, not per user** — one shared quota for
   everyone the admin invites. See [Receipts](../api/receipts).
 - **No AI provider, model or API-key variables exist.** AI is per-user and configured from
@@ -48,9 +50,9 @@ read by the code that consumes them and cannot drift from it the same way.
 These are read by the code but have no entry in either `.env.example` file. Compose passes
 them to `trove-core` only if you add them to its `environment:` block.
 
-| Variable | Default | What it does |
-|---|---|---|
-| `TROVE_ACCOUNT_DELETION_GRACE` | `P7D` | how long a removed member is kept before the hard delete. An ISO-8601 duration, for example `P7D` or `PT72H`. The in-app dialogs say "seven days" verbatim, so if you change this the text no longer matches |
-| `TROVE_DATA_EXPORT_DOWNLOAD_TTL` | `PT24H` | how long a data export link stays valid |
-| `TROVE_DATA_EXPORT_RUNS_PER_DAY` | `1` | data exports one user may start per day |
-| `TROVE_DATA_EXPORT_SWEEP_BATCH_SIZE` | `200` | export archives the hourly sweep handles at once |
+| Variable                             | Default | What it does                                                                                                                                                                                                 |
+| ------------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `TROVE_ACCOUNT_DELETION_GRACE`       | `P7D`   | how long a removed member is kept before the hard delete. An ISO-8601 duration, for example `P7D` or `PT72H`. The in-app dialogs say "seven days" verbatim, so if you change this the text no longer matches |
+| `TROVE_DATA_EXPORT_DOWNLOAD_TTL`     | `PT24H` | how long a data export link stays valid                                                                                                                                                                      |
+| `TROVE_DATA_EXPORT_RUNS_PER_DAY`     | `1`     | data exports one user may start per day                                                                                                                                                                      |
+| `TROVE_DATA_EXPORT_SWEEP_BATCH_SIZE` | `200`   | export archives the hourly sweep handles at once                                                                                                                                                             |

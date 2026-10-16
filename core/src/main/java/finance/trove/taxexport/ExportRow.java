@@ -26,8 +26,8 @@ import java.util.UUID;
  *       {@code transaction.receipt_id} (V38) and populates it; it is the receipt's <em>id</em> and
  *       nothing more — never a download URL, never a storage key, and above all never a figure
  *       computed from the receipt. The receipt's own GST/PST/HST split stays on the receipt and is
- *       never part of the tax export (§2.9, open question 1). The cell is empty for a transaction with no
- *       receipt attached, which is most of them.</li>
+ *       never part of the tax export (§2.9, open question 1).
+ *       The cell is empty for a transaction with no receipt attached, which is most of them.</li>
  * </ul>
  *
  * <p>{@code amount} is a {@link BigDecimal} at the ledger's {@code NUMERIC(19,4)} scale and
@@ -37,8 +37,9 @@ import java.util.UUID;
  *
  * @param type the transaction's direction. {@code amount} is always positive, so without this a
  *     paycheque and a purchase look the same (B2-01)
- * @param accountId the account, transferGroupId the pairing id and pending the pending flag: written
- *     only by the full data export ({@link CsvExportBuilder#buildLedger}), never by the tax export
+ * @param accountId the account, transferGroupId the pairing id and pending the pending flag:
+ *     written only by the full data export ({@link CsvExportBuilder#buildLedger}), never by the
+ *     tax export
  * @param receiptId the attached receipt's id, or null — no URL, no key, no figure
  */
 public record ExportRow(LocalDate date, String merchant, String description, String notes,
