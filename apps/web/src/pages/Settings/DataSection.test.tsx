@@ -46,6 +46,18 @@ describe('Your data — export', () => {
     expect(dialog).toHaveTextContent(/one export a day/i)
   })
 
+  it('names the member’s own datasets and warns that webhook URLs are exported as entered', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<DataSection />)
+
+    await user.click(await screen.findByRole('button', { name: /export everything/i }))
+    const dialog = await screen.findByTestId('start-export-dialog')
+    expect(dialog).toHaveTextContent(/subscription alerts/i)
+    expect(dialog).toHaveTextContent(/your own profile, webhooks, notification inbox, coach conversations, coach insights/i)
+    expect(dialog).toHaveTextContent(/no password, second-factor secret, AI key or webhook signing secret/i)
+    expect(dialog).toHaveTextContent(/a token in that URL/i)
+  })
+
   it('polls a started run to COMPLETE, then downloads it through the session and revokes the URL', async () => {
     resetMswState({ dataExportPollsRemaining: 0 })
     authenticate()

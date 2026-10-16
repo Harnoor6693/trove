@@ -179,9 +179,15 @@ function StartExportDialog({ onClose }: { onClose: () => void }) {
         <p className={styles.note}>
           Trove builds a ZIP archive of your household's ledger — transactions as CSV, and one JSON
           file each for accounts, categories, merchant rules, budget periods, envelopes, savings
-          goals, subscriptions, net-worth snapshots, assets, liabilities, receipts, coach
-          conversations and notification preferences — plus a manifest. The ledger is shared, so it
-          contains your household mates' rows too; only you can download this archive.
+          goals, subscriptions, subscription alerts, net-worth snapshots, assets, liabilities and
+          receipts — with your own profile, webhooks, notification inbox, coach conversations, coach
+          insights, tax-line mappings and notification preferences, plus a manifest. The ledger is
+          shared, so it contains your household mates' rows too; only you can download this archive.
+        </p>
+        <p className={styles.note}>
+          No password, second-factor secret, AI key or webhook signing secret is ever included. A
+          webhook's target URL is exported as you entered it, and some services put a token in that
+          URL, so keep the archive somewhere safe.
         </p>
         <p className={styles.note}>
           <strong>Receipts are included as details only, never as images.</strong> Merchant,
