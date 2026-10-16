@@ -5,8 +5,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import finance.trove.app.support.Json;
 import finance.trove.app.support.LedgerSupport;
 import finance.trove.app.support.OpenApiConformance;
+import finance.trove.app.support.RowLockGate;
 import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -133,6 +141,61 @@ class TransferPartnerLinkIT extends LedgerSupport {
             .isTrue();
         assertThat(group(out).asString()).isEqualTo(existing);
         assertThat(group(in).asString()).isEqualTo(existing);
+    }
+
+    @Test
+    @DisplayName("Two concurrent links of the same row: exactly one wins, the other is 409")
+    void concurrentLinksOfOneRowCannotBothWin() throws Exception {
+        // (X, Y) and (X, Z) at once. An implementation that reads both rows, checks that they are
+        // ungrouped and then writes lets both requests pass the check before either writes, and
+        // the later commit leaves X with Z while Y keeps a group of one. The guard has to be
+        // evaluated by the write itself, after it has waited for the other request's row lock.
+        String x = leg(chequing, "73.80", "DEBIT");
+        String y = leg(creditCard, "73.80", "CREDIT");
+        String z = leg(creditCard, "73.80", "CREDIT");
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        Future<HttpResponse<String>> toY;
+        Future<HttpResponse<String>> toZ;
+        // Both links must write X. Holding X until both are parked on it means each has already
+        // done every read it does before that write, so the check-then-act window is open for
+        // both at once rather than by luck of scheduling.
+        RowLockGate gate = RowLockGate.hold(jdbcTemplate,
+            "SELECT 1 FROM transaction WHERE id = ? FOR UPDATE", UUID.fromString(x));
+        try {
+            CountDownLatch ready = new CountDownLatch(2);
+            CountDownLatch go = new CountDownLatch(1);
+            toY = pool.submit(() -> linkRace(ready, go, x, y));
+            toZ = pool.submit(() -> linkRace(ready, go, x, z));
+            assertThat(ready.await(30, TimeUnit.SECONDS)).isTrue();
+            go.countDown();
+            gate.awaitWaiters(2, Duration.ofSeconds(30));
+        } finally {
+            gate.close();
+        }
+
+        try {
+            HttpResponse<String> linkedY = toY.get(60, TimeUnit.SECONDS);
+            HttpResponse<String> linkedZ = toZ.get(60, TimeUnit.SECONDS);
+            assertThat(List.of(linkedY.statusCode(), linkedZ.statusCode()))
+                .as("one row joins one pair: %s / %s", linkedY.body(), linkedZ.body())
+                .containsExactlyInAnyOrder(200, 409);
+            String winner = linkedY.statusCode() == 200 ? y : z;
+            String loser = linkedY.statusCode() == 200 ? z : y;
+            assertThat(group(x).asString()).isNotBlank().isEqualTo(group(winner).asString());
+            assertThat(group(loser).isNull())
+                .as("the refused link is rolled back, partner write included")
+                .isTrue();
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    private HttpResponse<String> linkRace(CountDownLatch ready, CountDownLatch go, String id,
+                                          String partner) throws InterruptedException {
+        ready.countDown();
+        go.await(30, TimeUnit.SECONDS);
+        return link(id, partner);
     }
 
     @Test
