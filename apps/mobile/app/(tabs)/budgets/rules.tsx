@@ -23,6 +23,7 @@ import {
 import type { CategoryRuleResponse, MatchType } from '@api/types';
 import { normaliseAmountInput } from '@lib/amountInput';
 import { FormScroll } from '@components/ui/FormScroll/FormScroll';
+import { CategoryPicker } from '@components/ui/CategoryPicker/CategoryPicker';
 
 /**
  * `/v1/categories/rules*` — the household's merchant rules, in the ORDER
@@ -301,21 +302,12 @@ function RuleForm({
       </View>
 
       <Text style={[styles.label, { color: theme.ink2 }]}>Category</Text>
-      <View style={styles.chips}>
-        {categories.map((choice) => (
-          <TouchableOpacity
-            key={choice.id}
-            onPress={() => setCategoryId(choice.id)}
-            accessibilityRole="radio"
-            accessibilityLabel={choice.name}
-            accessibilityState={{ selected: categoryId === choice.id }}
-            style={styles.chip}
-            testID={`${testID}-category-${choice.id}`}
-          >
-            <MnPill label={choice.name} variant={categoryId === choice.id ? 'sage' : 'muted'} />
-          </TouchableOpacity>
-        ))}
-      </View>
+      <CategoryPicker
+        categories={categories}
+        value={categoryId}
+        onChange={setCategoryId}
+        testID={testID}
+      />
       {failure === null ? null : <FieldErrorText message={fieldError(failure, 'categoryId')} />}
 
       <Text style={[styles.label, { color: theme.ink2 }]}>Confidence (optional)</Text>
