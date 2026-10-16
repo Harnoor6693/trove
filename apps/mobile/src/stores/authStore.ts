@@ -167,7 +167,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
    * (400/401/403) the client has already ended the session and the store is
    * `anonymous`. After a network error, timeout or 5xx the session is kept and
    * the store stays `locked`, so the caller can retry. With no stored refresh
-   * token it also returns false and the store stays `locked`.
+   * token it also returns false and the store stays `locked`. A caller that
+   * needs to tell the cases apart reads `status` (and `getRefreshToken()`)
+   * after the call, as `AppLock` does for its message.
    */
   unlock: async () => {
     if (get().status !== 'locked') return true;

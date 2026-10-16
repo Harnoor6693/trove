@@ -8,6 +8,7 @@ import { fetchMe } from '@api/me';
 import { fetchPreferences } from '@api/preferences';
 import {
   __resetClientForTests,
+  clearSession,
   getRefreshToken,
   refreshAccessToken,
   setSession,
@@ -198,8 +199,28 @@ describe('locked state', () => {
     expect(mockRefresh).not.toHaveBeenCalled();
   });
 
-  it('reports an expired session when the server rejects the refresh', async () => {
-    mockRefresh.mockRejectedValue(new Error('refresh rejected'));
+  it('says Trove could not be reached, not that the session expired, on a network failure', async () => {
+    // A network error, timeout or 5xx keeps the session: the store stays
+    // `locked` and the member can retry.
+    mockRefresh.mockRejectedValue(new Error('Network request failed'));
+
+    const { getByTestId } = await render(
+      <AppLock>
+        <Child />
+      </AppLock>
+    );
+    await fireEvent.press(getByTestId('app-lock-unlock-btn'));
+
+    await waitFor(() =>
+      expect(getByTestId('app-lock-error').props.children).toMatch(/could not reach trove/i)
+    );
+    expect(getByTestId('app-lock-error').props.children).not.toMatch(/expired/i);
+    expect(useAuthStore.getState().status).toBe('locked');
+  });
+
+  it('reports an expired session when no refresh token is left to retry with', async () => {
+    mockRefresh.mockRejectedValue(new Error('No refresh token'));
+    await clearSession();
 
     const { getByTestId } = await render(
       <AppLock>
@@ -209,6 +230,26 @@ describe('locked state', () => {
     await fireEvent.press(getByTestId('app-lock-unlock-btn'));
 
     await waitFor(() => expect(getByTestId('app-lock-error').props.children).toMatch(/expired/i));
+  });
+
+  it('leaves the lock screen for sign-in when the server rejects the refresh (401)', async () => {
+    // A definitive 400/401/403 makes the client end the session, and the store
+    // follows it down to `anonymous` (see `onSessionEnded` in authStore).
+    mockRefresh.mockImplementation(() => {
+      useAuthStore.setState({ status: 'anonymous' });
+      return Promise.reject(new Error('refresh rejected'));
+    });
+
+    const { getByTestId, queryByTestId } = await render(
+      <AppLock>
+        <Child />
+      </AppLock>
+    );
+    await fireEvent.press(getByTestId('app-lock-unlock-btn'));
+
+    await waitFor(() => expect(queryByTestId('app-lock-screen')).toBeNull());
+    expect(queryByTestId('app-lock-error')).toBeNull();
+    expect(useAuthStore.getState().status).toBe('anonymous');
   });
 
   it('auto-unlocks without a prompt when the app lock is switched off', async () => {
