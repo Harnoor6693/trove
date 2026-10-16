@@ -9,7 +9,7 @@ and are enriched with categories, receipts, and subscription detection.
 | `GET` | `/v1/transactions` | List/filter/page the ledger |
 | `POST` | `/v1/transactions` | Record a transaction by hand |
 | `GET` | `/v1/transactions/{id}` | One transaction |
-| `PATCH` | `/v1/transactions/{id}` | Update category, merchant, notes, tags or transfer link (`{"transferGroupId": null}` unlinks a transfer) |
+| `PATCH` | `/v1/transactions/{id}` | Update category, merchant, notes, tags or transfer link (`{"transferPartnerId": "<id>"}` links both legs at once; `{"transferGroupId": null}` unlinks a transfer) |
 | `DELETE` | `/v1/transactions/{id}` | Remove a manually entered transaction (synced rows: 409) |
 
 Full schemas: [`openapi/trove-core.yaml`](https://github.com/Harnoor6693/trove/blob/canary/openapi/trove-core.yaml), tag `Transactions`.
@@ -18,6 +18,13 @@ Full schemas: [`openapi/trove-core.yaml`](https://github.com/Harnoor6693/trove/b
 `date,desc`, `amount,asc`, `amount,desc`), `from`/`to` (ISO dates), `type`, `accountId`,
 `categoryId` and `q` (up to 200 characters). Unpaired transfers between your own accounts
 are matched into pairs by an hourly job.
+
+To link two legs by hand, send `{"transferPartnerId": "<other transaction id>"}` to either one.
+The server writes one new group id onto both rows in a single database transaction, so both
+are linked or neither is. It answers 400 when the body also carries `transferGroupId` or names
+the row itself, 404 when the partner is not in your household, and 409 when either row is
+already part of a transfer (unlink it first). Unlinking one leg with
+`{"transferGroupId": null}` frees its partner as well.
 
 ## Accounts (tag: Accounts)
 
