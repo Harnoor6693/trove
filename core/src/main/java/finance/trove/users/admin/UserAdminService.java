@@ -10,7 +10,6 @@ import finance.trove.households.HouseholdRepository;
 import finance.trove.users.User;
 import finance.trove.users.UserRepository;
 import finance.trove.users.UserRole;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
@@ -75,7 +74,7 @@ public class UserAdminService {
      * rather than comparing ids.
      *
      * <p>The member is deactivated, stamped and their sessions revoked; the row survives for the
-     * restore window ({@link #grace()}) and is then erased by {@code AccountPurgeJob}.
+     * restore window ({@link AccountDeletionProperties#grace()}) and is then erased by {@code AccountPurgeJob}.
      * {@code GET /v1/admin/users} already returns {@code active}, so a soft-deleted member is
      * visible to the administrator who has to decide whether to restore them.
      *
@@ -290,10 +289,5 @@ public class UserAdminService {
         LOG.info("A {} became a {} in household {} ({} sessions revoked)", previous, role,
             householdId, revoked);
         return saved;
-    }
-
-    /** How long a deleted member may still be restored — the property's value, for callers. */
-    public Duration grace() {
-        return properties.grace();
     }
 }
