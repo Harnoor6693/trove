@@ -285,8 +285,25 @@ describe('Transactions — the presence-meaningful PATCH', () => {
   })
 })
 
+/** Every PATCH to a transaction the page sends while `run` is going. */
+async function transactionPatches(run: () => Promise<void>): Promise<string[]> {
+  const seen: string[] = []
+  const listener = ({ request }: { request: Request }) => {
+    if (request.method === 'PATCH' && /\/v1\/transactions\//.test(request.url)) {
+      seen.push(new URL(request.url).pathname)
+    }
+  }
+  server.events.on('request:start', listener)
+  try {
+    await run()
+  } finally {
+    server.events.removeListener('request:start', listener)
+  }
+  return seen
+}
+
 describe('Transactions — transfers are a patch, not a route', () => {
-  it('links two legs by writing the same transferGroupId onto both', async () => {
+  it('links both legs with ONE patch naming the partner', async () => {
     authenticate()
     const user = userEvent.setup()
     renderWithProviders(<Transactions />)
@@ -299,14 +316,47 @@ describe('Transactions — transfers are a patch, not a route', () => {
     const picker = within(detail).getByLabelText(/other side of it/i)
     await waitFor(() => expect(picker).toBeEnabled())
     await user.selectOptions(picker, 'txn-2')
-    await user.click(within(detail).getByRole('button', { name: /mark these two as a transfer/i }))
-
-    await waitFor(() => {
-      const a = mswState.transactions.find((t) => t.id === 'txn-1')?.transferGroupId
-      const b = mswState.transactions.find((t) => t.id === 'txn-2')?.transferGroupId
-      expect(a).toBeTruthy()
-      expect(a).toBe(b)
+    const patches = await transactionPatches(async () => {
+      await user.click(within(detail).getByRole('button', { name: /mark these two as a transfer/i }))
+      await waitFor(() => {
+        const a = mswState.transactions.find((t) => t.id === 'txn-1')?.transferGroupId
+        const b = mswState.transactions.find((t) => t.id === 'txn-2')?.transferGroupId
+        expect(a).toBeTruthy()
+        expect(a).toBe(b)
+      })
     })
+
+    // The server writes both legs from this one request; there is no second
+    // write that could fail on its own and leave txn-1 half a transfer.
+    expect(patches).toHaveLength(1)
+    expect(patches[0]).toMatch(/\/v1\/transactions\/txn-1$/)
+    expect(mswState.lastTransactionPatch).toEqual({ transferPartnerId: 'txn-2' })
+  })
+
+  it('does not offer a row that is already one leg of a transfer', async () => {
+    authenticate()
+    mswState.transactions = mswState.transactions.map((t) =>
+      t.id === 'txn-2' ? { ...t, transferGroupId: '00000000-0000-4000-8000-0000000000f2' } : t
+    )
+    const user = userEvent.setup()
+    renderWithProviders(<Transactions />)
+    await screen.findByTestId('transactions-table')
+
+    await user.click(screen.getByRole('button', { name: /details for corner market/i }))
+    const detail = await screen.findByTestId('transaction-detail')
+    const picker = within(detail).getByLabelText(/other side of it/i)
+    // Cash lunch is ungrouped and is offered; Employer Inc is grouped and is not,
+    // because the server refuses to join an existing pair (409).
+    await waitFor(() =>
+      expect(
+        within(picker).getAllByRole('option').some((o) => o.textContent?.includes('Cash lunch'))
+      ).toBe(true)
+    )
+    expect(
+      within(picker)
+        .getAllByRole('option')
+        .some((o) => o.textContent?.includes('Employer Inc'))
+    ).toBe(false)
   })
 
   /**
@@ -339,13 +389,10 @@ describe('Transactions — transfers are a patch, not a route', () => {
     expect(within(detail).getByTestId('transfer-window-note').textContent).toContain('every account')
   })
 
-  it('surfaces a refused FIRST leg and does not write the second', async () => {
+  it('surfaces a refused link and writes neither leg', async () => {
     authenticate()
-    // ONLY the first leg is refused; the partner's PATCH would succeed. That is
-    // the case that used to vanish: two `mutate` calls share one observer, the
-    // second detaches it from the first, and `mutate` swallows the rejection —
-    // so the member saw no error at all while the partner was written anyway,
-    // leaving one row marked as half a transfer.
+    // The one request is refused. The page must say so rather than look linked,
+    // and nothing may be written to either row.
     server.use(
       http.patch('*/v1/transactions/:id', ({ params }) => {
         if (params.id === 'txn-1') {
@@ -370,7 +417,7 @@ describe('Transactions — transfers are a patch, not a route', () => {
     await user.click(within(detail).getByRole('button', { name: /mark these two as a transfer/i }))
 
     expect(await within(detail).findByText(/That transaction moved on already\./)).toBeInTheDocument()
-    // Neither leg is marked: the second write is never attempted.
+    // Neither leg is marked: the refusal covered both.
     expect(mswState.transactions.find((t) => t.id === 'txn-1')?.transferGroupId).toBeNull()
     expect(mswState.transactions.find((t) => t.id === 'txn-2')?.transferGroupId).toBeNull()
   })

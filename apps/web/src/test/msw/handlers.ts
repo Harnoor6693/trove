@@ -2683,6 +2683,11 @@ export const handlers = [
    * the client sent only what changed — a client that spreads its whole form
    * state in here would show up as extra keys, and an explicit `null` (unlinking
    * a transfer) is a different request from an absent key.
+   *
+   * `transferPartnerId` links BOTH rows from this one request, as the server
+   * does: 400 alongside `transferGroupId` or for the row itself, 404 for an
+   * unknown partner, 409 when either row is already a transfer leg, and on any
+   * refusal neither row changes.
    */
   http.patch('*/v1/transactions/:id', async ({ params, request }) => {
     const body = (await request.json()) as TransactionPatchRequest
@@ -2690,12 +2695,30 @@ export const handlers = [
     const idx = mswState.transactions.findIndex((t) => t.id === params.id)
     if (idx === -1) return fail(404, 'not-found', 'Not Found')
     const next = { ...mswState.transactions[idx] }
+    let partner: TransactionResponse | undefined
+    if ('transferPartnerId' in body) {
+      if ('transferGroupId' in body || body.transferPartnerId === next.id) {
+        return fail(400, 'validation-error', 'Validation Error')
+      }
+      partner = mswState.transactions.find((t) => t.id === body.transferPartnerId)
+      if (!partner) return fail(404, 'not-found', 'Not Found')
+      if (next.transferGroupId !== null || partner.transferGroupId !== null) {
+        return fail(409, 'conflict', 'Conflict', {
+          detail: 'One of these transactions is already part of a transfer.',
+        })
+      }
+      const group = crypto.randomUUID()
+      next.transferGroupId = group
+      partner = { ...partner, transferGroupId: group }
+    }
     if ('categoryId' in body) next.categoryId = body.categoryId ?? null
     if ('merchantName' in body) next.merchantName = body.merchantName ?? null
     if ('notes' in body) next.notes = body.notes ?? null
     if ('tags' in body) next.tags = body.tags ?? null
     if ('transferGroupId' in body) next.transferGroupId = body.transferGroupId ?? null
-    mswState.transactions = mswState.transactions.map((t, i) => (i === idx ? next : t))
+    mswState.transactions = mswState.transactions.map((t, i) =>
+      i === idx ? next : partner && t.id === partner.id ? partner : t
+    )
     return ok(next)
   }),
 

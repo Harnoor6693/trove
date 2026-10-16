@@ -14,16 +14,13 @@
  * (which is the member saying "clear this") and leaving an untouched one out
  * entirely.
  *
- * **Transfers are not a route.** The contract has no transfer endpoint; a leg is
- * marked by patching `transferGroupId` onto the row and unlinked with `null`.
- * Linking two legs is therefore two patches carrying the same id: the other
- * leg's group when it already has one (joining an existing pair), and a freshly
- * minted uuid when it does not. Those two writes are AWAITED IN SEQUENCE through
- * `mutateAsync`: fired with `mutate`, the second detaches React Query's observer
- * from the first, so a first leg that answered 404, 409, 429 or a CSRF 403 failed
- * in total silence while the second leg was written anyway — one row marked as a
- * transfer and its partner not. Awaiting shows a failed first leg and never
- * attempts the second.
+ * **Transfers are not a route.** The contract has no transfer endpoint; two
+ * legs are linked by ONE patch on this row, `{transferPartnerId: <other row>}`,
+ * and the server mints the group id and writes both rows in one transaction, so
+ * a refusal (404, 409, 429 or a CSRF 403) leaves neither linked and is shown
+ * here. A leg is unlinked with `{transferGroupId: null}`, which frees its
+ * partner too. A row that is already a transfer leg is not offered: the server
+ * refuses to join an existing pair.
  *
  * **The other leg is looked up, not picked off the page.** The candidates are
  * fetched here from `listTransactions` over a date window around this row, across
@@ -97,11 +94,6 @@ function buildPatch(original: TransactionResponse, draft: Draft): TransactionPat
   return patch
 }
 
-/** A group id for a brand-new pair. `randomUUID` is present in every target browser. */
-function newTransferGroupId(): string {
-  return crypto.randomUUID()
-}
-
 export interface TransactionDetailProps {
   id: string
   onClose: () => void
@@ -158,7 +150,9 @@ export function TransactionDetail({ id, onClose }: TransactionDetailProps) {
     },
     { enabled: needsCandidates }
   )
-  const candidates = (candidateQuery.data?.rows ?? []).filter((c) => c.id !== id)
+  const candidates = (candidateQuery.data?.rows ?? []).filter(
+    (c) => c.id !== id && c.transferGroupId === null
+  )
 
   function save() {
     if (!row || !current) return
@@ -180,21 +174,14 @@ export function TransactionDetail({ id, onClose }: TransactionDetailProps) {
     if (!row || linkTo === '') return
     const other = candidates.find((c) => c.id === linkTo)
     if (!other) return
-    const groupId = other.transferGroupId ?? newTransferGroupId()
     try {
-      // Awaited, and in this order: this row first, then the partner. `mutate`
-      // twice on one observer loses the first rejection entirely — the second
-      // call detaches the observer and `mutate` swallows the promise — so a
-      // refused first leg used to leave the partner marked as half a transfer
-      // with nothing on screen to say so.
-      await patch.mutateAsync({ id: row.id, patch: { transferGroupId: groupId } })
-      if (other.transferGroupId === null) {
-        await patch.mutateAsync({ id: other.id, patch: { transferGroupId: groupId } })
-      }
+      // One request for both legs: the server links them atomically, so there
+      // is no second write that could fail on its own and leave this row half a
+      // transfer.
+      await patch.mutateAsync({ id: row.id, patch: { transferPartnerId: other.id } })
       setLinkTo('')
     } catch {
-      // The mutation's own error state is rendered below; nothing is retried
-      // here and the second leg is deliberately not attempted.
+      // The mutation's own error state is rendered below; nothing is retried.
     }
   }
 
@@ -354,8 +341,8 @@ export function TransactionDetail({ id, onClose }: TransactionDetailProps) {
                     {candidateQuery.isPending
                       ? 'Looking through your other transactions…'
                       : candidates.length === 0
-                        ? 'No other transaction in that window, on any account. Try a wider one.'
-                        : `${candidates.length} transaction${candidates.length === 1 ? '' : 's'} on every account in that window.`}
+                        ? 'No other unlinked transaction in that window, on any account. Try a wider one.'
+                        : `${candidates.length} unlinked transaction${candidates.length === 1 ? '' : 's'} on every account in that window.`}
                   </p>
                   {candidateQuery.isError && (
                     <p className={styles.error} role="alert">
