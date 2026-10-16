@@ -25,6 +25,7 @@ import { ErrorSlug, type LocaleCode } from '@api/types';
 import { appVersion } from '@api/meta';
 import { logError } from '@lib/logError';
 import { useUserFormat } from '@lib/useUserFormat';
+import { checkDeviceAuthAvailability } from '@hooks/useBiometric';
 import { useAuthStore } from '@stores/authStore';
 import {
   APP_LOCK_TIMEOUT_CHOICES,
@@ -100,6 +101,16 @@ export default function SettingsScreen() {
   const setThemePreference = useUiStore((s) => s.setTheme);
   const appLockEnabled = useUiStore((s) => s.appLockEnabled);
   const setAppLockEnabled = useUiStore((s) => s.setAppLockEnabled);
+  const [appLockUnavailable, setAppLockUnavailable] = useState(false);
+  /** Turning the lock ON needs a way to open it: refuse when the device has none. */
+  const toggleAppLock = async (value: boolean) => {
+    if (value && !(await checkDeviceAuthAvailability())) {
+      setAppLockUnavailable(true);
+      return;
+    }
+    setAppLockUnavailable(false);
+    await setAppLockEnabled(value);
+  };
   const appLockTimeoutMinutes = useUiStore((s) => s.appLockTimeoutMinutes);
   const setAppLockTimeoutMinutes = useUiStore((s) => s.setAppLockTimeoutMinutes);
 
@@ -471,8 +482,18 @@ export default function SettingsScreen() {
             testID="settings-app-lock-toggle"
             label="Require unlock"
             value={appLockEnabled}
-            onToggle={(value) => void setAppLockEnabled(value)}
+            onToggle={(value) => void toggleAppLock(value)}
           />
+          {appLockUnavailable ? (
+            <Text
+              accessibilityRole="alert"
+              style={[styles.note, { color: theme.red }]}
+              testID="settings-app-lock-unavailable"
+            >
+              This device has no passcode or biometrics set up, so the app lock cannot be turned on.
+              Set a device passcode in your phone settings first.
+            </Text>
+          ) : null}
           <Text style={[styles.note, { color: theme.ink3 }]}>
             Trove locks on launch, and after this long in the background.
           </Text>
