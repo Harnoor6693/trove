@@ -42,6 +42,10 @@ and its admin are created once, automatically, on a boot where no users exist ye
 (`CA` or `US`, default `CA`; it also sets the admin's currency, and neither can change later) —
 see `finance.trove.app.bootstrap.FirstRunBootstrap`. After that, the admin invites other
 members from the app; there is no open sign-up.
+`TROVE_HOUSEHOLD_NAME` (default `Household`) only names the household. These variables are read
+from core's environment; a Docker Compose install passes core only the variables listed in
+`deploy/.env.example`, so one that is not listed there keeps its default (see
+[Environment variables](../guide/environment-variables)).
 `TROVE_REGISTRATION_OPEN` only seeds the first boot. After that an administrator opens or
 closes registration in Settings (`PUT /v1/admin/settings`), and the choice is stored on
 the household.
