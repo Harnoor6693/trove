@@ -73,14 +73,12 @@ public class AccountService {
      * unique to the row is the honest thing to store, and rows step 7 creates with real provider
      * ids are still held to one per household per kind.
      *
-     * <p>That also means the {@link ConflictException} below is a safety net and stays
-     * unreachable for hand-made accounts: a synthetic id unique to the row cannot collide with
-     * anything. Provider accounts go through {@code upsertProviderAccount}, which inserts only if
-     * absent. The write is flushed inside the {@code try} so that a violation would be raised here
-     * rather than escaping to the global handler's generic wording.
-     *
-     * @throws ConflictException when an account of this kind already occupies the household's slot
-     *                           for the provider account being described
+     * <p>That also means this method has no conflict to report: a synthetic id unique to the row
+     * cannot collide with anything, so there is no "this household already has an account of that
+     * kind" case, and a {@link DataIntegrityViolationException} here (a vanished household or
+     * user, say) is not that. It is left to the global handler rather than given a cause it has
+     * not established. Provider accounts go through {@code upsertProviderAccount}, which inserts
+     * only if absent.
      */
     @Transactional
     public ConnectedAccount create(UUID householdId, UUID userId, AccountRequest request) {
@@ -94,19 +92,10 @@ public class AccountService {
             request.displayName().trim(), trimToNull(request.institution()),
             request.accountType(), currency, clock.now());
 
-        ConnectedAccount saved;
-        try {
-            saved = accounts.save(account);
-            saved.setExternalAccountId(saved.getId().toString());
-            // saveAndFlush, NOT save. The id is generated in memory, so persist() only queues the
-            // INSERT; with a bare save() nothing would reach the database until commit — after
-            // this catch clause had been left — and the specific conflict below would be
-            // unreachable code guarding a violation that surfaced somewhere else entirely.
-            saved = accounts.saveAndFlush(saved);
-        } catch (DataIntegrityViolationException e) {
-            throw new ConflictException("This household already has a " + request.sourceKind()
-                + " account for that source. Reuse it rather than adding a second one.", e);
-        }
+        ConnectedAccount saved = accounts.save(account);
+        // The id is generated in memory by save(); the managed entity is flushed at commit with
+        // the external id already set.
+        saved.setExternalAccountId(saved.getId().toString());
         return saved;
     }
 
