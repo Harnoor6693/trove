@@ -10,14 +10,15 @@ for getting it running.
 ```bash
 git clone https://github.com/Harnoor6693/trove && cd trove
 cd core
-cp .env.example .env   # then set TROVE_JWT_SECRET (openssl rand -hex 32)
-sed -i.bak -E '/^TROVE_(ENCRYPTION_KEY|DATA_DIR|EGRESS_ALLOW_PRIVATE)=/d' .env   # prod values that would override the dev defaults
+cp .env.example .env   # then edit .env: fill TROVE_JWT_SECRET (openssl rand -hex 32),
+                       # TROVE_ADMIN_EMAIL and TROVE_ADMIN_PASSWORD
 set -a; . ./.env; set +a
 ../mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
 Spring does not read `.env` itself, and a local Postgres is needed first.
-The DB defaults match the Postgres container in local-development.md.
+The DB defaults in `.env` match the Postgres container in local-development.md. Run from
+`core/` (not `-pl core -am` at the root, which also tries to run the parent pom).
 
 Full setup (Postgres, dev profile, seeding a first user) is in
 [the local development guide](docs-site/guide/local-development.md).
