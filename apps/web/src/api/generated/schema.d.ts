@@ -2557,9 +2557,9 @@ export interface paths {
          *     was still empty the next night. The job now enumerates households with
          *     transactions, and this is the manual trigger that was missing entirely.
          *
-         *     Detection reads the household's DEBIT transactions of the last thirteen
-         *     months (transfer legs excluded), groups them by normalised merchant,
-         *     classifies the cadence and upserts one row per merchant with
+         *     Detection reads the household's DEBIT transactions inside the detection
+         *     window, set by `trove.subscriptions.detection-window` (transfer legs
+         *     excluded), groups them by normalised merchant, classifies the cadence and upserts one row per merchant with
          *     `INSERT ... ON CONFLICT (household_id, merchant_name) DO UPDATE`. It is
          *     therefore **idempotent**: running it twice over unchanged history leaves
          *     every row's amount, cycle and next-charge date exactly as they were, and
@@ -3803,7 +3803,7 @@ export interface components {
              *     | `invite-expired` | 410 | the invitation has expired or been redeemed |
              *     | `upload-too-large` | 413 | the upload exceeds the configured maximum |
              *     | `answer-too-long` | 413 | a streamed coach answer outran the length this server stores |
-             *     | `account-locked` | 429 | too many sign-in attempts from this address |
+             *     | `account-locked` | 429 | the per-address sign-in gate refused: too many failed attempts from this address, no resolvable address, or the attempt count could not be read |
              *     | `rate-limited` | 429 | a rate limit was exceeded |
              *     | `internal-server-error` | 500 | unexplained; quote `requestId` |
              *     | `encryption-failed` | 500 | a field could not be encrypted or decrypted |
@@ -7479,8 +7479,11 @@ export interface components {
              */
             paceMarkerPercentage: number;
             /**
-             * @description `spent` is more than 110 % of the linear-pace expectation for today.
-             *     The 10 % buffer absorbs ordinary day-to-day variance.
+             * @description `spent` is more than 110 % of `expectedSpend`, the linear-pace
+             *     expectation for today. Like `healthPercentage` and `expectedSpend`,
+             *     it is measured against `allocated` + `rolloverAmount`; it is false
+             *     when that sum is zero. The 10 % buffer absorbs ordinary day-to-day
+             *     variance.
              * @example true
              */
             overPace: boolean;
@@ -9024,7 +9027,7 @@ export interface components {
                 };
             };
         };
-        /** @description **429.** The sign-in or registration was refused before any password was verified, for one of two reasons, and the slug says which. `account-locked` is the brute-force gate: too many failed attempts from this client address inside the lockout window (a registration refused as `email-taken` counts as one), checked before a credential is read so it costs an attacker the same whether or not the account exists. `rate-limited` is the request-rate limiter in front of it: too many calls to this route from this client address, regardless of whether they failed. Both carry `Retry-After` in seconds. */
+        /** @description **429.** The sign-in or registration was refused before any password was verified, for one of two reasons, and the slug says which. `account-locked` is the brute-force gate: too many failed attempts from this client address inside the lockout window (a registration refused as `email-taken` counts as one), checked before a credential is read so it costs an attacker the same whether or not the account exists. The gate fails closed, so it also answers `account-locked` when the request carries no resolvable client address, or when the failed-attempt count cannot be read (a database error); in those two cases nothing was wrong with the caller's attempts, `Retry-After` is 60 seconds, and the same request can be repeated once the store or the proxy chain is healthy. `rate-limited` is the request-rate limiter in front of it: too many calls to this route from this client address, regardless of whether they failed. Both carry `Retry-After` in seconds. */
         LoginThrottled: {
             headers: {
                 "X-Request-Id": components["headers"]["XRequestId"];
