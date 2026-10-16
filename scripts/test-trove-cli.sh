@@ -158,6 +158,24 @@ printf 'GRAFANA_ADMIN_PASSWORD=not-a-placeholder-1234\n' >> "$D/deploy/.env"
 run_trove "$D" update
 case "$OUT" in *"GRAFANA_ADMIN_PASSWORD is not set"*) fail "update with a password set passes the check" "$OUT" ;; *) pass "update with a password set passes the check" ;; esac
 
+echo "restore --include-secrets: archive env with monitoring on and no Grafana password"
+D=$(new_install)
+TROVE_DOMAIN=trove.test ACME_EMAIL=ops@trove.test TROVE_ADMIN_EMAIL=me@trove.test FAKE_NO_VOLUME=1 run_trove "$D" bootstrap
+ST="${WORK}/restore-staging"; mkdir -p "$ST"
+: > "$ST/database.dump"; echo "manifest" > "$ST/manifest.txt"
+grep -v '^GRAFANA_ADMIN_PASSWORD=\|^COMPOSE_PROFILES=' "$D/deploy/.env" > "$ST/env.secrets"
+printf 'COMPOSE_PROFILES=monitoring\n' >> "$ST/env.secrets"
+tar -czf "$ST/plain.tgz" -C "$ST" database.dump manifest.txt env.secrets
+BP=$(env_get "$D" TROVE_BACKUP_PASSPHRASE)
+TROVE_BACKUP_PASSPHRASE=$BP openssl enc -aes-256-cbc -md sha512 -pbkdf2 -iter 600000 -pass env:TROVE_BACKUP_PASSPHRASE -in "$ST/plain.tgz" -out "$ST/backup.enc"
+cp "$D/deploy/.env" "$ST/env.before"
+OUT=$(cd "$D/deploy" && printf 'trove.test\n' | PATH="${D}/bin:${PATH}" NO_COLOR=1 TROVE_BACKUP_PASSPHRASE=$BP ./trove restore "$ST/backup.enc" --include-secrets 2>&1)
+RC=$?
+case "$OUT" in *"GRAFANA_ADMIN_PASSWORD is not set but the monitoring profile is on"*) pass "restore --include-secrets refuses monitoring on + no password" ;; *) fail "restore --include-secrets refuses monitoring on + no password" "$OUT" ;; esac
+[ "$RC" -ne 0 ] && pass "restore --include-secrets exits non-zero" || fail "restore --include-secrets exits non-zero"
+case "$OUT" in *"FAKE_DOCKER"*) fail "restore never reached docker/compose (no stop, drop or restore)" "$OUT" ;; *) pass "restore never reached docker/compose (no stop, drop or restore)" ;; esac
+cmp -s "$ST/env.before" "$D/deploy/.env" && pass "restore left deploy/.env untouched" || fail "restore left deploy/.env untouched"
+
 echo "TROVE_BIND_ADDR derived from TROVE_TLS_MODE"
 bind_for() { # bind_for DIR : the TROVE_BIND_ADDR the CLI hands to docker compose
   run_trove "$1" down
