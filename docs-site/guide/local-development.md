@@ -50,29 +50,37 @@ and rerun the command above.
 
 ```bash
 cd core
-set -a; . ./.env; set +a   # core/.env, see below
-../mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+cp .env.example .env
 ```
 
-Copy `core/.env.example` to `core/.env`. Its defaults match the Postgres container from step 1
-and `SPRING_PROFILES_ACTIVE=dev`. Two of its lines are production values that override the `dev`
-defaults, so delete them:
-
-```bash
-sed -i.bak -E '/^TROVE_(DATA_DIR|EGRESS_ALLOW_PRIVATE)=/d' .env
-```
-
-`TROVE_DATA_DIR=/data` is a folder a laptop cannot write (the `dev` default is
-`./target/trove-data`); `TROVE_EGRESS_ALLOW_PRIVATE=false` turns off the `dev` default of `true`,
-which a LAN Ollama at http://localhost:11434 needs. If you would rather keep a line, give it a
-real value (a writable folder, `true`).
-Then set what you need:
+Edit `core/.env` and fill the three empty values it needs. `.env.example` has no default for any
+secret, and the first boot needs an admin to sign in as:
 
 ```bash
 TROVE_JWT_SECRET=<output of: openssl rand -hex 32>
 TROVE_ADMIN_EMAIL=you@example.com
 TROVE_ADMIN_PASSWORD=<a password>
 ```
+
+Then load it and start `core`:
+
+```bash
+set -a; . ./.env; set +a
+../mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+```
+
+Spring does not read `.env` itself, so the `set -a; . ./.env; set +a` line is what exports it. Use
+that line rather than `export $(grep -v '^#' .env | xargs)`: the file single-quotes values that
+contain spaces, `|` or `*` (the scheduled-sync cron, `JAVA_TOOL_OPTIONS`, the trusted-proxy
+regex), and `xargs` splits or mangles them. Run from `core/`; `./mvnw spring-boot:run -pl core -am`
+at the repository root fails, because `-am` also runs the plugin on the parent pom.
+
+`.env.example` sets `SPRING_PROFILES_ACTIVE=dev` and matches the Postgres container from step 1.
+Its production-only values (`TROVE_DATA_DIR=/data`, `TROVE_EGRESS_ALLOW_PRIVATE=false`,
+`TROVE_ENCRYPTION_KEY`) are commented out on purpose, so the `dev` defaults apply: data under
+`./target/trove-data` (`/data` is a folder a laptop cannot write), outbound requests to private
+addresses allowed (a LAN Ollama at http://localhost:11434 needs that), and a throwaway encryption
+key. `scripts/check-env-example.sh` checks all of this in CI.
 
 The `dev` profile (`core/src/main/resources/application-dev.yml`) points at
 `jdbc:postgresql://localhost:5432/trove` with user `trove` / password `trove` (all three overridable

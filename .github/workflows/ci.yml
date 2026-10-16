@@ -18,6 +18,7 @@ on:
     branches: [master, develop, canary]
     paths:
       - 'core/**'
+      - 'scripts/check-env-example.sh'
       - 'pom.xml'
       - '.mvn/**'
       - 'mvnw'
@@ -30,6 +31,7 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - 'core/**'
+      - 'scripts/check-env-example.sh'
       - 'pom.xml'
       - '.mvn/**'
       - 'mvnw'
@@ -58,6 +60,10 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: maven
+      # core/.env.example is loaded with `set -a; . ./.env; set +a` (CONTRIBUTING.md, local-development
+      # guide); this fails if a value stops surviving that, or a prod-only value would override dev.
+      - name: core/.env.example sources cleanly
+        run: scripts/check-env-example.sh
       # Testcontainers starts and owns its own Postgres for every IT (BaseIT) —
       # no service containers, no GATEWAY_/INGESTION_/CATEGORISATION_/MODEL_/
       # VALKEY_/AUTHENTIK_ env vars. checkstyle:check + the coverage profile's
