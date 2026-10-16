@@ -104,4 +104,16 @@ describe('Onboarding', () => {
     await screen.findByText(/Step 2 of 3/)
     expect(screen.getByTestId('onboarding-import-pending')).toBeInTheDocument()
   })
+
+  /** F1-B3: there is no checklist on Today, so the last step must not promise one. */
+  it('does not promise a Today checklist that does not exist (F1-B3)', async () => {
+    authenticate()
+    const user = userEvent.setup()
+    renderWithProviders(<Onboarding />)
+    await user.click(await screen.findByRole('button', { name: /continue/i }))
+    await screen.findByText(/Step 2 of 3/)
+    await user.click(screen.getByRole('button', { name: /^continue$/i }))
+    await screen.findByText(/Step 3 of 3/)
+    expect(document.body.textContent).not.toMatch(/Today screen as a checklist/i)
+  })
 })
