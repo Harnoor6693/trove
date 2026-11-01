@@ -33,8 +33,8 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <spring-boot.version>4.1.1</spring-boot.version>
-        <spring-cloud.version>2025.1.3</spring-cloud.version>
+        <spring-boot.version>4.1.2</spring-boot.version>
+        <spring-cloud.version>2025.1.4</spring-cloud.version>
         <testcontainers.version>2.0.5</testcontainers.version>
         <mapstruct.version>1.6.3</mapstruct.version>
         <openapi-generator.version>7.26.0</openapi-generator.version>
@@ -45,10 +45,10 @@
         <pgvector.version>0.1.6</pgvector.version>
         <wiremock.version>3.10.0</wiremock.version>
         <jetty-wiremock.version>12.1.14</jetty-wiremock.version>
-        <jacoco.version>0.8.15</jacoco.version>
+        <jacoco.version>0.8.16</jacoco.version>
         <checkstyle.version>3.6.0</checkstyle.version>
-        <surefire.version>3.6.0</surefire.version>
-        <failsafe.version>3.6.0</failsafe.version>
+        <surefire.version>3.6.1</surefire.version>
+        <failsafe.version>3.6.1</failsafe.version>
         <compiler.version>3.16.0</compiler.version>
         <itext.version>9.8.0</itext.version>
         <minio.version>9.0.3</minio.version>
@@ -71,8 +71,8 @@
         <httpcore5.version>5.4.4</httpcore5.version>
         <httpclient5.version>5.6.5</httpclient5.version>
         <!-- Trivy CVE-2026-89407/-89425/-68497/-91776/-91777: Jackson 2.21.5 / 3.1.5 in the image. -->
-        <jackson2.version>2.22.3</jackson2.version>
-        <jackson3.version>3.2.3</jackson3.version>
+        <jackson2.version>2.22.4</jackson2.version>
+        <jackson3.version>3.2.4</jackson3.version>
         <argLine></argLine>
     </properties>
 
@@ -218,7 +218,7 @@
             <dependency>
                 <groupId>org.openapitools</groupId>
                 <artifactId>jackson-databind-nullable</artifactId>
-                <version>0.2.12</version>
+                <version>0.2.13</version>
             </dependency>
             <dependency>
                 <groupId>org.wiremock</groupId>
@@ -549,7 +549,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-enforcer-plugin</artifactId>
-                    <version>3.6.3</version>
+                    <version>3.7.0</version>
                     <executions>
                         <execution>
                             <id>enforce-java-version</id>
